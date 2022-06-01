@@ -87,6 +87,10 @@ provide list of downloaded GTFSs, their date and url. allow for deleting the dat
 
 gtfs data can be large, so better if we don't have to read it all in to memory?: https://stackoverflow.com/questions/26892634/splitting-gtfs-transit-data-into-smaller-ones
 
+### Sample data
+
+The spec repo contains some [sample data](https://github.com/google/transit/tree/master/gtfs/spec/en/examples/sample-feed-1) but for some reason the shapes.txt is empty. So instead trim down the Stagecoach South West GTFS to make some sample data.
+
 ### Read/write directly vs Sqlite
 
 We can either read data directly from the GTFS zip, or we can copy this data into SQLite and only work with SQLite. Given GTFS data is essentially modelled as a relational db, reading it into a SQLite seems like it could be a quick win.
@@ -115,6 +119,11 @@ update files in place: https://users.rust-lang.org/t/how-to-modify-content-insid
 ## UI
 
 as well as a tailored UI might be useful to be able to switch to a simple db/table view eg for checking raw data/data integrity etc
+
+have four column lists, in order: agencies, routes, trips, stops. (multiple) selection of an item(s) in the list will filter the subsequent columns.
+will also highlight the item on the map
+can also select routes/stops by clicking on the map
+would be nice to be able to click on a stop and it will highlight all the trips that use it
 
 # Dustins message
 
@@ -189,6 +198,17 @@ https://github.com/Zverik/every_door
 https://crates.io/crates/osm-tile-downloader Download tiles from an OpenStreetMap tileserver to the file system
 
 # GTFS/transit Data
+
+## Sample Data
+
+https://github.com/google/transit/tree/master/gtfs/spec/en/examples/sample-feed-1 has an empty shapes.txt for some reason, so will create our own sample data for the app.
+
+## Spec
+
+### Schemas
+
+https://www.researchgate.net/figure/The-GTFS-Schema-for-the-data-from-JSP-Skopje_fig1_263853949
+https://opentransportdata.swiss/en/cookbook/gtfs/
 
 ## Relevant organisations
 
