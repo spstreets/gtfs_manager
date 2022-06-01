@@ -124,6 +124,7 @@ have four column lists, in order: agencies, routes, trips, stops. (multiple) sel
 will also highlight the item on the map
 can also select routes/stops by clicking on the map
 would be nice to be able to click on a stop and it will highlight all the trips that use it
+I think displaying all the lists simultaneously is going to take up too much space and obscure the map. Plus once an item is selected, the rest of the list is pretty redundant while investigating subsequent lists. better to do something like: first only show agencies, then once one is selected only show routes etc.
 
 # Dustins message
 
