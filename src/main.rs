@@ -16,7 +16,7 @@ use druid::{
 use gtfs_structures::{Gtfs, Route};
 use std::error::Error;
 
-use gtfs_manager::{DropdownSelect, ListSelect};
+use gtfs_manager::ListItem;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -32,58 +32,64 @@ struct AppData {
     stop: u16,
 }
 
+fn mylist<T: Data>(data: &Vec<(String, T)>) -> impl Widget<T> {
+    let mut mycol = Flex::column().cross_axis_alignment(CrossAxisAlignment::Fill);
+    data.iter().for_each(|(name, id)| {
+        mycol.add_child(ListItem::new(name.clone(), id.clone()));
+    });
+    mycol
+}
+
 fn main_widget(gtfs: &Gtfs) -> impl Widget<AppData> {
     let mut row = Flex::row().cross_axis_alignment(CrossAxisAlignment::Start);
-    row.add_flex_child(
-        Scroll::new(
-            ListSelect::new(
-                gtfs.routes
-                    .iter()
-                    .map(|(_, route)| (route.short_name.clone(), route.id.clone())),
+    let routes = gtfs
+        .routes
+        .iter()
+        .map(|(_, route)| (route.short_name.clone(), route.id.clone()))
+        .collect::<Vec<_>>();
+    row.add_flex_child(Scroll::new(mylist(&routes)).lens(AppData::route), 1.0);
+
+    let trips = gtfs
+        .trips
+        .iter()
+        .map(|(_, trip)| (trip.id.clone(), trip.id.clone()))
+        .collect::<Vec<_>>();
+    row.add_flex_child(Scroll::new(mylist(&trips)).lens(AppData::trip), 1.0);
+
+    let stops = gtfs
+        .trips
+        .iter()
+        .next()
+        .unwrap()
+        .1
+        .stop_times
+        .iter()
+        .map(|stop_time| {
+            (
+                stop_time.stop.as_ref().name.clone(),
+                stop_time.stop_sequence,
             )
-            .on_select(|_, item, _| {}),
-        )
-        .lens(AppData::route),
-        1.0,
-    );
-    row.add_default_spacer();
+        })
+        .collect::<Vec<_>>();
+    row.add_flex_child(Scroll::new(mylist(&stops)).lens(AppData::stop), 1.0);
 
-    row.add_flex_child(
-        Scroll::new(ListSelect::new(gtfs.trips.iter().map(|(_, trip)| {
-            // todo this will panic if id is less than 6 bytes
-            (trip.id.clone(), trip.id.clone())
-        })))
-        .lens(AppData::trip),
-        1.0,
-    );
-    row.add_default_spacer();
-
-    row.add_flex_child(
-        Scroll::new(ListSelect::new(
-            gtfs.trips
-                .iter()
-                .next()
-                .unwrap()
-                .1
-                .stop_times
-                .iter()
-                .map(|stop_time| {
-                    (
-                        stop_time.stop.as_ref().name.clone(),
-                        stop_time.stop_sequence,
-                    )
-                }),
-        ))
-        .lens(AppData::stop),
-        1.0,
-    );
-    row.add_default_spacer();
-
+    let myroutes = gtfs.routes.clone();
+    let mystoptimes = gtfs.trips.iter().next().unwrap().1.stop_times.clone();
     row.add_child(
-        Label::new(|d: &AppData, _: &Env| {
+        Label::new(move |data: &AppData, _: &Env| {
             format!(
-                "Map with Trip {:?} from Route {:?} highlighted",
-                d.trip, d.route
+                "Map highlighting\nStop {:?}\nfrom Trip {:?}\nfrom Route {:?}",
+                mystoptimes
+                    .iter()
+                    .find(|stop| stop.stop_sequence == data.stop)
+                    .unwrap()
+                    .clone()
+                    .stop
+                    .as_ref()
+                    .name
+                    .clone(),
+                data.trip,
+                myroutes.get(&data.route).unwrap().clone().short_name
             )
         })
         .padding(Insets::uniform_xy(5., 5.)),

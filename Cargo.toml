@@ -6,6 +6,6 @@ edition = "2021"
 [dependencies]
 clap = { version = "3.1.12", features = ["derive"] }
 druid = { git = "https://github.com/linebender/druid", features = ["im", "image", "png"] }
-gtfs-structures = { version = "0.32.2" }
+# gtfs-structures = { version = "0.32.2" }
 # gtfs-structures = { path = "../gtfs-structure", default-features = false }
-# gtfs-structures = { path = "../gtfs-structure" }
+gtfs-structures = { path = "../gtfs-structure" }
