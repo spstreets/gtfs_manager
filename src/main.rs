@@ -7,14 +7,17 @@ use clap::Parser;
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::lens::{self, LensExt};
 use druid::widget::{
-    Button, CrossAxisAlignment, Flex, FlexParams, Label, List, MainAxisAlignment, Scroll,
+    Button, Checkbox, CrossAxisAlignment, Either, Flex, FlexParams, Label, List, MainAxisAlignment,
+    Scroll,
 };
 use druid::{
     AppLauncher, Color, Data, Env, Insets, Lens, LocalizedString, UnitPoint, Widget, WidgetExt,
     WindowDesc,
 };
-use gtfs_structures::{Gtfs, Route};
+use gtfs_structures::{Agency, Gtfs, Route, Stop, StopTime, Trip};
 use std::error::Error;
+use std::fmt::Debug;
+use std::rc::Rc;
 
 use gtfs_manager::ListItem;
 
@@ -25,89 +28,162 @@ pub struct CliArgs {
     pub path: Option<String>,
 }
 
-#[derive(Data, Clone, Lens)]
+#[derive(Clone, Data, Default, Lens)]
+struct MyStopTime {
+    selected: bool,
+    // #[data(ignore)]
+    // stop_time: Rc<StopTime>,
+    name: String,
+}
+
+#[derive(Clone, Data, Default, Lens)]
+struct MyTrip {
+    selected: bool,
+    #[data(ignore)]
+    trip: Rc<Trip>,
+    name: String,
+    stops: Vector<MyStopTime>,
+}
+
+#[derive(Clone, Data, Default, Lens)]
+struct MyRoute {
+    selected: bool,
+    #[data(ignore)]
+    route: Rc<Route>,
+    name: String,
+    trips: Vector<MyTrip>,
+}
+
+#[derive(Clone, Data, Default, Lens)]
+struct MyAgency {
+    selected: bool,
+    #[data(ignore)]
+    agency: Rc<Agency>,
+    name: String,
+    routes: Vector<MyRoute>,
+}
+
+#[derive(Clone, Data, Default, Lens)]
 struct AppData {
-    route: String,
-    trip: String,
-    stop: u16,
+    agencies: Vector<MyAgency>,
 }
 
-fn mylist<T: Data>(data: &Vec<(String, T)>) -> impl Widget<T> {
-    let mut mycol = Flex::column().cross_axis_alignment(CrossAxisAlignment::Fill);
-    data.iter().for_each(|(name, id)| {
-        mycol.add_child(ListItem::new(name.clone(), id.clone()));
-    });
-    mycol
+fn stop_ui() -> impl Widget<MyStopTime> {
+    Flex::row()
+        .with_child(Checkbox::new("").lens(MyStopTime::selected))
+        .with_child(Label::new(|data: &MyStopTime, _env: &_| {
+            format!("{}", data.name)
+        }))
+        // .with_child(Either::new(
+        //     |data: &Trip, _env: &Env| data.selected,
+        //     List::new(stop_ui).lens(Trip::stops),
+        //     Label::new(""),
+        // ))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .padding((10., 0., 0., 0.))
+}
+fn trip_ui() -> impl Widget<MyTrip> {
+    let title = Flex::row()
+        .with_child(Checkbox::new("").lens(MyTrip::selected))
+        .with_child(Label::new(|data: &MyTrip, _env: &_| {
+            format!("{}", data.name)
+        }));
+
+    Flex::column()
+        .with_child(title)
+        .with_child(Either::new(
+            |data: &MyTrip, _env: &Env| data.selected,
+            List::new(stop_ui).lens(MyTrip::stops),
+            Flex::row(),
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .padding((10., 0., 0., 0.))
+}
+fn route_ui() -> impl Widget<MyRoute> {
+    let title = Flex::row()
+        .with_child(Checkbox::new("").lens(MyRoute::selected))
+        .with_child(Label::new(|data: &MyRoute, _env: &_| {
+            format!("{}", data.name)
+        }));
+
+    Flex::column()
+        .with_child(title)
+        .with_child(Either::new(
+            |data: &MyRoute, _env: &Env| data.selected,
+            List::new(trip_ui).lens(MyRoute::trips),
+            Flex::row(),
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .padding((10., 0., 0., 0.))
+}
+fn agency_ui() -> impl Widget<MyAgency> {
+    let title = Flex::row()
+        .with_child(Checkbox::new("").lens(MyAgency::selected))
+        .with_child(Label::new(|data: &MyAgency, _env: &_| {
+            format!("{}", data.name)
+        }));
+
+    Flex::column()
+        .with_child(title)
+        .with_child(Either::new(
+            |data: &MyAgency, _env: &Env| data.selected,
+            List::new(route_ui).lens(MyAgency::routes),
+            Flex::row(),
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .padding((10., 0., 0., 0.))
 }
 
-fn main_widget(gtfs: &Gtfs) -> impl Widget<AppData> {
-    let mut row = Flex::row().cross_axis_alignment(CrossAxisAlignment::Start);
-    let routes = gtfs
-        .routes
-        .iter()
-        .map(|(_, route)| (route.short_name.clone(), route.id.clone()))
-        .collect::<Vec<_>>();
-    row.add_flex_child(Scroll::new(mylist(&routes)).lens(AppData::route), 1.0);
-
-    let trips = gtfs
-        .trips
-        .iter()
-        .map(|(_, trip)| (trip.id.clone(), trip.id.clone()))
-        .collect::<Vec<_>>();
-    row.add_flex_child(Scroll::new(mylist(&trips)).lens(AppData::trip), 1.0);
-
-    let stops = gtfs
-        .trips
-        .iter()
-        .next()
-        .unwrap()
-        .1
-        .stop_times
-        .iter()
-        .map(|stop_time| {
-            (
-                stop_time.stop.as_ref().name.clone(),
-                stop_time.stop_sequence,
-            )
-        })
-        .collect::<Vec<_>>();
-    row.add_flex_child(Scroll::new(mylist(&stops)).lens(AppData::stop), 1.0);
-
-    let myroutes = gtfs.routes.clone();
-    let mystoptimes = gtfs.trips.iter().next().unwrap().1.stop_times.clone();
-    row.add_child(
-        Label::new(move |data: &AppData, _: &Env| {
-            format!(
-                "Map highlighting\nStop {:?}\nfrom Trip {:?}\nfrom Route {:?}",
-                mystoptimes
-                    .iter()
-                    .find(|stop| stop.stop_sequence == data.stop)
-                    .unwrap()
-                    .clone()
-                    .stop
-                    .as_ref()
-                    .name
-                    .clone(),
-                data.trip,
-                myroutes.get(&data.route).unwrap().clone().short_name
-            )
-        })
-        .padding(Insets::uniform_xy(5., 5.)),
-    );
-    row
+fn main_widget() -> impl Widget<AppData> {
+    Scroll::new(List::new(agency_ui).lens(AppData::agencies))
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CliArgs::parse();
     let gtfs = Gtfs::new(&args.path.expect("must provide a path or url to a GTFS zip"))?;
-    let main_window = WindowDesc::new(main_widget(&gtfs))
+    let main_window = WindowDesc::new(main_widget())
         .title("Select")
         .window_size((1000., 600.));
 
     let app_data = AppData {
-        route: gtfs.routes.iter().next().unwrap().1.id.clone(),
-        trip: gtfs.trips.iter().next().unwrap().1.id.clone(),
-        stop: gtfs.trips.iter().next().unwrap().1.stop_times[0].stop_sequence,
+        agencies: gtfs
+            .agencies
+            .iter()
+            .map(|agency| MyAgency {
+                selected: false,
+                agency: Rc::new(agency.clone()),
+                name: agency.name.clone(),
+                routes: gtfs
+                    .routes
+                    .iter()
+                    .filter(|(_, route)| route.agency_id == agency.id)
+                    .map(|(_, route)| MyRoute {
+                        selected: false,
+                        route: Rc::new(route.clone()),
+                        name: route.short_name.clone(),
+                        trips: gtfs
+                            .trips
+                            .iter()
+                            .filter(|(_, trip)| trip.route_id == route.id)
+                            .map(|(_, trip)| MyTrip {
+                                selected: false,
+                                trip: Rc::new(trip.clone()),
+                                name: trip.id.clone(),
+                                stops: trip
+                                    .stop_times
+                                    .iter()
+                                    .map(|stop_time| MyStopTime {
+                                        selected: false,
+                                        // stop_time: Rc::new(stop_time.clone()),
+                                        name: stop_time.stop.name.clone(),
+                                    })
+                                    .collect::<Vector<_>>(),
+                            })
+                            .collect::<Vector<_>>(),
+                    })
+                    .collect::<Vector<_>>(),
+            })
+            .collect::<Vector<_>>(),
     };
 
     AppLauncher::with_window(main_window)
