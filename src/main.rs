@@ -32,8 +32,11 @@ pub struct CliArgs {
 #[derive(Clone, Data, Default, Lens)]
 struct MyStopTime {
     selected: bool,
+    stop_sequence: u16,
     // #[data(ignore)]
-    // stop_time: Rc<StopTime>,
+    // #[lens(ignore)]
+    // stop_time: Rc<RawStopTime>,
+    // stop_time: RawStopTime,
     name: String,
 }
 
@@ -41,7 +44,7 @@ struct MyStopTime {
 struct MyTrip {
     selected: bool,
     // #[data(ignore)]
-    // trip: Rc<RawTrip>,
+    // trip: RawTrip,
     name: String,
     stops: Vector<MyStopTime>,
 }
@@ -49,18 +52,16 @@ struct MyTrip {
 #[derive(Clone, Data, Default, Lens)]
 struct MyRoute {
     selected: bool,
-    // #[data(ignore)]
-    // route: Rc<Route>,
-    name: String,
+    #[data(ignore)]
+    route: Route,
     trips: Vector<MyTrip>,
 }
 
 #[derive(Clone, Data, Default, Lens)]
 struct MyAgency {
     selected: bool,
-    // #[data(ignore)]
-    // agency: Rc<Agency>,
-    name: String,
+    #[data(ignore)]
+    agency: Agency,
     routes: Vector<MyRoute>,
 }
 
@@ -104,7 +105,7 @@ fn route_ui() -> impl Widget<MyRoute> {
     let title = Flex::row()
         .with_child(Checkbox::new("").lens(MyRoute::selected))
         .with_child(Label::new(|data: &MyRoute, _env: &_| {
-            format!("{}", data.name)
+            format!("{}", data.route.short_name)
         }));
 
     Flex::column()
@@ -121,7 +122,7 @@ fn agency_ui() -> impl Widget<MyAgency> {
     let title = Flex::row()
         .with_child(Checkbox::new("").lens(MyAgency::selected))
         .with_child(Label::new(|data: &MyAgency, _env: &_| {
-            format!("{}", data.name)
+            format!("{}", data.agency.name)
         }));
 
     Flex::column()
@@ -139,10 +140,7 @@ fn main_widget() -> impl Widget<AppData> {
     Scroll::new(List::new(agency_ui).lens(AppData::agencies))
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let args = CliArgs::parse();
-    let gtfs = RawGtfs::new(&args.path.expect("must provide a path or url to a GTFS zip"))?;
-    gtfs.print_stats();
+fn make_initial_data(gtfs: RawGtfs) -> AppData {
     let mut agencies = gtfs.agencies.unwrap();
     let mut routes = gtfs.routes.unwrap();
     let mut trips = gtfs.trips.unwrap();
@@ -179,212 +177,88 @@ fn main() -> Result<(), Box<dyn Error>> {
     stops2.iter().for_each(|stop| {
         stop_map.insert(stop.id.clone(), stop.clone());
     });
-    // let name = gtfs
-    //     .stops
-    //     .unwrap()
-    //     .iter()
-    //     .find(|stop| stop.id == stop_time.stop_id)
-    //     .unwrap()
-    //     .name
-    //     .clone();
-
-    // trip_start_index = trip_end_index;
-    // for trip in trips_by_parent[trip_start_index..].iter() {
-    //     if trip.route_id == route.id {
-    //         trip_end_index += 1;
-    //     } else {
-    //         break;
-    //     }
-    // }
-
-    // let mut routes_by_parent = routes.clone();
-    // let mut trips_by_parent = trips.clone();
-    // let mut stop_times_by_parent = stop_times.clone();
-
-    // routes_by_parent.sort_by(|x1, x2| x1.agency_id.cmp(&x2.agency_id));
-    // trips_by_parent.sort_by(|x1, x2| x1.route_id.cmp(&x2.route_id));
-    // stop_times_by_parent.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
 
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
-    // routes.sort_by(|x1, x2| x1.id.cmp(&x2.id));
-    // trips.sort_by(|x1, x2| x1.id.cmp(&x2.id));
-    // stops.sort_by(|x1, x2| x1.id.cmp(&x2.id));
 
-    // let mut agencies_iter = agencies.iter();
-    // let mut routes_iter = routes.iter();
-    // let mut trips_iter = trips.iter();
-    // let mut stop_times_iter = stop_times.iter();
-    // let mut stops_iter = stops.iter();
-    // let gtfs = Gtfs::new(&args.path.expect("must provide a path or url to a GTFS zip"))?;
-    let main_window = WindowDesc::new(main_widget())
-        .title("Select")
-        .window_size((1000., 600.));
-
-    // let mut route_start_index = 0;
-    // let mut route_end_index = 0;
-
-    // let mut trip_start_index = 0;
-    // let mut trip_end_index = 0;
-
-    // let app_data = AppData {
-    //     agencies: agencies
-    //         .iter()
-    //         .map(|agency| {
-    //             // update slice range
-    //             route_start_index = route_end_index;
-    //             for route in routes_by_parent[route_start_index..].iter() {
-    //                 if route.agency_id == agency.id {
-    //                     route_end_index += 1;
-    //                 } else {
-    //                     break;
-    //                 }
-    //             }
-
-    //             // make Vector from this agency's slice of routes
-    //             let routes = Vector::from_iter(
-    //                 routes_by_parent[route_start_index..route_end_index]
-    //                     .iter()
-    //                     .cloned()
-    //                     .map(|route| {
-    //                         // the problem is here, that trips need to be sorted not by parent id, but by how parent is actually sorted, (by it's parent etc), because it's parent is not actually sorted by id
-
-    //                         // update slice range
-    //                         trip_start_index = trip_end_index;
-    //                         for trip in trips_by_parent[trip_start_index..].iter() {
-    //                             // dbg!(&trip.route_id);
-    //                             // dbg!(&route.id);
-    //                             if trip.route_id == route.id {
-    //                                 trip_end_index += 1;
-    //                             } else {
-    //                                 break;
-    //                             }
-    //                         }
-
-    //                         // dbg!(trip_start_index);
-    //                         // dbg!(trip_end_index);
-
-    //                         // make Vector from this agency's slice of routes
-    //                         let trips = Vector::from_iter(
-    //                             trips_by_parent[trip_start_index..trip_end_index]
-    //                                 .iter()
-    //                                 .cloned()
-    //                                 .map(|trip| MyTrip {
-    //                                     selected: false,
-    //                                     // route: Rc::new(route.clone()),
-    //                                     name: trip.id.clone(),
-    //                                     stops: Vector::new(),
-    //                                 }),
-    //                         );
-    //                         // let trips =
-    //                         //     Vector::from_iter(trips[0..10].iter().cloned().map(|trip| {
-    //                         //         MyTrip {
-    //                         //             selected: false,
-    //                         //             // route: Rc::new(route.clone()),
-    //                         //             name: trip.id.clone(),
-    //                         //             stops: Vector::new(),
-    //                         //         }
-    //                         //     }));
-
-    //                         MyRoute {
-    //                             selected: false,
-    //                             // route: Rc::new(route.clone()),
-    //                             name: route.short_name.clone(),
-    //                             trips,
-    //                         }
-    //                     }),
-    //             );
-
-    //             MyAgency {
-    //                 selected: false,
-    //                 // agency: Rc::new(agency.clone()),
-    //                 name: agency.name.clone(),
-    //                 routes,
-    //             }
-    //         })
-    //         .collect::<Vector<_>>(),
-    // };
-    println!("make data");
-    // let app_data = AppData {
-    //     agencies: agencies
-    //         .iter()
-    //         .map(|agency| MyAgency {
-    //             selected: false,
-    //             // agency: Rc::new(agency.clone()),
-    //             name: agency.name.clone(),
-    //             routes: routes
-    //                 .iter()
-    //                 .filter(|route| route.agency_id == agency.id)
-    //                 .map(|route| MyRoute {
-    //                     selected: false,
-    //                     // route: Rc::new(route.clone()),
-    //                     name: route.short_name.clone(),
-    //                     trips: Vector::new(),
-    //                 })
-    //                 .collect::<Vector<_>>(),
-    //         })
-    //         .collect::<Vector<_>>(),
-    // };
     let app_data = AppData {
         agencies: agencies
             .iter()
-            .map(|agency| MyAgency {
-                selected: false,
-                // agency: Rc::new(agency.clone()),
-                name: agency.name.clone(),
-                routes: routes
+            .map(|agency| {
+                let mut routes = routes
                     .iter()
                     .filter(|route| route.agency_id == agency.id)
                     .map(|route| MyRoute {
                         selected: false,
-                        // route: Rc::new(route.clone()),
-                        name: route.short_name.clone(),
+                        route: route.clone(),
                         trips: trips
                             .iter()
                             .enumerate()
                             .filter(|(i, trip)| trip.route_id == route.id)
                             .map(|(i, trip)| {
-                                // dbg!(i);
-                                // dbg!(&trip.id);
                                 let (start_index, end_index) =
                                     stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
+                                let mut stops = stop_times[start_index..end_index]
+                                    .iter()
+                                    // .filter(|stop_time| stop_time.trip_id == trip.id)
+                                    .map(|stop_time| MyStopTime {
+                                        selected: false,
+                                        stop_sequence: stop_time.stop_sequence,
+                                        // stop_time: Rc::new(stop_time.clone()),
+                                        // stop_time: stop_time.clone(),
+                                        name: stop_map
+                                            .get(&stop_time.stop_id)
+                                            .unwrap()
+                                            .name
+                                            .clone(),
+                                    })
+                                    .collect::<Vector<_>>();
+                                stops.sort_by(|stop1, stop2| {
+                                    stop1.stop_sequence.cmp(&stop2.stop_sequence)
+                                });
+
+                                // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
                                 MyTrip {
                                     selected: false,
                                     // trip: Rc::new(trip.clone()),
                                     name: trip.id.clone(),
-                                    stops: stop_times[start_index..end_index]
-                                        .iter()
-                                        // .filter(|stop_time| stop_time.trip_id == trip.id)
-                                        .map(|stop_time| MyStopTime {
-                                            selected: false,
-                                            // stop_time: Rc::new(stop_time.clone()),
-                                            // name: gtfs
-                                            //     .stops
-                                            //     .unwrap()
-                                            //     .iter()
-                                            //     .find(|stop| stop.id == stop_time.stop_id)
-                                            //     .unwrap()
-                                            //     .name
-                                            //     .clone(),
-                                            // name: "dfa".to_string(),
-                                            name: stop_map
-                                                .get(&stop_time.stop_id)
-                                                .unwrap()
-                                                .name
-                                                .clone(),
-                                        })
-                                        .collect::<Vector<_>>(),
+                                    stops,
                                 }
                             })
                             .collect::<Vector<_>>(),
                     })
-                    .collect::<Vector<_>>(),
+                    .collect::<Vector<_>>();
+                routes.sort_by(|route1, route2| {
+                    route1.route.short_name.cmp(&route2.route.short_name)
+                });
+                MyAgency {
+                    selected: false,
+                    agency: agency.clone(),
+                    routes,
+                }
             })
             .collect::<Vector<_>>(),
     };
-    println!("launch app");
+    app_data
+}
 
+fn main() -> Result<(), Box<dyn Error>> {
+    let args = CliArgs::parse();
+
+    println!("reading raw gtfs");
+    let gtfs = RawGtfs::new(&args.path.expect("must provide a path or url to a GTFS zip"))?;
+    gtfs.print_stats();
+
+    println!("making initial data");
+    let initial_data = make_initial_data(gtfs);
+
+    println!("making main window");
+    let main_window = WindowDesc::new(main_widget())
+        .title("Select")
+        .window_size((1000., 600.));
+
+    println!("launching app");
     AppLauncher::with_window(main_window)
         .log_to_console()
-        .launch(app_data)?;
+        .launch(initial_data)?;
     Ok(())
 }
