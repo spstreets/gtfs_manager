@@ -885,12 +885,12 @@ dependencies = [
 [[package]]
 name = "gtfs-structures"
 version = "0.32.2"
+source = "git+https://github.com/maxwell8888/gtfs-structure#907d6ac05b4499f17c299ec13fe09fe05ee21ce2"
 dependencies = [
  "bytes",
  "chrono",
  "csv",
  "derivative",
- "druid",
  "futures",
  "itertools",
  "reqwest",
