@@ -5,8 +5,8 @@ use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
 use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
 use druid::{
     Affine, AppDelegate, AppLauncher, BoxConstraints, Color, Data, Env, Event, FontDescriptor,
-    Handled, LayoutCtx, Lens, LensExt, LocalizedString, Point, Rect, RenderContext, Selector, Size,
-    TextLayout, Widget, WidgetExt, WindowDesc,
+    Handled, LayoutCtx, Lens, LensExt, LocalizedString, MouseEvent, Point, Rect, RenderContext,
+    Selector, Size, TextLayout, Widget, WidgetExt, WindowDesc,
 };
 use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use std::collections::HashMap;
@@ -16,14 +16,33 @@ use std::rc::Rc;
 
 use crate::data::*;
 
-pub struct MapWidget;
-// impl MapWidget {
-//     fn new(path: Vec<(i64, i64)>) -> MapWidget {
-//         MapWidget { hidden: 1, path }
-//     }
-// }
+pub struct MapWidget {
+    zoom_level: f64,
+    speed: f64,
+}
+impl MapWidget {
+    pub fn new(zoom_level: f64, speed: f64) -> MapWidget {
+        MapWidget { zoom_level, speed }
+    }
+}
 impl Widget<AppData> for MapWidget {
-    fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppData, env: &Env) {}
+    fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppData, env: &Env) {
+        match event {
+            Event::Wheel(mouse_event) => {
+                let mut change = mouse_event.wheel_delta.y;
+                let multiplier = 2000. / self.speed;
+                if change > 0. {
+                    // zoom out
+                    self.zoom_level *= multiplier / (change + multiplier);
+                } else if change < 0. {
+                    // zoom in
+                    self.zoom_level *= (change.abs() + multiplier) / multiplier;
+                }
+                ctx.request_paint();
+            }
+            _ => {}
+        }
+    }
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
@@ -115,30 +134,45 @@ impl Widget<AppData> for MapWidget {
         let height = ymax - ymin;
 
         // calculate size of maximum properly propotioned box we can paint in
-        let (paint_width, paint_height) = if width > height {
+        let (mut paint_width, mut paint_height) = if width > height {
             (size.width, size.height * height / width)
         } else {
             (size.width * width / height, size.height)
         };
+        // adjust for zoom
+        // need to translate -inf to + inf to 0 to inf (where 0 -> 1)
+
+        let zoom = self.zoom_level;
+        // let zoom = 1.;
+        // (paint_width, paint_height) = (paint_width * zoom, paint_height * zoom);
+        let (zoomed_paint_width, zoomed_paint_height) = (paint_width * zoom, paint_height * zoom);
+
         let (x_padding, y_padding) = if width > height {
-            (0., (paint_width - paint_height) / 2.)
+            (
+                (size.width - zoomed_paint_width) / 2.,
+                (size.height - zoomed_paint_height) / 2.
+                    + (zoomed_paint_width - zoomed_paint_height) / 2.,
+            )
         } else {
-            ((paint_height - paint_width) / 2., 0.)
+            (
+                (size.width - zoomed_paint_width) / 2. + (paint_height - paint_width) / 2. / zoom,
+                (size.height - zoomed_paint_height) / 2.,
+            )
         };
 
-        let mypoint_to_coord = |point: &(f64, f64)| {
+        let long_lat_to_canvas = |point: &(f64, f64)| {
             let (x, y) = point;
-            let x2 = (*x - xmin) * (paint_width / width) + x_padding;
-            let y2 = (*y - ymin) * (paint_height / height) + y_padding;
+            let x2 = (*x - xmin) * (zoomed_paint_width / width) + x_padding;
+            let y2 = (*y - ymin) * (zoomed_paint_height / height) + y_padding;
             Point::new(x2, y2)
         };
         for trip in trips {
             let mut path = BezPath::new();
             for (i, coord) in trip.iter().enumerate() {
                 if i == 0 {
-                    path.move_to(mypoint_to_coord(coord));
+                    path.move_to(long_lat_to_canvas(coord));
                 } else {
-                    path.line_to(mypoint_to_coord(coord));
+                    path.line_to(long_lat_to_canvas(coord));
                 }
             }
             let stroke_color = Color::GREEN;

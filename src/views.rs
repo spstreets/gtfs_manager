@@ -82,7 +82,7 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
 }
 
 pub fn main_widget() -> impl Widget<AppData> {
-    let map_widget = (MapWidget {}).expand();
+    let map_widget = (MapWidget::new(1., 1.)).expand();
     Flex::row()
         .with_flex_child(
             Scroll::new(List::new(agency_ui).lens(AppData::agencies)),
