@@ -60,16 +60,47 @@ impl Widget<AppData> for MapWidget {
         let rect = size.to_rect();
         ctx.fill(rect, &Color::WHITE);
 
-        let stops = data.agencies[0].routes[0].trips[0].stops.clone();
-        let coords = stops.iter().map(|stop| stop.coord).collect::<Vec<_>>();
+        let trips = data.agencies[0]
+            .routes
+            .iter()
+            .filter_map(|route| {
+                if route.trips.len() > 0 {
+                    Some(
+                        route.trips[0]
+                            .stops
+                            .iter()
+                            .map(|stop| stop.coord)
+                            .collect::<Vec<_>>(),
+                    )
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
 
         // find size of path data
-        let x = coords.iter().map(|point| point.0).collect::<Vec<_>>();
-        let y = coords.iter().map(|point| point.1).collect::<Vec<_>>();
+        let x = trips
+            .iter()
+            .map(|trip| trip.iter().map(|point| point.0))
+            .flatten()
+            .collect::<Vec<_>>();
+        let y = trips
+            .iter()
+            .map(|trip| trip.iter().map(|point| point.1))
+            .flatten()
+            .collect::<Vec<_>>();
         let xmin = x.iter().cloned().fold(0. / 0., f64::min);
         let ymin = y.iter().cloned().fold(0. / 0., f64::min);
-        let x = coords.iter().map(|point| point.0).collect::<Vec<_>>();
-        let y = coords.iter().map(|point| point.1).collect::<Vec<_>>();
+        let x = trips
+            .iter()
+            .map(|trip| trip.iter().map(|point| point.0))
+            .flatten()
+            .collect::<Vec<_>>();
+        let y = trips
+            .iter()
+            .map(|trip| trip.iter().map(|point| point.1))
+            .flatten()
+            .collect::<Vec<_>>();
         let xmax = x.iter().cloned().fold(0. / 0., f64::max);
         let ymax = y.iter().cloned().fold(0. / 0., f64::max);
         let width = xmax - xmin;
@@ -81,16 +112,18 @@ impl Widget<AppData> for MapWidget {
             let y2 = (*y - ymin) * (size.height / height);
             Point::new(x2, y2)
         };
-        let mut path = BezPath::new();
-        for (i, mypoint) in coords.iter().enumerate() {
-            if i == 0 {
-                path.move_to(mypoint_to_coord(mypoint));
-            } else {
-                path.line_to(mypoint_to_coord(mypoint));
+        for trip in trips {
+            let mut path = BezPath::new();
+            for (i, coord) in trip.iter().enumerate() {
+                if i == 0 {
+                    path.move_to(mypoint_to_coord(coord));
+                } else {
+                    path.line_to(mypoint_to_coord(coord));
+                }
             }
+            let stroke_color = Color::GREEN;
+            ctx.stroke(path, &stroke_color, 1.0);
         }
-        let stroke_color = Color::GREEN;
-        ctx.stroke(path, &stroke_color, 1.0);
     }
     fn lifecycle(
         &mut self,
