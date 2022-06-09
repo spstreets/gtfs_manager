@@ -82,7 +82,12 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
 }
 
 pub fn main_widget() -> impl Widget<AppData> {
+    let map_widget = (MapWidget {}).expand();
     Flex::row()
-        .with_child(Scroll::new(List::new(agency_ui).lens(AppData::agencies)))
-        .with_child(MapWidget {})
+        .with_flex_child(
+            Scroll::new(List::new(agency_ui).lens(AppData::agencies)),
+            FlexParams::new(1.0, CrossAxisAlignment::Start),
+        )
+        .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
+        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
 }

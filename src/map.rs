@@ -43,12 +43,18 @@ impl Widget<AppData> for MapWidget {
         _data: &AppData,
         _env: &Env,
     ) -> Size {
-        if bc.is_width_bounded() && bc.is_height_bounded() {
-            bc.max()
-        } else {
-            let size = Size::new(300.0, 300.0);
-            bc.constrain(size)
-        }
+        // rather than changing the size ratio of the widget based on on the shape of what is being drawn, it is best to always keep the widget 1:1 and draw the paths relative to this
+        // if bc.is_width_bounded() && bc.is_height_bounded() {
+        //     bc.max()
+        // } else {
+        //     let size = Size::new(300.0, 300.0);
+        //     bc.constrain(size)
+        // }
+        let size = Size::new(300.0, 300.0);
+        bc.constrain(size);
+        let max = bc.max().height.min(bc.max().width);
+        // Size::new(300.0, 300.0)
+        Size::new(max, max)
     }
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
         // Clear the whole widget with the color of your choice
@@ -56,6 +62,8 @@ impl Widget<AppData> for MapWidget {
         // Note: ctx also has a `clear` method, but that clears the whole context,
         // and we only want to clear this widget's area.
         // RenderContext
+
+        // todo encode gtfs coords and painting coords into two distinct types for clarity
         let size = ctx.size();
         let rect = size.to_rect();
         ctx.fill(rect, &Color::WHITE);
@@ -106,10 +114,22 @@ impl Widget<AppData> for MapWidget {
         let width = xmax - xmin;
         let height = ymax - ymin;
 
+        // calculate size of maximum properly propotioned box we can paint in
+        let (paint_width, paint_height) = if width > height {
+            (size.width, size.height * height / width)
+        } else {
+            (size.width * width / height, size.height)
+        };
+        let (x_padding, y_padding) = if width > height {
+            (0., (paint_width - paint_height) / 2.)
+        } else {
+            ((paint_height - paint_width) / 2., 0.)
+        };
+
         let mypoint_to_coord = |point: &(f64, f64)| {
             let (x, y) = point;
-            let x2 = (*x - xmin) * (size.width / width);
-            let y2 = (*y - ymin) * (size.height / height);
+            let x2 = (*x - xmin) * (paint_width / width) + x_padding;
+            let y2 = (*y - ymin) * (paint_height / height) + y_padding;
             Point::new(x2, y2)
         };
         for trip in trips {
