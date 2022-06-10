@@ -5,8 +5,8 @@ use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
 use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
 use druid::{
     Affine, AppDelegate, AppLauncher, BoxConstraints, Color, Data, Env, Event, FontDescriptor,
-    Handled, LayoutCtx, Lens, LensExt, LocalizedString, MouseEvent, Point, Rect, RenderContext,
-    Selector, Size, TextLayout, Widget, WidgetExt, WindowDesc,
+    Handled, LayoutCtx, Lens, LensExt, LocalizedString, MouseButtons, MouseEvent, Point, Rect,
+    RenderContext, Selector, Size, TextLayout, Widget, WidgetExt, WindowDesc,
 };
 use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use std::collections::HashMap;
@@ -19,10 +19,17 @@ use crate::data::*;
 pub struct MapWidget {
     zoom_level: f64,
     speed: f64,
+    drag_start: Option<Point>,
+    focal_point: Point,
 }
 impl MapWidget {
-    pub fn new(zoom_level: f64, speed: f64) -> MapWidget {
-        MapWidget { zoom_level, speed }
+    pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
+        MapWidget {
+            zoom_level,
+            speed,
+            drag_start: None,
+            focal_point: offset,
+        }
     }
 }
 impl Widget<AppData> for MapWidget {
@@ -39,6 +46,29 @@ impl Widget<AppData> for MapWidget {
                     self.zoom_level *= (change.abs() + multiplier) / multiplier;
                 }
                 ctx.request_paint();
+            }
+            Event::MouseDown(mouse_event) => {
+                self.drag_start = Some(mouse_event.pos);
+            }
+            Event::MouseMove(mouse_event) => {
+                if let Some(drag_start) = self.drag_start {
+                    if mouse_event.buttons.has_left() {
+                        let drag_end = mouse_event.pos;
+                        self.focal_point = Point::new(
+                            self.focal_point.x - (drag_end.x - drag_start.x) / self.zoom_level,
+                            self.focal_point.y - (drag_end.y - drag_start.y) / self.zoom_level,
+                        );
+                        self.drag_start = Some(drag_end);
+                    } else {
+                        self.drag_start = None;
+                    }
+                }
+                ctx.request_paint();
+            }
+            Event::MouseUp(_) => {
+                if self.drag_start.is_some() {
+                    self.drag_start = None;
+                }
             }
             _ => {}
         }
@@ -116,8 +146,8 @@ impl Widget<AppData> for MapWidget {
             .map(|trip| trip.iter().map(|point| point.1))
             .flatten()
             .collect::<Vec<_>>();
-        let xmin = x.iter().cloned().fold(0. / 0., f64::min);
-        let ymin = y.iter().cloned().fold(0. / 0., f64::min);
+        let longmin = x.iter().cloned().fold(0. / 0., f64::min);
+        let latmin = y.iter().cloned().fold(0. / 0., f64::min);
         let x = trips
             .iter()
             .map(|trip| trip.iter().map(|point| point.0))
@@ -128,10 +158,10 @@ impl Widget<AppData> for MapWidget {
             .map(|trip| trip.iter().map(|point| point.1))
             .flatten()
             .collect::<Vec<_>>();
-        let xmax = x.iter().cloned().fold(0. / 0., f64::max);
-        let ymax = y.iter().cloned().fold(0. / 0., f64::max);
-        let width = xmax - xmin;
-        let height = ymax - ymin;
+        let longmax = x.iter().cloned().fold(0. / 0., f64::max);
+        let latmax = y.iter().cloned().fold(0. / 0., f64::max);
+        let width = longmax - longmin;
+        let height = latmax - latmin;
 
         // calculate size of maximum properly propotioned box we can paint in
         let (mut paint_width, mut paint_height) = if width > height {
@@ -139,12 +169,8 @@ impl Widget<AppData> for MapWidget {
         } else {
             (size.width * width / height, size.height)
         };
-        // adjust for zoom
-        // need to translate -inf to + inf to 0 to inf (where 0 -> 1)
 
         let zoom = self.zoom_level;
-        // let zoom = 1.;
-        // (paint_width, paint_height) = (paint_width * zoom, paint_height * zoom);
         let (zoomed_paint_width, zoomed_paint_height) = (paint_width * zoom, paint_height * zoom);
 
         let (x_padding, y_padding) = if width > height {
@@ -161,9 +187,11 @@ impl Widget<AppData> for MapWidget {
         };
 
         let long_lat_to_canvas = |point: &(f64, f64)| {
-            let (x, y) = point;
-            let x2 = (*x - xmin) * (zoomed_paint_width / width) + x_padding;
-            let y2 = (*y - ymin) * (zoomed_paint_height / height) + y_padding;
+            let (long, lat) = point;
+            let x2 = (*long - longmin) * (zoomed_paint_width / width) + x_padding
+                - self.focal_point.x * self.zoom_level;
+            let y2 = (*lat - latmin) * (zoomed_paint_height / height) + y_padding
+                - self.focal_point.y * self.zoom_level;
             Point::new(x2, y2)
         };
         for trip in trips {

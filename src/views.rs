@@ -5,8 +5,8 @@ use druid::widget::{
     Scroll,
 };
 use druid::{
-    AppLauncher, Color, Data, Env, Insets, Lens, LocalizedString, UnitPoint, Widget, WidgetExt,
-    WindowDesc,
+    AppLauncher, Color, Data, Env, Insets, Lens, LocalizedString, Point, UnitPoint, Widget,
+    WidgetExt, WindowDesc,
 };
 
 use crate::data::*;
@@ -82,7 +82,8 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
 }
 
 pub fn main_widget() -> impl Widget<AppData> {
-    let map_widget = (MapWidget::new(1., 1.)).expand();
+    // todo what's the difference between Point::ZERO and Point::ORIGIN?
+    let map_widget = (MapWidget::new(1., 1., Point::ZERO)).expand();
     Flex::row()
         .with_flex_child(
             Scroll::new(List::new(agency_ui).lens(AppData::agencies)),

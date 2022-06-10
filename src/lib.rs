@@ -1,3 +1,6 @@
+// ignore unused warnings while prototyping
+#![allow(unused)]
+
 mod list_select;
 pub use list_select::ListItem;
 
