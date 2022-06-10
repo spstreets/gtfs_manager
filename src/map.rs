@@ -4,9 +4,9 @@ use druid::piet::{FontFamily, ImageFormat, InterpolationMode, Text, TextLayoutBu
 use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
 use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
 use druid::{
-    Affine, AppDelegate, AppLauncher, BoxConstraints, Color, Data, Env, Event, FontDescriptor,
-    Handled, LayoutCtx, Lens, LensExt, LocalizedString, MouseButtons, MouseEvent, Point, Rect,
-    RenderContext, Selector, Size, TextLayout, Widget, WidgetExt, WindowDesc,
+    Affine, AppDelegate, AppLauncher, BoxConstraints, Color, Cursor, Data, Env, Event,
+    FontDescriptor, Handled, LayoutCtx, Lens, LensExt, LocalizedString, MouseButtons, MouseEvent,
+    Point, Rect, RenderContext, Selector, Size, TextLayout, Widget, WidgetExt, WindowDesc,
 };
 use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use std::collections::HashMap;
@@ -48,6 +48,7 @@ impl Widget<AppData> for MapWidget {
                 ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {
+                ctx.override_cursor(&Cursor::Pointer);
                 self.drag_start = Some(mouse_event.pos);
             }
             Event::MouseMove(mouse_event) => {
@@ -61,12 +62,15 @@ impl Widget<AppData> for MapWidget {
                         self.drag_start = Some(drag_end);
                     } else {
                         self.drag_start = None;
+                        ctx.clear_cursor();
                     }
                 }
                 ctx.request_paint();
             }
             Event::MouseUp(_) => {
                 if self.drag_start.is_some() {
+                    // todo understand why .clear_cursor() doesn't work here
+                    ctx.override_cursor(&Cursor::Arrow);
                     self.drag_start = None;
                 }
             }
