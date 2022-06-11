@@ -121,22 +121,33 @@ impl Widget<AppData> for MapWidget {
         let rect = size.to_rect();
         ctx.fill(rect, &Color::WHITE);
 
-        let trips = data.agencies[0]
-            .routes
+        let trips = data
+            .agencies
             .iter()
-            .filter_map(|route| {
-                if route.trips.len() > 0 {
-                    Some(
-                        route.trips[0]
-                            .stops
+            .filter(|agency| agency.selected)
+            .map(|agency| {
+                agency
+                    .routes
+                    .iter()
+                    .filter(|route| route.trips.len() > 0)
+                    .map(|route| {
+                        route
+                            .trips
                             .iter()
-                            .map(|stop| stop.coord)
-                            .collect::<Vec<_>>(),
-                    )
-                } else {
-                    None
-                }
+                            .filter(|trip| trip.selected)
+                            .map(|trip| {
+                                trip.stops
+                                    .iter()
+                                    .filter(|stop| stop.selected)
+                                    .map(|stop| stop.coord)
+                                    .collect::<Vec<_>>()
+                            })
+                            .flatten()
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
             })
+            .flatten()
             .collect::<Vec<_>>();
 
         // find size of path data

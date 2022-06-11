@@ -5,13 +5,14 @@ use druid::widget::{
     Scroll,
 };
 use druid::{
-    AppLauncher, Color, Data, Env, Insets, Lens, LocalizedString, Point, UnitPoint, Widget,
-    WidgetExt, WindowDesc,
+    AppLauncher, Color, Data, Env, EventCtx, Insets, Lens, LocalizedString, Point, UnitPoint,
+    Widget, WidgetExt, WindowDesc,
 };
 
 use crate::data::*;
 use crate::map::MapWidget;
 
+// todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
 pub fn stop_ui() -> impl Widget<MyStopTime> {
     Flex::row()
         .with_child(Checkbox::new("").lens(MyStopTime::selected))
@@ -28,8 +29,23 @@ pub fn stop_ui() -> impl Widget<MyStopTime> {
 }
 
 pub fn trip_ui() -> impl Widget<MyTrip> {
+    // let label = Label::new(|data: &bool, env: &Env| "hi");
     let title = Flex::row()
-        .with_child(Checkbox::new("").lens(MyTrip::selected))
+        .with_child(
+            // Checkbox::new(|data: &MyTrip, _env: &_| format!("{}", data.name))
+            Checkbox::new("")
+                // .on_click(|ctx: &mut EventCtx, data: &mut bool, env: &Env| println!("clicked"))
+                .lens(MyTrip::selected)
+                .on_click(|ctx: &mut EventCtx, data: &mut MyTrip, env: &Env| {
+                    if data.selected {
+                        data.selected = false;
+                        data.stops.iter_mut().for_each(|stop| stop.selected = false);
+                    } else {
+                        data.selected = true;
+                        data.stops.iter_mut().for_each(|stop| stop.selected = true);
+                    }
+                }),
+        )
         .with_child(Label::new(|data: &MyTrip, _env: &_| {
             format!("{}", data.name)
         }));
