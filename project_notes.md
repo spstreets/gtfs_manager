@@ -145,6 +145,10 @@ isochrone is like a heat map showing travel times from a given point: https://en
 
 # Map
 
+Supports many different APIs and vector formats, useful for references:
+https://github.com/openlayers/openlayers
+https://openlayers.org/
+
 ## Rendering
 
 ### Vector
@@ -167,6 +171,8 @@ MBTiles for world is around 100TB
 
 #### MVT
 
+https://github.com/t-rex-tileserver/t-rex
+
 encode MVT: https://github.com/DougLau/mvt
 read and write (?) https://github.com/amandasaurus/rust-mapbox-vector-tile
 
@@ -174,6 +180,10 @@ Motivated by the 2020 transition to proprietary licensing for Mapbox GL JS
 https://github.com/MapLibre
 
 https://github.com/maplibre/maplibre-rs
+
+## Conversion
+
+https://github.com/OSGeo/gdal
 
 ## other
 
