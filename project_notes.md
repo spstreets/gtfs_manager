@@ -181,7 +181,20 @@ https://github.com/MapLibre
 
 https://github.com/maplibre/maplibre-rs
 
-## Conversion
+##### Parsing
+
+https://github.com/mapbox/vector-tile-js
+
+## File formats
+
+KML
+GPX
+GeoJson
+TopoJson
+Geobuf
+PBF
+
+### Conversion
 
 https://github.com/OSGeo/gdal
 
