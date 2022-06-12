@@ -24,6 +24,7 @@ pub struct MapWidget {
 }
 impl MapWidget {
     pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
+        println!("new widget");
         MapWidget {
             zoom_level,
             speed,
@@ -45,6 +46,7 @@ impl Widget<AppData> for MapWidget {
                     // zoom in
                     self.zoom_level *= (change.abs() + multiplier) / multiplier;
                 }
+                println!("scrolling");
                 ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {
@@ -65,6 +67,7 @@ impl Widget<AppData> for MapWidget {
                         ctx.clear_cursor();
                     }
                 }
+                println!("mouse move");
                 ctx.request_paint();
             }
             Event::MouseUp(_) => {
@@ -85,6 +88,7 @@ impl Widget<AppData> for MapWidget {
         env: &Env,
     ) {
         if !old_data.same(data) {
+            println!("data has changed?!?!");
             ctx.request_layout();
             ctx.request_paint();
         }
@@ -96,6 +100,7 @@ impl Widget<AppData> for MapWidget {
         _data: &AppData,
         _env: &Env,
     ) -> Size {
+        println!("layout");
         // rather than changing the size ratio of the widget based on on the shape of what is being drawn, it is best to always keep the widget 1:1 and draw the paths relative to this
         // if bc.is_width_bounded() && bc.is_height_bounded() {
         //     bc.max()
@@ -110,6 +115,7 @@ impl Widget<AppData> for MapWidget {
         Size::new(max, max)
     }
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
+        println!("map paint");
         // Clear the whole widget with the color of your choice
         // (ctx.size() returns the size of the layout rect we're painting in)
         // Note: ctx also has a `clear` method, but that clears the whole context,
@@ -129,7 +135,7 @@ impl Widget<AppData> for MapWidget {
                 agency
                     .routes
                     .iter()
-                    .filter(|route| route.trips.len() > 0)
+                    .filter(|route| route.selected && route.trips.len() > 0)
                     .map(|route| {
                         route
                             .trips

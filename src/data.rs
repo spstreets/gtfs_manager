@@ -18,6 +18,7 @@ pub struct MyStopTime {
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyTrip {
     pub selected: bool,
+    pub expanded: bool,
     // #[data(ignore)]
     // trip: RawTrip,
     pub name: String,
@@ -27,6 +28,7 @@ pub struct MyTrip {
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyRoute {
     pub selected: bool,
+    pub expanded: bool,
     #[data(ignore)]
     pub route: Route,
     pub trips: Vector<MyTrip>,
@@ -35,6 +37,7 @@ pub struct MyRoute {
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyAgency {
     pub selected: bool,
+    pub expanded: bool,
     #[data(ignore)]
     pub agency: Agency,
     pub routes: Vector<MyRoute>,
@@ -43,6 +46,7 @@ pub struct MyAgency {
 #[derive(Clone, Data, Default, Lens)]
 pub struct AppData {
     pub agencies: Vector<MyAgency>,
+    pub expanded: bool,
 }
 
 pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
@@ -86,6 +90,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
 
     let app_data = AppData {
+        expanded: true,
         agencies: agencies
             .iter()
             .map(|agency| {
@@ -93,7 +98,8 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     .iter()
                     .filter(|route| route.agency_id == agency.id)
                     .map(|route| MyRoute {
-                        selected: false,
+                        selected: true,
+                        expanded: false,
                         route: route.clone(),
                         trips: trips
                             .iter()
@@ -108,7 +114,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                                     .map(|stop_time| {
                                         let stop = stop_map.get(&stop_time.stop_id).unwrap();
                                         MyStopTime {
-                                            selected: false,
+                                            selected: true,
                                             stop_sequence: stop_time.stop_sequence,
                                             // stop_time: Rc::new(stop_time.clone()),
                                             // stop_time: stop_time.clone(),
@@ -126,7 +132,8 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
 
                                 // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
                                 MyTrip {
-                                    selected: false,
+                                    selected: true,
+                                    expanded: false,
                                     // trip: Rc::new(trip.clone()),
                                     name: trip.id.clone(),
                                     stops,
@@ -139,7 +146,8 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     route1.route.short_name.cmp(&route2.route.short_name)
                 });
                 MyAgency {
-                    selected: false,
+                    selected: true,
+                    expanded: false,
                     agency: agency.clone(),
                     routes,
                 }

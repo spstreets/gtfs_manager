@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("making main window");
     let main_window = WindowDesc::new(main_widget())
         .title("Select")
-        .window_size((1000., 600.));
+        .window_size((1400., 1000.));
 
     println!("launching app");
     AppLauncher::with_window(main_window)
