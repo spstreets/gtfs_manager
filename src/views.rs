@@ -12,13 +12,24 @@ use druid::{
 use crate::data::*;
 use crate::map::MapWidget;
 
-const CORNER_RADIUS: f64 = 10.;
+const SPACING_1: f64 = 20.;
+const CORNER_RADIUS: f64 = 5.;
 const HEADING_1: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::BOLD)
     .with_size(24.0);
 const HEADING_2: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::BOLD)
     .with_size(20.0);
+
+fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
+    Flex::row()
+        .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
+            data.update_selection(true);
+        }))
+        .with_child(Button::new("clear all").on_click(|_, data: &mut T, _| {
+            data.update_selection(false);
+        }))
+}
 
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
 pub fn stop_ui() -> impl Widget<MyStopTime> {
@@ -62,24 +73,18 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
     Container::new(
         Flex::column()
             .with_child(title)
-            .with_child(Checkbox::new("Stops >").lens(MyTrip::expanded))
+            .with_spacer(SPACING_1)
+            .with_child(
+                Flex::row()
+                    .with_child(Checkbox::new("Stops >").lens(MyTrip::expanded))
+                    .with_child(update_all_buttons())
+                    .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                    .expand_width(),
+            )
+            .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyTrip, _env: &Env| data.expanded,
-                Flex::column()
-                    .with_child(
-                        Flex::row()
-                            .with_child(Button::new("select all").on_click(
-                                |_, data: &mut MyTrip, _| {
-                                    data.stops.iter_mut().for_each(|stop| stop.selected = true)
-                                },
-                            ))
-                            .with_child(Button::new("clear all").on_click(
-                                |_, data: &mut MyTrip, _| {
-                                    data.stops.iter_mut().for_each(|stop| stop.selected = false)
-                                },
-                            )),
-                    )
-                    .with_child(List::new(stop_ui).with_spacing(10.).lens(MyTrip::stops)),
+                List::new(stop_ui).with_spacing(10.).lens(MyTrip::stops),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start)
@@ -102,31 +107,18 @@ pub fn route_ui() -> impl Widget<MyRoute> {
     Container::new(
         Flex::column()
             .with_child(title)
+            .with_spacer(SPACING_1)
+            .with_child(
+                Flex::row()
+                    .with_child(Checkbox::new("Trips >").lens(MyRoute::expanded))
+                    .with_child(update_all_buttons())
+                    .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                    .expand_width(),
+            )
             .with_default_spacer()
-            .with_child(Checkbox::new("Trips >").lens(MyRoute::expanded))
             .with_child(Either::new(
                 |data: &MyRoute, _env: &Env| data.expanded,
-                Flex::column()
-                    .with_child(
-                        Flex::row()
-                            .with_child(Button::new("select all").on_click(
-                                |_, data: &mut MyRoute, _| {
-                                    data.trips.iter_mut().for_each(|trip| {
-                                        trip.selected = true;
-                                        trip.stops.iter_mut().for_each(|stop| stop.selected = true)
-                                    })
-                                },
-                            ))
-                            .with_child(Button::new("clear all").on_click(
-                                |_, data: &mut MyRoute, _| {
-                                    data.trips.iter_mut().for_each(|trip| {
-                                        trip.selected = false;
-                                        trip.stops.iter_mut().for_each(|stop| stop.selected = false)
-                                    })
-                                },
-                            )),
-                    )
-                    .with_child(List::new(trip_ui).with_spacing(10.).lens(MyRoute::trips)),
+                List::new(trip_ui).with_spacing(10.).lens(MyRoute::trips),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start)
@@ -148,39 +140,11 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
     Container::new(
         Flex::column()
             .with_child(title)
-            .with_spacer(20.)
+            .with_spacer(SPACING_1)
             .with_child(
                 Flex::row()
                     .with_child(Checkbox::new("Routes >").lens(MyAgency::expanded))
-                    .with_child(
-                        Flex::row()
-                            .with_child(Button::new("select all").on_click(
-                                |_, data: &mut MyAgency, _| {
-                                    data.routes.iter_mut().for_each(|route| {
-                                        route.selected = true;
-                                        route.trips.iter_mut().for_each(|trip| {
-                                            trip.selected = true;
-                                            trip.stops
-                                                .iter_mut()
-                                                .for_each(|stop| stop.selected = true)
-                                        })
-                                    })
-                                },
-                            ))
-                            .with_child(Button::new("clear all").on_click(
-                                |_, data: &mut MyAgency, _| {
-                                    data.routes.iter_mut().for_each(|route| {
-                                        route.selected = false;
-                                        route.trips.iter_mut().for_each(|trip| {
-                                            trip.selected = false;
-                                            trip.stops
-                                                .iter_mut()
-                                                .for_each(|stop| stop.selected = false)
-                                        })
-                                    })
-                                },
-                            )),
-                    )
+                    .with_child(update_all_buttons())
                     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                     .expand_width(),
             )
@@ -216,29 +180,11 @@ pub fn main_widget() -> impl Widget<AppData> {
                     Either::new(
                         |data: &AppData, _env: &Env| data.expanded,
                         Scroll::new(
-                            Flex::column()
-                                .with_child(
-                                    Flex::row()
-                                        .with_child(Button::new("select all").on_click(
-                                            |_, data: &mut AppData, _| {
-                                                data.agencies
-                                                    .iter_mut()
-                                                    .for_each(|trip| trip.selected = true)
-                                            },
-                                        ))
-                                        .with_child(Button::new("clear all").on_click(
-                                            |_, data: &mut AppData, _| {
-                                                data.agencies
-                                                    .iter_mut()
-                                                    .for_each(|trip| trip.selected = false)
-                                            },
-                                        )),
-                                )
-                                .with_child(
-                                    List::new(agency_ui)
-                                        .with_spacing(10.)
-                                        .lens(AppData::agencies),
-                                ),
+                            Flex::column().with_child(update_all_buttons()).with_child(
+                                List::new(agency_ui)
+                                    .with_spacing(10.)
+                                    .lens(AppData::agencies),
+                            ),
                         )
                         .fix_width(800.),
                         Flex::row().fix_width(800.),

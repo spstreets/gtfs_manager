@@ -3,6 +3,10 @@ use druid::{Data, Lens, Widget, WidgetExt};
 use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use std::collections::HashMap;
 
+pub trait ListItem {
+    fn update_selection(&mut self, value: bool);
+}
+
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyStopTime {
     pub selected: bool,
@@ -14,6 +18,11 @@ pub struct MyStopTime {
     pub name: String,
     pub coord: (f64, f64),
 }
+impl ListItem for MyStopTime {
+    fn update_selection(&mut self, value: bool) {
+        self.selected = value;
+    }
+}
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyTrip {
@@ -24,6 +33,14 @@ pub struct MyTrip {
     pub name: String,
     pub stops: Vector<MyStopTime>,
 }
+impl ListItem for MyTrip {
+    fn update_selection(&mut self, value: bool) {
+        self.selected = value;
+        self.stops
+            .iter_mut()
+            .for_each(|stop| stop.update_selection(value));
+    }
+}
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyRoute {
@@ -32,6 +49,14 @@ pub struct MyRoute {
     #[data(ignore)]
     pub route: Route,
     pub trips: Vector<MyTrip>,
+}
+impl ListItem for MyRoute {
+    fn update_selection(&mut self, value: bool) {
+        self.selected = value;
+        self.trips
+            .iter_mut()
+            .for_each(|trip| trip.update_selection(value));
+    }
 }
 
 #[derive(Clone, Data, Default, Lens)]
@@ -42,11 +67,26 @@ pub struct MyAgency {
     pub agency: Agency,
     pub routes: Vector<MyRoute>,
 }
+impl ListItem for MyAgency {
+    fn update_selection(&mut self, value: bool) {
+        self.selected = value;
+        self.routes
+            .iter_mut()
+            .for_each(|route| route.update_selection(value));
+    }
+}
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct AppData {
     pub agencies: Vector<MyAgency>,
     pub expanded: bool,
+}
+impl ListItem for AppData {
+    fn update_selection(&mut self, value: bool) {
+        self.agencies
+            .iter_mut()
+            .for_each(|agency| agency.update_selection(value));
+    }
 }
 
 pub fn make_initial_data(gtfs: RawGtfs) -> AppData {

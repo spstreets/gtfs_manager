@@ -125,7 +125,7 @@ impl Widget<AppData> for MapWidget {
         // todo encode gtfs coords and painting coords into two distinct types for clarity
         let size = ctx.size();
         let rect = size.to_rect();
-        ctx.fill(rect, &Color::WHITE);
+        ctx.fill(rect, &Color::grey(0.1));
 
         let trips = data
             .agencies
