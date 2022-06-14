@@ -66,9 +66,8 @@ impl Widget<AppData> for MapWidget {
                         self.drag_start = None;
                         ctx.clear_cursor();
                     }
+                    ctx.request_paint();
                 }
-                println!("mouse move");
-                ctx.request_paint();
             }
             Event::MouseUp(_) => {
                 if self.drag_start.is_some() {
@@ -87,11 +86,20 @@ impl Widget<AppData> for MapWidget {
         data: &AppData,
         env: &Env,
     ) {
-        if !old_data.same(data) {
-            println!("data has changed?!?!");
-            ctx.request_layout();
-            ctx.request_paint();
-        }
+        println!("update");
+
+        data.agencies
+            .iter()
+            .zip(old_data.agencies.iter())
+            .for_each(|(agency, old_agency)| {
+                if !agency.selected.same(&old_agency.selected) {
+                    ctx.request_paint();
+                }
+            });
+        // if !old_data.same(data) {
+        //     println!("data has changed?!?!");
+        //     ctx.request_layout();
+        // }
     }
     fn layout(
         &mut self,
