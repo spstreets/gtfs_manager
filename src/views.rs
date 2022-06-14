@@ -177,18 +177,26 @@ pub fn main_widget() -> impl Widget<AppData> {
                 )
                 .with_default_spacer()
                 .with_flex_child(
-                    Either::new(
-                        |data: &AppData, _env: &Env| data.expanded,
-                        Scroll::new(
-                            Flex::column().with_child(update_all_buttons()).with_child(
-                                List::new(agency_ui)
-                                    .with_spacing(10.)
-                                    .lens(AppData::agencies),
-                            ),
-                        )
-                        .fix_width(800.),
-                        Flex::row().fix_width(800.),
-                    ),
+                    // Either::new(
+                    //     |data: &AppData, _env: &Env| data.expanded,
+                    //     Scroll::new(
+                    //         Flex::column().with_child(update_all_buttons()).with_child(
+                    //             List::new(agency_ui)
+                    //                 .with_spacing(10.)
+                    //                 .lens(AppData::agencies),
+                    //         ),
+                    //     )
+                    //     .fix_width(800.),
+                    //     Flex::row().fix_width(800.),
+                    // ),
+                    Scroll::new(
+                        Flex::column().with_child(update_all_buttons()).with_child(
+                            List::new(agency_ui)
+                                .with_spacing(10.)
+                                .lens(AppData::agencies),
+                        ),
+                    )
+                    .fix_width(800.),
                     1.,
                 ),
         )
