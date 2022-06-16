@@ -81,6 +81,37 @@ pub struct AppData {
     pub agencies: Vector<MyAgency>,
     pub expanded: bool,
 }
+impl AppData {
+    pub fn trip_coords(&self) -> Vec<Vec<(f64, f64)>> {
+        self.agencies
+            .iter()
+            .filter(|agency| agency.selected)
+            .map(|agency| {
+                agency
+                    .routes
+                    .iter()
+                    .filter(|route| route.selected && route.trips.len() > 0)
+                    .map(|route| {
+                        route
+                            .trips
+                            .iter()
+                            .filter(|trip| trip.selected)
+                            .map(|trip| {
+                                trip.stops
+                                    .iter()
+                                    .filter(|stop| stop.selected)
+                                    .map(|stop| stop.coord)
+                                    .collect::<Vec<_>>()
+                            })
+                            .flatten()
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect::<Vec<_>>()
+    }
+}
 impl ListItem for AppData {
     fn update_selection(&mut self, value: bool) {
         self.agencies
