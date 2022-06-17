@@ -84,7 +84,10 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
             .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyTrip, _env: &Env| data.expanded,
-                List::new(stop_ui).with_spacing(10.).lens(MyTrip::stops),
+                List::new(stop_ui)
+                    .with_spacing(10.)
+                    .lens(MyTrip::stops)
+                    .disabled_if(|data, _| !data.selected),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start)
@@ -118,7 +121,10 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyRoute, _env: &Env| data.expanded,
-                List::new(trip_ui).with_spacing(10.).lens(MyRoute::trips),
+                List::new(trip_ui)
+                    .with_spacing(10.)
+                    .lens(MyRoute::trips)
+                    .disabled_if(|data, _| !data.selected),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start)
@@ -151,7 +157,10 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
             .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyAgency, _env: &Env| data.expanded,
-                List::new(route_ui).with_spacing(10.).lens(MyAgency::routes),
+                List::new(route_ui)
+                    .with_spacing(10.)
+                    .lens(MyAgency::routes)
+                    .disabled_if(|data, _| !data.selected),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start),
