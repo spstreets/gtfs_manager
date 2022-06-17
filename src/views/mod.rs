@@ -9,8 +9,10 @@ use druid::{
     LocalizedString, Point, UnitPoint, Widget, WidgetExt, WindowDesc,
 };
 
+mod expander;
 use crate::data::*;
 use crate::map::MapWidget;
+use expander::Expander;
 
 const SPACING_1: f64 = 20.;
 const CORNER_RADIUS: f64 = 5.;
@@ -76,7 +78,7 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
             .with_spacer(SPACING_1)
             .with_child(
                 Flex::row()
-                    .with_child(Checkbox::new("Stops >").lens(MyTrip::expanded))
+                    .with_child(Expander::new("Stops").lens(MyTrip::expanded))
                     .with_child(update_all_buttons())
                     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                     .expand_width(),
@@ -113,7 +115,7 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             .with_spacer(SPACING_1)
             .with_child(
                 Flex::row()
-                    .with_child(Checkbox::new("Trips >").lens(MyRoute::expanded))
+                    .with_child(Expander::new("Trips").lens(MyRoute::expanded))
                     .with_child(update_all_buttons())
                     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                     .expand_width(),
@@ -149,7 +151,7 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
             .with_spacer(SPACING_1)
             .with_child(
                 Flex::row()
-                    .with_child(Checkbox::new("Routes >").lens(MyAgency::expanded))
+                    .with_child(Expander::new("Routes").lens(MyAgency::expanded))
                     .with_child(update_all_buttons())
                     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                     .expand_width(),
@@ -181,7 +183,7 @@ pub fn main_widget() -> impl Widget<AppData> {
             Flex::column()
                 .with_child(
                     Flex::row()
-                        .with_child(Checkbox::new("Agencies >").lens(AppData::expanded))
+                        .with_child(Expander::new("Agencies").lens(AppData::expanded))
                         .with_child(update_all_buttons())
                         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .fix_width(800.),
