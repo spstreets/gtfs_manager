@@ -24,10 +24,10 @@ const HEADING_2: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
 fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
     Flex::row()
         .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
-            data.update_selection(true);
+            data.update_all(true);
         }))
         .with_child(Button::new("clear all").on_click(|_, data: &mut T, _| {
-            data.update_selection(false);
+            data.update_all(false);
         }))
 }
 
@@ -171,31 +171,33 @@ pub fn main_widget() -> impl Widget<AppData> {
         .with_child(
             Flex::column()
                 .with_child(
-                    Checkbox::new("Agencies >")
-                        .align_left()
-                        .lens(AppData::expanded),
+                    Flex::row()
+                        .with_child(Checkbox::new("Agencies >").lens(AppData::expanded))
+                        .with_child(update_all_buttons())
+                        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                        .fix_width(800.),
                 )
                 .with_default_spacer()
                 .with_flex_child(
-                    // Either::new(
-                    //     |data: &AppData, _env: &Env| data.expanded,
-                    //     Scroll::new(
-                    //         Flex::column().with_child(update_all_buttons()).with_child(
-                    //             List::new(agency_ui)
-                    //                 .with_spacing(10.)
-                    //                 .lens(AppData::agencies),
-                    //         ),
-                    //     )
-                    //     .fix_width(800.),
-                    //     Flex::row().fix_width(800.),
-                    // ),
-                    Scroll::new(
-                        Flex::column().with_child(update_all_buttons()).with_child(
-                            List::new(agency_ui)
-                                .with_spacing(10.)
-                                .lens(AppData::agencies),
-                        ),
+                    Either::new(
+                        |data: &AppData, _env: &Env| data.expanded,
+                        Scroll::new(
+                            Flex::column().with_child(
+                                List::new(agency_ui)
+                                    .with_spacing(10.)
+                                    .lens(AppData::agencies),
+                            ),
+                        )
+                        .fix_width(800.),
+                        Flex::row().fix_width(800.),
                     )
+                    // Scroll::new(
+                    //     Flex::column().with_child(update_all_buttons()).with_child(
+                    //         List::new(agency_ui)
+                    //             .with_spacing(10.)
+                    //             .lens(AppData::agencies),
+                    //     ),
+                    // )
                     .fix_width(800.),
                     1.,
                 ),

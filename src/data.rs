@@ -4,7 +4,7 @@ use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, 
 use std::collections::HashMap;
 
 pub trait ListItem {
-    fn update_selection(&mut self, value: bool);
+    fn update_all(&mut self, value: bool);
 }
 
 #[derive(Clone, Data, Default, Lens)]
@@ -19,7 +19,7 @@ pub struct MyStopTime {
     pub coord: (f64, f64),
 }
 impl ListItem for MyStopTime {
-    fn update_selection(&mut self, value: bool) {
+    fn update_all(&mut self, value: bool) {
         self.selected = value;
     }
 }
@@ -34,11 +34,11 @@ pub struct MyTrip {
     pub stops: Vector<MyStopTime>,
 }
 impl ListItem for MyTrip {
-    fn update_selection(&mut self, value: bool) {
+    fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.stops
             .iter_mut()
-            .for_each(|stop| stop.update_selection(value));
+            .for_each(|stop| stop.update_all(value));
     }
 }
 
@@ -51,11 +51,11 @@ pub struct MyRoute {
     pub trips: Vector<MyTrip>,
 }
 impl ListItem for MyRoute {
-    fn update_selection(&mut self, value: bool) {
+    fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.trips
             .iter_mut()
-            .for_each(|trip| trip.update_selection(value));
+            .for_each(|trip| trip.update_all(value));
     }
 }
 
@@ -68,11 +68,11 @@ pub struct MyAgency {
     pub routes: Vector<MyRoute>,
 }
 impl ListItem for MyAgency {
-    fn update_selection(&mut self, value: bool) {
+    fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.routes
             .iter_mut()
-            .for_each(|route| route.update_selection(value));
+            .for_each(|route| route.update_all(value));
     }
 }
 
@@ -82,10 +82,10 @@ pub struct AppData {
     pub expanded: bool,
 }
 impl ListItem for AppData {
-    fn update_selection(&mut self, value: bool) {
+    fn update_all(&mut self, value: bool) {
         self.agencies
             .iter_mut()
-            .for_each(|agency| agency.update_selection(value));
+            .for_each(|agency| agency.update_all(value));
     }
 }
 

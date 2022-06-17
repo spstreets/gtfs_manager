@@ -88,14 +88,34 @@ impl Widget<AppData> for MapWidget {
     ) {
         println!("update");
 
-        data.agencies
-            .iter()
-            .zip(old_data.agencies.iter())
-            .for_each(|(agency, old_agency)| {
-                if !agency.selected.same(&old_agency.selected) {
-                    ctx.request_paint();
+        'outer: for (agency, old_agency) in data.agencies.iter().zip(old_data.agencies.iter()) {
+            if !agency.selected.same(&old_agency.selected) {
+                ctx.request_paint();
+                break 'outer;
+            } else {
+                for (route, old_route) in agency.routes.iter().zip(old_agency.routes.iter()) {
+                    if !route.selected.same(&old_route.selected) {
+                        ctx.request_paint();
+                        break 'outer;
+                    } else {
+                        for (trip, old_trip) in route.trips.iter().zip(old_route.trips.iter()) {
+                            if !trip.selected.same(&old_trip.selected) {
+                                ctx.request_paint();
+                                break 'outer;
+                            } else {
+                                for (stop, old_stop) in trip.stops.iter().zip(old_trip.stops.iter())
+                                {
+                                    if !stop.selected.same(&old_stop.selected) {
+                                        ctx.request_paint();
+                                        break 'outer;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            });
+            }
+        }
         // if !old_data.same(data) {
         //     println!("data has changed?!?!");
         //     ctx.request_layout();
