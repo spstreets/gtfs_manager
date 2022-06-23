@@ -2,18 +2,24 @@ use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::{Data, Lens, Widget, WidgetExt};
 use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use std::collections::HashMap;
+use std::fmt::Debug;
+use std::rc::Rc;
 
 pub trait ListItem {
     fn update_all(&mut self, value: bool);
+    fn id(&self) -> String;
+    fn item_type(&self) -> String;
+    // fn name(&self) -> String;
 }
 
-#[derive(Clone, Data, Default, Lens)]
+#[derive(Clone, Data, Lens)]
 pub struct MyStopTime {
+    pub live: bool,
     pub selected: bool,
     pub stop_sequence: u16,
-    // #[data(ignore)]
-    // #[lens(ignore)]
-    // stop_time: Rc<RawStopTime>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stop_time: Rc<RawStopTime>,
     // stop_time: RawStopTime,
     pub name: String,
     pub coord: (f64, f64),
@@ -22,12 +28,22 @@ impl ListItem for MyStopTime {
     fn update_all(&mut self, value: bool) {
         self.selected = value;
     }
+    fn id(&self) -> String {
+        self.stop_time.stop_id.clone()
+    }
+    fn item_type(&self) -> String {
+        "stop_time".to_string()
+    }
 }
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyTrip {
+    pub live: bool,
     pub selected: bool,
     pub expanded: bool,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub trip: Rc<RawTrip>,
     // #[data(ignore)]
     // trip: RawTrip,
     pub name: String,
@@ -40,14 +56,21 @@ impl ListItem for MyTrip {
             .iter_mut()
             .for_each(|stop| stop.update_all(value));
     }
+    fn id(&self) -> String {
+        self.trip.id.clone()
+    }
+    fn item_type(&self) -> String {
+        "trip".to_string()
+    }
 }
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyRoute {
     pub selected: bool,
     pub expanded: bool,
+    #[lens(ignore)]
     #[data(ignore)]
-    pub route: Route,
+    pub route: Rc<Route>,
     pub trips: Vector<MyTrip>,
 }
 impl ListItem for MyRoute {
@@ -56,6 +79,12 @@ impl ListItem for MyRoute {
         self.trips
             .iter_mut()
             .for_each(|trip| trip.update_all(value));
+    }
+    fn id(&self) -> String {
+        self.route.id.clone()
+    }
+    fn item_type(&self) -> String {
+        "route".to_string()
     }
 }
 
@@ -74,18 +103,70 @@ impl ListItem for MyAgency {
             .iter_mut()
             .for_each(|route| route.update_all(value));
     }
+    fn id(&self) -> String {
+        // todo handle agency.id == None
+        self.agency.id.as_ref().unwrap().clone()
+    }
+    fn item_type(&self) -> String {
+        "agency".to_string()
+    }
 }
 
-#[derive(Clone, Data, Default, Lens)]
+#[derive(Clone, Data, Debug, PartialEq)]
+pub enum EditType {
+    Delete,
+    Update,
+    Create,
+}
+#[derive(Clone, Data, Lens)]
+pub struct Edit {
+    pub id: usize,
+    pub edit_type: EditType,
+    pub item_type: String,
+    pub item_id: String,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub item_data: Option<Rc<dyn ListItem>>,
+}
+impl Debug for Edit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Edit")
+            .field("id", &self.id)
+            .field("edit_type", &self.edit_type)
+            .field("item_type", &self.item_type)
+            .field("item_id", &self.item_id)
+            .finish()
+    }
+}
+
+pub struct MyGtfs {
+    pub agencies: Vec<Agency>,
+    pub routes: Vec<Route>,
+    pub trips: Vec<RawTrip>,
+    pub stop_times: Vec<RawStopTime>,
+    pub stops: Vec<Stop>,
+}
+
+#[derive(Clone, Data, Lens)]
 pub struct AppData {
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub gtfs: Rc<MyGtfs>,
     pub agencies: Vector<MyAgency>,
     pub expanded: bool,
+    pub edits: Vector<Edit>,
 }
 impl ListItem for AppData {
     fn update_all(&mut self, value: bool) {
         self.agencies
             .iter_mut()
             .for_each(|agency| agency.update_all(value));
+    }
+    fn id(&self) -> String {
+        "null".to_string()
+    }
+    fn item_type(&self) -> String {
+        "null".to_string()
     }
 }
 
@@ -95,6 +176,14 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     let mut trips = gtfs.trips.unwrap();
     let mut stop_times = gtfs.stop_times.unwrap();
     let mut stops = gtfs.stops.unwrap();
+
+    let my_gtfs = MyGtfs {
+        agencies: agencies.clone(),
+        routes: routes.clone(),
+        trips: trips.clone(),
+        stop_times: stop_times.clone(),
+        stops: stops.clone(),
+    };
 
     // need to be able to grab a slice of stop times by trip id to avoid doing the below loads of times:
     // stop_times
@@ -130,6 +219,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
 
     let app_data = AppData {
+        gtfs: Rc::new(my_gtfs),
         expanded: true,
         agencies: agencies
             .iter()
@@ -140,7 +230,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     .map(|route| MyRoute {
                         selected: true,
                         expanded: false,
-                        route: route.clone(),
+                        route: Rc::new(route.clone()),
                         trips: trips
                             .iter()
                             .enumerate()
@@ -154,9 +244,10 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                                     .map(|stop_time| {
                                         let stop = stop_map.get(&stop_time.stop_id).unwrap();
                                         MyStopTime {
+                                            live: true,
                                             selected: true,
                                             stop_sequence: stop_time.stop_sequence,
-                                            // stop_time: Rc::new(stop_time.clone()),
+                                            stop_time: Rc::new(stop_time.clone()),
                                             // stop_time: stop_time.clone(),
                                             name: stop.name.clone(),
                                             coord: (
@@ -172,9 +263,10 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
 
                                 // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
                                 MyTrip {
+                                    live: true,
                                     selected: true,
                                     expanded: false,
-                                    // trip: Rc::new(trip.clone()),
+                                    trip: Rc::new(trip.clone()),
                                     name: trip.id.clone(),
                                     stops,
                                 }
@@ -193,6 +285,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 }
             })
             .collect::<Vector<_>>(),
+        edits: Vector::new(),
     };
     app_data
 }
