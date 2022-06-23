@@ -11,8 +11,8 @@ use druid::widget::{
     Scroll,
 };
 use druid::{
-    AppLauncher, Color, Data, Env, Insets, Lens, LocalizedString, UnitPoint, Widget, WidgetExt,
-    WindowDesc,
+    AppDelegate, AppLauncher, Color, Data, Env, Insets, Lens, LocalizedString, UnitPoint, Widget,
+    WidgetExt, WindowDesc,
 };
 use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use gtfs_manager::{main_widget, make_initial_data, ListItem, MapWidget};
+use gtfs_manager::{main_widget, make_initial_data, AppData, Delegate, ListItem, MapWidget};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -46,6 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("launching app");
     AppLauncher::with_window(main_window)
+        .delegate(Delegate {})
         .log_to_console()
         .launch(initial_data)?;
     Ok(())

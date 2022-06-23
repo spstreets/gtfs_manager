@@ -1,12 +1,14 @@
+use std::rc::Rc;
+
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::lens::{self, LensExt};
 use druid::widget::{
     Button, Checkbox, Container, CrossAxisAlignment, Either, Flex, FlexParams, Label, List,
-    MainAxisAlignment, Scroll,
+    MainAxisAlignment, Scroll, TextBox,
 };
 use druid::{
-    AppLauncher, Color, Data, Env, EventCtx, FontDescriptor, FontFamily, FontWeight, Insets, Lens,
-    LocalizedString, Point, UnitPoint, Widget, WidgetExt, WindowDesc,
+    AppDelegate, AppLauncher, Color, Data, Env, EventCtx, FontDescriptor, FontFamily, FontWeight,
+    Insets, Lens, LocalizedString, Point, Selector, UnitPoint, Widget, WidgetExt, WindowDesc,
 };
 
 mod expander;
@@ -14,6 +16,7 @@ use crate::data::*;
 use crate::map::MapWidget;
 use expander::Expander;
 
+// parameters
 const SPACING_1: f64 = 20.;
 const CORNER_RADIUS: f64 = 5.;
 const HEADING_1: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
@@ -23,12 +26,110 @@ const HEADING_2: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::BOLD)
     .with_size(20.0);
 
+// command selectors
+// (<item type>, <id>)
+const ITEM_DELETE: Selector<(String, String)> = Selector::new("item.delete");
+const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
+
+pub struct Delegate;
+impl AppDelegate<AppData> for Delegate {
+    fn command(
+        &mut self,
+        ctx: &mut druid::DelegateCtx,
+        target: druid::Target,
+        cmd: &druid::Command,
+        data: &mut AppData,
+        env: &Env,
+    ) -> druid::Handled {
+        if let Some(thing) = cmd.get(ITEM_DELETE) {
+            // let id = data.edits.len();
+            // data.edits.push_back(Edit {
+            //     id,
+            //     edit_type: EditType::Delete,
+            //     item_type: thing.0.clone(),
+            //     item_id: thing.1.clone(),
+            //     item_data: None,
+            // });
+            if thing.0 == "stop_time".to_string() {
+                for agency in data.agencies.iter_mut() {
+                    for route in agency.routes.iter_mut() {
+                        for trip in route.trips.iter_mut() {
+                            for stop_time in trip.stops.iter_mut() {
+                                if stop_time.id() == thing.1 {
+                                    stop_time.live = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if thing.0 == "trip".to_string() {
+                for agency in data.agencies.iter_mut() {
+                    for route in agency.routes.iter_mut() {
+                        for trip in route.trips.iter_mut() {
+                            if trip.id() == thing.1 {
+                                trip.live = false;
+                            }
+                        }
+                    }
+                }
+            }
+            data.edits.clear();
+            for agency in data.agencies.iter() {
+                for route in agency.routes.iter() {
+                    for trip in route.trips.iter() {
+                        if !trip.live {
+                            data.edits.push_back(Edit {
+                                id: data.edits.len(),
+                                edit_type: EditType::Delete,
+                                item_type: "trip".to_string(),
+                                item_id: trip.id(),
+                                item_data: Some(Rc::new(trip.clone())),
+                            });
+                        }
+                        for stop_time in trip.stops.iter() {
+                            if !stop_time.live {
+                                data.edits.push_back(Edit {
+                                    id: data.edits.len(),
+                                    edit_type: EditType::Delete,
+                                    item_type: "stop_time".to_string(),
+                                    item_id: stop_time.id(),
+                                    item_data: Some(Rc::new(stop_time.clone())),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            dbg!(&data.edits);
+            // for stop_time in data.gtfs.stop_times {
+            //     if stop_time.
+            // }
+            // for agency in data.gtfs.agencies {
+            //     if agency.
+            // }
+            druid::Handled::Yes
+        } else if let Some(thing) = cmd.get(EDIT_DELETE) {
+            data.edits.retain(|edit| edit.id != *thing);
+            druid::Handled::Yes
+        } else {
+            druid::Handled::No
+        }
+    }
+}
+
+fn delete_item_button<T: Data + ListItem>() -> impl Widget<T> {
+    Button::new("delete").on_click(|ctx, data: &mut T, _| {
+        ctx.submit_command(ITEM_DELETE.with((data.item_type(), data.id())));
+    })
+}
 fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
     Flex::row()
+        .with_child(delete_item_button())
         .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
             data.update_all(true);
         }))
-        .with_child(Button::new("clear all").on_click(|_, data: &mut T, _| {
+        .with_child(Button::new("deselect all").on_click(|_, data: &mut T, _| {
             data.update_all(false);
         }))
 }
@@ -37,10 +138,16 @@ fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
 pub fn stop_ui() -> impl Widget<MyStopTime> {
     Container::new(
         Flex::row()
-            .with_child(Label::new(|data: &MyStopTime, _env: &_| {
-                format!("{}", data.name)
-            }))
+            .with_child(
+                TextBox::new()
+                    .with_placeholder("stop name")
+                    .lens(MyStopTime::name),
+            )
             .with_child(Checkbox::new("").lens(MyStopTime::selected))
+            .with_child(Label::new(|data: &MyStopTime, _env: &_| {
+                format!("arrival/departure: {:?}", data.stop_time.arrival_time)
+            }))
+            .with_child(delete_item_button())
             // .with_child(Either::new(
             //     |data: &Trip, _env: &Env| data.selected,
             //     List::new(stop_ui).lens(Trip::stops),
@@ -174,6 +281,20 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
     .fix_width(800.)
 }
 
+fn edit() -> impl Widget<Edit> {
+    Flex::row()
+        .with_child(Label::new(|data: &Edit, _: &_| match data.edit_type {
+            EditType::Delete => format!("Delete: {} {}", data.item_type, data.item_id),
+            EditType::Create => format!("Create: {} {}", data.item_type, data.item_id),
+            EditType::Update => format!("Update: {} {}", data.item_type, data.item_id),
+        }))
+        .with_child(
+            Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Edit, _| {
+                ctx.submit_command(EDIT_DELETE.with(data.id));
+            }),
+        )
+}
+
 pub fn main_widget() -> impl Widget<AppData> {
     // todo what's the difference between Point::ZERO and Point::ORIGIN?
     println!("make main widget");
@@ -181,6 +302,10 @@ pub fn main_widget() -> impl Widget<AppData> {
     Flex::row()
         .with_child(
             Flex::column()
+                .with_child(Label::new("Edits"))
+                .with_default_spacer()
+                .with_child(List::new(edit).lens(AppData::edits))
+                .with_default_spacer()
                 .with_child(
                     Flex::row()
                         .with_child(Expander::new("Agencies").lens(AppData::expanded))
@@ -211,7 +336,8 @@ pub fn main_widget() -> impl Widget<AppData> {
                     // )
                     .fix_width(800.),
                     1.,
-                ),
+                )
+                .cross_axis_alignment(CrossAxisAlignment::Start),
         )
         .with_spacer(20.)
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))

@@ -8,5 +8,6 @@ clap = { version = "3.1.12", features = ["derive"] }
 druid = { git = "https://github.com/linebender/druid", features = ["im", "image", "png"] }
 # gtfs-structures = { version = "0.32.2" }
 # gtfs-structures = { path = "../gtfs-structure", default-features = false }
-# gtfs-structures = { path = "../gtfs-structure" }
-gtfs-structures = { git = "https://github.com/maxwell8888/gtfs-structure" }
+gtfs-structures = { path = "../gtfs-structure" }
+# gtfs-structures = { git = "https://github.com/maxwell8888/gtfs-structure" }
+chrono = "0.2.16"
