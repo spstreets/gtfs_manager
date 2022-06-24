@@ -11,10 +11,13 @@ use druid::{
     Insets, Lens, LocalizedString, Point, Selector, UnitPoint, Widget, WidgetExt, WindowDesc,
 };
 
-mod expander;
 use crate::data::*;
 use crate::map::MapWidget;
+
+mod expander;
+mod filtered_list;
 use expander::Expander;
+use filtered_list::FilteredList;
 
 // parameters
 const SPACING_1: f64 = 20.;
@@ -101,7 +104,6 @@ impl AppDelegate<AppData> for Delegate {
                     }
                 }
             }
-            dbg!(&data.edits);
             // for stop_time in data.gtfs.stop_times {
             //     if stop_time.
             // }
@@ -109,8 +111,33 @@ impl AppDelegate<AppData> for Delegate {
             //     if agency.
             // }
             druid::Handled::Yes
-        } else if let Some(thing) = cmd.get(EDIT_DELETE) {
-            data.edits.retain(|edit| edit.id != *thing);
+        } else if let Some(edit_id) = cmd.get(EDIT_DELETE) {
+            let edit = data.edits.get(*edit_id).unwrap();
+            if edit.item_type == "stop_time".to_string() {
+                for agency in data.agencies.iter_mut() {
+                    for route in agency.routes.iter_mut() {
+                        for trip in route.trips.iter_mut() {
+                            for stop_time in trip.stops.iter_mut() {
+                                if stop_time.id() == edit.item_id {
+                                    stop_time.live = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if edit.item_type == "trip".to_string() {
+                for agency in data.agencies.iter_mut() {
+                    for route in agency.routes.iter_mut() {
+                        for trip in route.trips.iter_mut() {
+                            if trip.id() == edit.item_id {
+                                trip.live = true;
+                            }
+                        }
+                    }
+                }
+            }
+            data.edits.retain(|edit| edit.id != *edit_id);
             druid::Handled::Yes
         } else {
             druid::Handled::No
@@ -193,10 +220,18 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
             .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyTrip, _env: &Env| data.expanded,
-                List::new(stop_ui)
-                    .with_spacing(10.)
-                    .lens(MyTrip::stops)
-                    .disabled_if(|data, _| !data.selected),
+                FilteredList::new(
+                    List::new(stop_ui).with_spacing(10.),
+                    |item_data: &MyStopTime, filtered: &()| item_data.live,
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &MyTrip| (data.stops.clone(), ()),
+                    |data: &mut MyTrip, inner: (Vector<MyStopTime>, ())| {
+                        data.stops = inner.0;
+                        // data.filter = inner.1;
+                    },
+                ))
+                .disabled_if(|data, _| !data.selected),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start)
@@ -230,10 +265,18 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyRoute, _env: &Env| data.expanded,
-                List::new(trip_ui)
-                    .with_spacing(10.)
-                    .lens(MyRoute::trips)
-                    .disabled_if(|data, _| !data.selected),
+                FilteredList::new(
+                    List::new(trip_ui).with_spacing(10.),
+                    |item_data: &MyTrip, filtered: &()| item_data.live,
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &MyRoute| (data.trips.clone(), ()),
+                    |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
+                        data.trips = inner.0;
+                        // data.filter = inner.1;
+                    },
+                ))
+                .disabled_if(|data, _| !data.selected),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start)
