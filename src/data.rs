@@ -9,6 +9,10 @@ pub trait ListItem {
     fn update_all(&mut self, value: bool);
     fn id(&self) -> String;
     fn item_type(&self) -> String;
+    // fn data_info(&self) -> String;
+    fn data_info(&self) -> String {
+        "hello".to_string()
+    }
     // fn name(&self) -> String;
 }
 
@@ -47,6 +51,7 @@ pub struct MyTrip {
     // #[data(ignore)]
     // trip: RawTrip,
     pub name: String,
+    pub trip_headsign: String,
     pub stops: Vector<MyStopTime>,
 }
 impl ListItem for MyTrip {
@@ -61,6 +66,13 @@ impl ListItem for MyTrip {
     }
     fn item_type(&self) -> String {
         "trip".to_string()
+    }
+    fn data_info(&self) -> String {
+        format!(
+            "{} -> {}",
+            self.trip.trip_headsign.clone().unwrap(),
+            self.trip_headsign
+        )
     }
 }
 
@@ -268,6 +280,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                                     expanded: false,
                                     trip: Rc::new(trip.clone()),
                                     name: trip.id.clone(),
+                                    trip_headsign: trip.trip_headsign.clone().unwrap(),
                                     stops,
                                 }
                             })
