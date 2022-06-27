@@ -47,7 +47,8 @@ impl AppDelegate<AppData> for Delegate {
         data: &mut AppData,
         env: &Env,
     ) -> druid::Handled {
-        if let Some(thing) = cmd.get(ITEM_DELETE) {
+        if let Some(item_delete) = cmd.get(ITEM_DELETE) {
+            dbg!(item_delete);
             // let id = data.edits.len();
             // data.edits.push_back(Edit {
             //     id,
@@ -56,12 +57,12 @@ impl AppDelegate<AppData> for Delegate {
             //     item_id: thing.1.clone(),
             //     item_data: None,
             // });
-            if thing.0 == "stop_time".to_string() {
+            if item_delete.0 == "stop_time".to_string() {
                 for agency in data.agencies.iter_mut() {
                     for route in agency.routes.iter_mut() {
                         for trip in route.trips.iter_mut() {
                             for stop_time in trip.stops.iter_mut() {
-                                if stop_time.id() == thing.1 {
+                                if stop_time.id() == item_delete.1 {
                                     stop_time.live = false;
                                 }
                             }
@@ -69,11 +70,11 @@ impl AppDelegate<AppData> for Delegate {
                     }
                 }
             }
-            if thing.0 == "trip".to_string() {
+            if item_delete.0 == "trip".to_string() {
                 for agency in data.agencies.iter_mut() {
                     for route in agency.routes.iter_mut() {
                         for trip in route.trips.iter_mut() {
-                            if trip.id() == thing.1 {
+                            if trip.id() == item_delete.1 {
                                 trip.live = false;
                             }
                         }
@@ -113,14 +114,16 @@ impl AppDelegate<AppData> for Delegate {
             // for agency in data.gtfs.agencies {
             //     if agency.
             // }
-            druid::Handled::Yes
-        } else if let Some(thing) = cmd.get(ITEM_UPDATE) {
+            // druid::Handled::Yes
+            druid::Handled::No
+        } else if let Some(item_update) = cmd.get(ITEM_UPDATE) {
+            dbg!(item_update);
             let mut edit;
-            if thing.0 == "trip".to_string() {
+            if item_update.0 == "trip".to_string() {
                 for agency in data.agencies.iter() {
                     for route in agency.routes.iter() {
                         for trip in route.trips.iter() {
-                            if trip.id() == thing.1 {
+                            if trip.id() == item_update.1 {
                                 edit = Edit {
                                     id: data.edits.len(),
                                     edit_type: EditType::Update,
@@ -155,6 +158,7 @@ impl AppDelegate<AppData> for Delegate {
 
             // delete edits
         } else if let Some(edit_id) = cmd.get(EDIT_DELETE) {
+            dbg!(edit_id);
             let edit = data.edits.get(*edit_id).unwrap();
             if edit.item_type == "stop_time".to_string() {
                 for agency in data.agencies.iter_mut() {
@@ -401,7 +405,12 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
 fn edit() -> impl Widget<Edit> {
     Flex::row()
         .with_child(Label::new(|data: &Edit, _: &_| match data.edit_type {
-            EditType::Delete => format!("Delete: {} {}", data.item_type, data.item_id),
+            EditType::Delete => format!(
+                "Delete: {} {}. {}",
+                data.item_type,
+                data.item_id,
+                data.item_data.clone().unwrap().data_info()
+            ),
             EditType::Create => format!("Create: {} {}", data.item_type, data.item_id),
             EditType::Update => format!(
                 "Update: {} {}. {}",
