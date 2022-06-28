@@ -49,73 +49,52 @@ impl AppDelegate<AppData> for Delegate {
     ) -> druid::Handled {
         if let Some(item_delete) = cmd.get(ITEM_DELETE) {
             dbg!(item_delete);
-            // let id = data.edits.len();
-            // data.edits.push_back(Edit {
-            //     id,
-            //     edit_type: EditType::Delete,
-            //     item_type: thing.0.clone(),
-            //     item_id: thing.1.clone(),
-            //     item_data: None,
-            // });
-            if item_delete.0 == "stop_time".to_string() {
-                for agency in data.agencies.iter_mut() {
-                    for route in agency.routes.iter_mut() {
+
+            // data.edits.clear();
+            for agency in data.agencies.iter_mut() {
+                for route in agency.routes.iter_mut() {
+                    if item_delete.0 == "route".to_string() && route.id() == item_delete.1 {
+                        route.live = false;
+                        data.edits.push_back(Edit {
+                            id: data.edits.len(),
+                            edit_type: EditType::Delete,
+                            item_type: "route".to_string(),
+                            item_id: route.id(),
+                            item_data: Some(Rc::new(route.clone())),
+                        });
+                    } else {
                         for trip in route.trips.iter_mut() {
-                            for stop_time in trip.stops.iter_mut() {
-                                if stop_time.id() == item_delete.1 {
-                                    stop_time.live = false;
+                            if item_delete.0 == "trip".to_string() && trip.id() == item_delete.1 {
+                                trip.live = false;
+                                data.edits.push_back(Edit {
+                                    id: data.edits.len(),
+                                    edit_type: EditType::Delete,
+                                    item_type: "trip".to_string(),
+                                    item_id: trip.id(),
+                                    item_data: Some(Rc::new(trip.clone())),
+                                });
+                            } else {
+                                for stop_time in trip.stops.iter_mut() {
+                                    if item_delete.0 == "stop_time".to_string()
+                                        && stop_time.id() == item_delete.1
+                                    {
+                                        stop_time.live = false;
+                                        data.edits.push_back(Edit {
+                                            id: data.edits.len(),
+                                            edit_type: EditType::Delete,
+                                            item_type: "stop_time".to_string(),
+                                            item_id: stop_time.id(),
+                                            item_data: Some(Rc::new(stop_time.clone())),
+                                        });
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-            if item_delete.0 == "trip".to_string() {
-                for agency in data.agencies.iter_mut() {
-                    for route in agency.routes.iter_mut() {
-                        for trip in route.trips.iter_mut() {
-                            if trip.id() == item_delete.1 {
-                                trip.live = false;
-                            }
-                        }
-                    }
-                }
-            }
-            // data.edits.clear();
-            for agency in data.agencies.iter() {
-                for route in agency.routes.iter() {
-                    for trip in route.trips.iter() {
-                        if !trip.live {
-                            data.edits.push_back(Edit {
-                                id: data.edits.len(),
-                                edit_type: EditType::Delete,
-                                item_type: "trip".to_string(),
-                                item_id: trip.id(),
-                                item_data: Some(Rc::new(trip.clone())),
-                            });
-                        }
-                        for stop_time in trip.stops.iter() {
-                            if !stop_time.live {
-                                data.edits.push_back(Edit {
-                                    id: data.edits.len(),
-                                    edit_type: EditType::Delete,
-                                    item_type: "stop_time".to_string(),
-                                    item_id: stop_time.id(),
-                                    item_data: Some(Rc::new(stop_time.clone())),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-            // for stop_time in data.gtfs.stop_times {
-            //     if stop_time.
-            // }
-            // for agency in data.gtfs.agencies {
-            //     if agency.
-            // }
-            // druid::Handled::Yes
-            druid::Handled::No
+            // druid::Handled::No
+            druid::Handled::Yes
         } else if let Some(item_update) = cmd.get(ITEM_UPDATE) {
             dbg!(item_update);
             let mut edit;
@@ -219,6 +198,9 @@ fn delete_item_button<T: Data + ListItem>() -> impl Widget<T> {
 }
 fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
     Flex::row()
+        .with_child(Button::new("new").on_click(|_, data: &mut T, _| {
+            data.add_new();
+        }))
         .with_child(delete_item_button())
         .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
             data.update_all(true);
@@ -335,6 +317,16 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             .with_spacer(SPACING_1)
             .with_child(
                 Flex::row()
+                    .with_child(Label::new("trip_headsign"))
+                    .with_child(
+                        TextBox::new()
+                            .with_placeholder("route short_name")
+                            .lens(MyRoute::short_name), // .controller(TextBoxOnChange {}),
+                    ),
+            )
+            .with_spacer(SPACING_1)
+            .with_child(
+                Flex::row()
                     .with_child(Expander::new("Trips").lens(MyRoute::expanded))
                     .with_child(update_all_buttons())
                     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
@@ -343,6 +335,12 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyRoute, _env: &Env| data.expanded,
+                // removing filteredlist doesn't help with trips not updating
+                // List::new(trip_ui)
+                //     .with_spacing(10.)
+                //     .lens(MyRoute::trips)
+                //     .disabled_if(|data, _| !data.selected),
+                // Flex::row(),
                 FilteredList::new(
                     List::new(trip_ui).with_spacing(10.),
                     |item_data: &MyTrip, filtered: &()| item_data.live,
@@ -353,8 +351,7 @@ pub fn route_ui() -> impl Widget<MyRoute> {
                         data.trips = inner.0;
                         // data.filter = inner.1;
                     },
-                ))
-                .disabled_if(|data, _| !data.selected),
+                )),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start)
@@ -387,10 +384,18 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
             .with_default_spacer()
             .with_child(Either::new(
                 |data: &MyAgency, _env: &Env| data.expanded,
-                List::new(route_ui)
-                    .with_spacing(10.)
-                    .lens(MyAgency::routes)
-                    .disabled_if(|data, _| !data.selected),
+                FilteredList::new(
+                    List::new(route_ui).with_spacing(10.),
+                    |item_data: &MyRoute, filtered: &()| item_data.live,
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &MyAgency| (data.routes.clone(), ()),
+                    |data: &mut MyAgency, inner: (Vector<MyRoute>, ())| {
+                        data.routes = inner.0;
+                        // data.filter = inner.1;
+                    },
+                ))
+                .disabled_if(|data, _| !data.selected),
                 Flex::row(),
             ))
             .cross_axis_alignment(CrossAxisAlignment::Start),

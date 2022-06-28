@@ -6,12 +6,13 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 pub trait ListItem {
+    fn add_new(&mut self);
     fn update_all(&mut self, value: bool);
     fn id(&self) -> String;
     fn item_type(&self) -> String;
     // fn data_info(&self) -> String;
     fn data_info(&self) -> String {
-        "hello".to_string()
+        "not implemented".to_string()
     }
     // fn name(&self) -> String;
 }
@@ -29,6 +30,7 @@ pub struct MyStopTime {
     pub coord: (f64, f64),
 }
 impl ListItem for MyStopTime {
+    fn add_new(&mut self) {}
     fn update_all(&mut self, value: bool) {
         self.selected = value;
     }
@@ -55,6 +57,7 @@ pub struct MyTrip {
     pub stops: Vector<MyStopTime>,
 }
 impl ListItem for MyTrip {
+    fn add_new(&mut self) {}
     fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.stops
@@ -78,14 +81,40 @@ impl ListItem for MyTrip {
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyRoute {
+    pub live: bool,
     pub selected: bool,
     pub expanded: bool,
+    pub short_name: String,
     #[lens(ignore)]
     #[data(ignore)]
     pub route: Rc<Route>,
     pub trips: Vector<MyTrip>,
 }
 impl ListItem for MyRoute {
+    fn add_new(&mut self) {
+        self.trips.push_front(MyTrip {
+            live: true,
+            selected: true,
+            expanded: false,
+            trip: Rc::new(RawTrip {
+                // todo
+                id: "needtogenerateauid".to_string(),
+                service_id: "needtogetcalendar.serviceid".to_string(),
+                route_id: self.id(),
+                shape_id: None,
+                trip_headsign: None,
+                trip_short_name: None,
+                direction_id: None,
+                block_id: None,
+                wheelchair_accessible: gtfs_structures::Availability::InformationNotAvailable,
+                bikes_allowed: gtfs_structures::BikesAllowedType::NoBikeInfo,
+            }),
+            name: "new trip name".to_string(),
+            trip_headsign: "new trip headsign".to_string(),
+            stops: Vector::new(),
+        });
+        println!("added new trip");
+    }
     fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.trips
@@ -98,10 +127,14 @@ impl ListItem for MyRoute {
     fn item_type(&self) -> String {
         "route".to_string()
     }
+    fn data_info(&self) -> String {
+        format!("{} -> {}", self.route.short_name.clone(), self.short_name)
+    }
 }
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyAgency {
+    pub live: bool,
     pub selected: bool,
     pub expanded: bool,
     #[data(ignore)]
@@ -109,6 +142,7 @@ pub struct MyAgency {
     pub routes: Vector<MyRoute>,
 }
 impl ListItem for MyAgency {
+    fn add_new(&mut self) {}
     fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.routes
@@ -169,6 +203,7 @@ pub struct AppData {
     pub edits: Vector<Edit>,
 }
 impl ListItem for AppData {
+    fn add_new(&mut self) {}
     fn update_all(&mut self, value: bool) {
         self.agencies
             .iter_mut()
@@ -240,8 +275,10 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     .iter()
                     .filter(|route| route.agency_id == agency.id)
                     .map(|route| MyRoute {
+                        live: true,
                         selected: true,
                         expanded: false,
+                        short_name: route.short_name.clone(),
                         route: Rc::new(route.clone()),
                         trips: trips
                             .iter()
@@ -291,6 +328,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     route1.route.short_name.cmp(&route2.route.short_name)
                 });
                 MyAgency {
+                    live: true,
                     selected: true,
                     expanded: false,
                     agency: agency.clone(),

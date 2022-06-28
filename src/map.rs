@@ -21,6 +21,7 @@ pub struct MapWidget {
     speed: f64,
     drag_start: Option<Point>,
     focal_point: Point,
+    limit: Option<usize>,
 }
 impl MapWidget {
     pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
@@ -30,6 +31,7 @@ impl MapWidget {
             speed,
             drag_start: None,
             focal_point: offset,
+            limit: Some(50),
         }
     }
 }
@@ -155,7 +157,7 @@ impl Widget<AppData> for MapWidget {
         let rect = size.to_rect();
         ctx.fill(rect, &Color::grey(0.1));
 
-        let trips = data
+        let mut trips = data
             .agencies
             .iter()
             .filter(|agency| agency.selected)
@@ -183,6 +185,10 @@ impl Widget<AppData> for MapWidget {
             })
             .flatten()
             .collect::<Vec<_>>();
+
+        if let Some(limit) = self.limit {
+            trips = trips.iter().cloned().take(limit).collect::<Vec<_>>();
+        }
 
         // find size of path data
         let x = trips
