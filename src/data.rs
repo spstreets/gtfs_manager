@@ -178,17 +178,17 @@ pub enum EditType {
     Create,
 }
 #[derive(Clone, Data, Lens)]
-pub struct Edit {
+pub struct Action {
     pub id: usize,
     pub edit_type: EditType,
     pub item_type: String,
     pub item_id: String,
     // todo this of course means that the edit list won't get updated when eg a field name changes
-    #[data(ignore)]
+    // #[data(ignore)]
     #[lens(ignore)]
     pub item_data: Option<Rc<dyn ListItem>>,
 }
-impl Debug for Edit {
+impl Debug for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Edit")
             .field("id", &self.id)
@@ -208,13 +208,20 @@ pub struct MyGtfs {
 }
 
 #[derive(Clone, Data, Lens)]
+pub struct Edit {
+    id: usize,
+}
+
+#[derive(Clone, Data, Lens)]
 pub struct AppData {
     pub show_edits: bool,
+    pub show_actions: bool,
     #[data(ignore)]
     #[lens(ignore)]
     pub gtfs: Rc<MyGtfs>,
     pub agencies: Vector<MyAgency>,
     pub expanded: bool,
+    pub actions: Vector<Action>,
     pub edits: Vector<Edit>,
 }
 impl ListItem for AppData {
@@ -284,6 +291,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
 
     let app_data = AppData {
         show_edits: false,
+        show_actions: false,
         gtfs: Rc::new(my_gtfs),
         expanded: true,
         agencies: agencies
@@ -354,6 +362,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 }
             })
             .collect::<Vector<_>>(),
+        actions: Vector::new(),
         edits: Vector::new(),
     };
     app_data

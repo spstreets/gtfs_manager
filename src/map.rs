@@ -145,7 +145,8 @@ impl Widget<AppData> for MapWidget {
         Size::new(max, max)
     }
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
-        println!("map paint");
+        // println!("map paint");
+        
         // Clear the whole widget with the color of your choice
         // (ctx.size() returns the size of the layout rect we're painting in)
         // Note: ctx also has a `clear` method, but that clears the whole context,
