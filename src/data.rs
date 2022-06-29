@@ -4,9 +4,10 @@ use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, 
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
+use uuid::Uuid;
 
 pub trait ListItem {
-    fn add_new(&mut self);
+    fn new_child(&mut self) -> String;
     fn update_all(&mut self, value: bool);
     fn id(&self) -> String;
     fn item_type(&self) -> String;
@@ -17,7 +18,7 @@ pub trait ListItem {
     // fn name(&self) -> String;
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Debug, Lens)]
 pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
@@ -30,7 +31,9 @@ pub struct MyStopTime {
     pub coord: (f64, f64),
 }
 impl ListItem for MyStopTime {
-    fn add_new(&mut self) {}
+    fn new_child(&mut self) -> String {
+        todo!()
+    }
     fn update_all(&mut self, value: bool) {
         self.selected = value;
     }
@@ -42,7 +45,7 @@ impl ListItem for MyStopTime {
     }
 }
 
-#[derive(Clone, Data, Default, Lens)]
+#[derive(Clone, Data, Debug, Default, Lens)]
 pub struct MyTrip {
     pub live: bool,
     pub selected: bool,
@@ -57,7 +60,9 @@ pub struct MyTrip {
     pub stops: Vector<MyStopTime>,
 }
 impl ListItem for MyTrip {
-    fn add_new(&mut self) {}
+    fn new_child(&mut self) -> String {
+        todo!()
+    }
     fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.stops
@@ -73,7 +78,10 @@ impl ListItem for MyTrip {
     fn data_info(&self) -> String {
         format!(
             "{} -> {}",
-            self.trip.trip_headsign.clone().unwrap(),
+            self.trip
+                .trip_headsign
+                .clone()
+                .unwrap_or("no headsign".to_string()),
             self.trip_headsign
         )
     }
@@ -91,14 +99,14 @@ pub struct MyRoute {
     pub trips: Vector<MyTrip>,
 }
 impl ListItem for MyRoute {
-    fn add_new(&mut self) {
-        self.trips.push_front(MyTrip {
+    fn new_child(&mut self) -> String {
+        let new_trip = MyTrip {
             live: true,
             selected: true,
             expanded: false,
             trip: Rc::new(RawTrip {
                 // todo
-                id: "needtogenerateauid".to_string(),
+                id: Uuid::new_v4().to_string(),
                 service_id: "needtogetcalendar.serviceid".to_string(),
                 route_id: self.id(),
                 shape_id: None,
@@ -112,8 +120,11 @@ impl ListItem for MyRoute {
             name: "new trip name".to_string(),
             trip_headsign: "new trip headsign".to_string(),
             stops: Vector::new(),
-        });
+        };
+        let new_trip_id = new_trip.id();
+        self.trips.push_front(new_trip);
         println!("added new trip");
+        new_trip_id
     }
     fn update_all(&mut self, value: bool) {
         self.selected = value;
@@ -142,7 +153,9 @@ pub struct MyAgency {
     pub routes: Vector<MyRoute>,
 }
 impl ListItem for MyAgency {
-    fn add_new(&mut self) {}
+    fn new_child(&mut self) -> String {
+        todo!()
+    }
     fn update_all(&mut self, value: bool) {
         self.selected = value;
         self.routes
@@ -165,16 +178,17 @@ pub enum EditType {
     Create,
 }
 #[derive(Clone, Data, Lens)]
-pub struct Edit {
+pub struct Action {
     pub id: usize,
     pub edit_type: EditType,
     pub item_type: String,
     pub item_id: String,
-    #[data(ignore)]
+    // todo this of course means that the edit list won't get updated when eg a field name changes
+    // #[data(ignore)]
     #[lens(ignore)]
     pub item_data: Option<Rc<dyn ListItem>>,
 }
-impl Debug for Edit {
+impl Debug for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Edit")
             .field("id", &self.id)
@@ -194,16 +208,26 @@ pub struct MyGtfs {
 }
 
 #[derive(Clone, Data, Lens)]
+pub struct Edit {
+    id: usize,
+}
+
+#[derive(Clone, Data, Lens)]
 pub struct AppData {
+    pub show_edits: bool,
+    pub show_actions: bool,
     #[data(ignore)]
     #[lens(ignore)]
     pub gtfs: Rc<MyGtfs>,
     pub agencies: Vector<MyAgency>,
     pub expanded: bool,
+    pub actions: Vector<Action>,
     pub edits: Vector<Edit>,
 }
 impl ListItem for AppData {
-    fn add_new(&mut self) {}
+    fn new_child(&mut self) -> String {
+        todo!()
+    }
     fn update_all(&mut self, value: bool) {
         self.agencies
             .iter_mut()
@@ -266,6 +290,8 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
 
     let app_data = AppData {
+        show_edits: false,
+        show_actions: false,
         gtfs: Rc::new(my_gtfs),
         expanded: true,
         agencies: agencies
@@ -336,6 +362,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 }
             })
             .collect::<Vector<_>>(),
+        actions: Vector::new(),
         edits: Vector::new(),
     };
     app_data

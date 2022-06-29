@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use druid::im::{ordmap, vector, OrdMap, Vector};
+use druid::keyboard_types::Key;
 use druid::lens::{self, LensExt};
 use druid::text::{EditableText, TextStorage};
 use druid::widget::{
@@ -8,9 +9,9 @@ use druid::widget::{
     List, MainAxisAlignment, Scroll, TextBox,
 };
 use druid::{
-    AppDelegate, AppLauncher, Color, Data, Env, EventCtx, FontDescriptor, FontFamily, FontWeight,
-    Insets, Lens, LocalizedString, Point, Selector, UnitPoint, UpdateCtx, Widget, WidgetExt,
-    WindowDesc,
+    AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
+    FontWeight, Insets, Lens, LocalizedString, Point, Selector, UnitPoint, UpdateCtx, Widget,
+    WidgetExt, WindowDesc,
 };
 
 use crate::data::*;
@@ -34,11 +35,40 @@ const HEADING_2: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
 // command selectors
 // (<item type>, <id>)
 const ITEM_DELETE: Selector<(String, String)> = Selector::new("item.delete");
+// (<item type>, <id>)
 const ITEM_UPDATE: Selector<(String, String)> = Selector::new("item.update");
+// (<item type>, <parent id>)
+const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.child");
 const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
 
 pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
+    fn event(
+        &mut self,
+        ctx: &mut druid::DelegateCtx,
+        window_id: druid::WindowId,
+        event: Event,
+        data: &mut AppData,
+        env: &Env,
+    ) -> Option<Event> {
+        match &event {
+            Event::KeyDown(key_event) => {
+                // not firing for some reason
+                println!("keydown");
+                match key_event.key {
+                    Key::ArrowUp => {
+                        println!("arrowup");
+                    }
+                    Key::ArrowDown => {
+                        println!("arrowdown");
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        };
+        Some(event)
+    }
     fn command(
         &mut self,
         ctx: &mut druid::DelegateCtx,
@@ -55,8 +85,8 @@ impl AppDelegate<AppData> for Delegate {
                 for route in agency.routes.iter_mut() {
                     if item_delete.0 == "route".to_string() && route.id() == item_delete.1 {
                         route.live = false;
-                        data.edits.push_back(Edit {
-                            id: data.edits.len(),
+                        data.actions.push_back(Action {
+                            id: data.actions.len(),
                             edit_type: EditType::Delete,
                             item_type: "route".to_string(),
                             item_id: route.id(),
@@ -66,8 +96,8 @@ impl AppDelegate<AppData> for Delegate {
                         for trip in route.trips.iter_mut() {
                             if item_delete.0 == "trip".to_string() && trip.id() == item_delete.1 {
                                 trip.live = false;
-                                data.edits.push_back(Edit {
-                                    id: data.edits.len(),
+                                data.actions.push_back(Action {
+                                    id: data.actions.len(),
                                     edit_type: EditType::Delete,
                                     item_type: "trip".to_string(),
                                     item_id: trip.id(),
@@ -79,8 +109,8 @@ impl AppDelegate<AppData> for Delegate {
                                         && stop_time.id() == item_delete.1
                                     {
                                         stop_time.live = false;
-                                        data.edits.push_back(Edit {
-                                            id: data.edits.len(),
+                                        data.actions.push_back(Action {
+                                            id: data.actions.len(),
                                             edit_type: EditType::Delete,
                                             item_type: "stop_time".to_string(),
                                             item_id: stop_time.id(),
@@ -97,20 +127,57 @@ impl AppDelegate<AppData> for Delegate {
             druid::Handled::Yes
         } else if let Some(item_update) = cmd.get(ITEM_UPDATE) {
             dbg!(item_update);
-            let mut edit;
             if item_update.0 == "trip".to_string() {
                 for agency in data.agencies.iter() {
                     for route in agency.routes.iter() {
                         for trip in route.trips.iter() {
                             if trip.id() == item_update.1 {
-                                edit = Edit {
-                                    id: data.edits.len(),
-                                    edit_type: EditType::Update,
-                                    item_type: "trip".to_string(),
-                                    item_id: trip.id(),
-                                    item_data: Some(Rc::new(trip.clone())),
-                                };
-                                data.edits.push_back(edit);
+                                dbg!(&trip.trip_headsign);
+                                if data.actions.len() > 0
+                                    && trip.id()
+                                        == data
+                                            .actions
+                                            .last()
+                                            .unwrap()
+                                            .item_data
+                                            .as_ref()
+                                            .unwrap()
+                                            .id()
+                                    && data.actions.last().unwrap().edit_type == EditType::Update
+                                {
+                                    data.actions
+                                        .get_mut(data.actions.len() - 1)
+                                        .unwrap()
+                                        .item_data = Some(Rc::new(trip.clone()));
+                                } else {
+                                    let edit = Action {
+                                        id: data.actions.len(),
+                                        edit_type: EditType::Update,
+                                        item_type: "trip".to_string(),
+                                        item_id: trip.id(),
+                                        item_data: Some(Rc::new(trip.clone())),
+                                    };
+                                    data.actions.push_back(edit);
+                                }
+
+                                // edit = Action {
+                                //     id: data.edits.len(),
+                                //     edit_type: EditType::Update,
+                                //     item_type: "trip".to_string(),
+                                //     item_id: trip.id(),
+                                //     item_data: Some(Rc::new(trip.clone())),
+                                // };
+                                // match data.edits.iter().position(|edit| {
+                                //     edit.item_id == item_update.1
+                                //         && edit.edit_type == EditType::Update
+                                // }) {
+                                //     Some(index) => {
+                                //         data.edits.set(index, edit);
+                                //     }
+                                //     None => {
+                                //         data.edits.push_back(edit);
+                                //     }
+                                // };
                             }
                             // for stop_time in trip.stops.iter() {
                             //     if !stop_time.live {
@@ -136,9 +203,57 @@ impl AppDelegate<AppData> for Delegate {
             druid::Handled::Yes
 
             // delete edits
+        } else if let Some(item) = cmd.get(ITEM_NEW_CHILD) {
+            dbg!(item);
+            let (item_type, parent_id) = item;
+
+            // data.edits.clear();
+            for agency in data.agencies.iter_mut() {
+                for route in agency.routes.iter_mut() {
+                    if item_type == "route" && &route.id() == parent_id {
+                        route.new_child();
+                        data.actions.push_back(Action {
+                            id: data.actions.len(),
+                            edit_type: EditType::Create,
+                            // todo is the item type route? or should it be a trip?
+                            item_type: "trip".to_string(),
+                            item_id: route.id(),
+                            item_data: Some(Rc::new(route.clone())),
+                        });
+                    } else {
+                        // for trip in route.trips.iter_mut() {
+                        //     if item_type == "trip" {
+                        //         trip.live = false;
+                        //         data.edits.push_back(Edit {
+                        //             id: data.edits.len(),
+                        //             edit_type: EditType::Delete,
+                        //             item_type: "trip".to_string(),
+                        //             item_id: trip.id(),
+                        //             item_data: Some(Rc::new(trip.clone())),
+                        //         });
+                        //     } else {
+                        //         for stop_time in trip.stops.iter_mut() {
+                        //             if item_type == "stop_time" {
+                        //                 stop_time.live = false;
+                        //                 data.edits.push_back(Edit {
+                        //                     id: data.edits.len(),
+                        //                     edit_type: EditType::Delete,
+                        //                     item_type: "stop_time".to_string(),
+                        //                     item_id: stop_time.id(),
+                        //                     item_data: Some(Rc::new(stop_time.clone())),
+                        //                 });
+                        //             }
+                        //         }
+                        //     }
+                        // }
+                    }
+                }
+            }
+            // druid::Handled::No
+            druid::Handled::Yes
         } else if let Some(edit_id) = cmd.get(EDIT_DELETE) {
             dbg!(edit_id);
-            let edit = data.edits.get(*edit_id).unwrap();
+            let edit = data.actions.get(*edit_id).unwrap();
             if edit.item_type == "stop_time".to_string() {
                 for agency in data.agencies.iter_mut() {
                     for route in agency.routes.iter_mut() {
@@ -163,7 +278,7 @@ impl AppDelegate<AppData> for Delegate {
                     }
                 }
             }
-            data.edits.retain(|edit| edit.id != *edit_id);
+            data.actions.retain(|edit| edit.id != *edit_id);
             druid::Handled::Yes
         } else {
             druid::Handled::No
@@ -187,8 +302,8 @@ impl<W: Widget<MyTrip>> Controller<MyTrip, W> for TextBoxOnChange {
             dbg!(&old_data.trip_headsign);
             dbg!(&data.trip_headsign);
             ctx.submit_command(ITEM_UPDATE.with((data.item_type(), data.id())));
-            child.update(ctx, old_data, data, env);
         }
+        child.update(ctx, old_data, data, env);
     }
 }
 fn delete_item_button<T: Data + ListItem>() -> impl Widget<T> {
@@ -198,8 +313,8 @@ fn delete_item_button<T: Data + ListItem>() -> impl Widget<T> {
 }
 fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
     Flex::row()
-        .with_child(Button::new("new").on_click(|_, data: &mut T, _| {
-            data.add_new();
+        .with_child(Button::new("new child").on_click(|ctx, data: &mut T, _| {
+            ctx.submit_command(ITEM_NEW_CHILD.with((data.item_type(), data.id())));
         }))
         .with_child(delete_item_button())
         .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
@@ -408,27 +523,45 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
 }
 
 fn edit() -> impl Widget<Edit> {
-    Flex::row()
-        .with_child(Label::new(|data: &Edit, _: &_| match data.edit_type {
-            EditType::Delete => format!(
-                "Delete: {} {}. {}",
-                data.item_type,
-                data.item_id,
-                data.item_data.clone().unwrap().data_info()
+    Container::new(Flex::row())
+        .padding((10., 10., 10., 10.))
+        // .background(Color::grey(0.1))
+        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+        .rounded(CORNER_RADIUS)
+}
+fn action() -> impl Widget<Action> {
+    Container::new(
+        Flex::row()
+            .with_child(Label::new(|data: &Action, _: &_| match data.edit_type {
+                EditType::Delete => format!(
+                    "Delete: {} {}. {}",
+                    data.item_type,
+                    data.item_id,
+                    data.item_data.clone().unwrap().data_info()
+                ),
+                EditType::Create => format!(
+                    "Create: {} {}. {}",
+                    data.item_type,
+                    data.item_id,
+                    data.item_data.clone().unwrap().data_info()
+                ),
+                EditType::Update => format!(
+                    "Update: {} {}. {}",
+                    data.item_type,
+                    data.item_id,
+                    data.item_data.clone().unwrap().data_info()
+                ),
+            }))
+            .with_child(
+                Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Action, _| {
+                    ctx.submit_command(EDIT_DELETE.with(data.id));
+                }),
             ),
-            EditType::Create => format!("Create: {} {}", data.item_type, data.item_id),
-            EditType::Update => format!(
-                "Update: {} {}. {}",
-                data.item_type,
-                data.item_id,
-                data.item_data.clone().unwrap().data_info()
-            ),
-        }))
-        .with_child(
-            Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Edit, _| {
-                ctx.submit_command(EDIT_DELETE.with(data.id));
-            }),
-        )
+    )
+    .padding((10., 10., 10., 10.))
+    // .background(Color::grey(0.1))
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .rounded(CORNER_RADIUS)
 }
 
 pub fn main_widget() -> impl Widget<AppData> {
@@ -438,9 +571,33 @@ pub fn main_widget() -> impl Widget<AppData> {
     Flex::row()
         .with_child(
             Flex::column()
-                .with_child(Label::new("Edits"))
+                .with_child(Expander::new("Edits").lens(AppData::show_edits))
                 .with_default_spacer()
-                .with_child(List::new(edit).lens(AppData::edits))
+                .with_child(
+                    Either::new(
+                        |data: &AppData, _env: &Env| data.show_edits,
+                        List::new(edit)
+                            .with_spacing(10.)
+                            .lens(AppData::edits)
+                            .fix_width(800.),
+                        Flex::row().fix_width(800.),
+                    )
+                    .fix_width(800.),
+                )
+                .with_default_spacer()
+                .with_child(Expander::new("Actions").lens(AppData::show_actions))
+                .with_default_spacer()
+                .with_child(
+                    Either::new(
+                        |data: &AppData, _env: &Env| data.show_actions,
+                        List::new(action)
+                            .with_spacing(10.)
+                            .lens(AppData::actions)
+                            .fix_width(800.),
+                        Flex::row().fix_width(800.),
+                    )
+                    .fix_width(800.),
+                )
                 .with_default_spacer()
                 .with_child(
                     Flex::row()
