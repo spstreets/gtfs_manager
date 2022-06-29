@@ -204,48 +204,61 @@ impl AppDelegate<AppData> for Delegate {
 
             // delete edits
         } else if let Some(item) = cmd.get(ITEM_NEW_CHILD) {
+            println!("new child");
             dbg!(item);
             let (item_type, parent_id) = item;
 
             // data.edits.clear();
             for agency in data.agencies.iter_mut() {
-                for route in agency.routes.iter_mut() {
-                    if item_type == "route" && &route.id() == parent_id {
-                        route.new_child();
-                        data.actions.push_back(Action {
-                            id: data.actions.len(),
-                            edit_type: EditType::Create,
-                            // todo is the item type route? or should it be a trip?
-                            item_type: "trip".to_string(),
-                            item_id: route.id(),
-                            item_data: Some(Rc::new(route.clone())),
-                        });
-                    } else {
-                        // for trip in route.trips.iter_mut() {
-                        //     if item_type == "trip" {
-                        //         trip.live = false;
-                        //         data.edits.push_back(Edit {
-                        //             id: data.edits.len(),
-                        //             edit_type: EditType::Delete,
-                        //             item_type: "trip".to_string(),
-                        //             item_id: trip.id(),
-                        //             item_data: Some(Rc::new(trip.clone())),
-                        //         });
-                        //     } else {
-                        //         for stop_time in trip.stops.iter_mut() {
-                        //             if item_type == "stop_time" {
-                        //                 stop_time.live = false;
-                        //                 data.edits.push_back(Edit {
-                        //                     id: data.edits.len(),
-                        //                     edit_type: EditType::Delete,
-                        //                     item_type: "stop_time".to_string(),
-                        //                     item_id: stop_time.id(),
-                        //                     item_data: Some(Rc::new(stop_time.clone())),
-                        //                 });
-                        //             }
-                        //         }
-                        //     }
-                        // }
+                if item_type == "agency" && &agency.id() == parent_id {
+                    agency.new_child();
+                    data.actions.push_back(Action {
+                        id: data.actions.len(),
+                        edit_type: EditType::Create,
+                        // todo is the item type route? or should it be a trip?
+                        item_type: "route".to_string(),
+                        item_id: agency.id(),
+                        item_data: Some(Rc::new(agency.clone())),
+                    });
+                } else {
+                    for route in agency.routes.iter_mut() {
+                        if item_type == "route" && &route.id() == parent_id {
+                            route.new_child();
+                            data.actions.push_back(Action {
+                                id: data.actions.len(),
+                                edit_type: EditType::Create,
+                                // todo is the item type route? or should it be a trip?
+                                item_type: "trip".to_string(),
+                                item_id: route.id(),
+                                item_data: Some(Rc::new(route.clone())),
+                            });
+                        } else {
+                            // for trip in route.trips.iter_mut() {
+                            //     if item_type == "trip" {
+                            //         trip.live = false;
+                            //         data.edits.push_back(Edit {
+                            //             id: data.edits.len(),
+                            //             edit_type: EditType::Delete,
+                            //             item_type: "trip".to_string(),
+                            //             item_id: trip.id(),
+                            //             item_data: Some(Rc::new(trip.clone())),
+                            //         });
+                            //     } else {
+                            //         for stop_time in trip.stops.iter_mut() {
+                            //             if item_type == "stop_time" {
+                            //                 stop_time.live = false;
+                            //                 data.edits.push_back(Edit {
+                            //                     id: data.edits.len(),
+                            //                     edit_type: EditType::Delete,
+                            //                     item_type: "stop_time".to_string(),
+                            //                     item_id: stop_time.id(),
+                            //                     item_data: Some(Rc::new(stop_time.clone())),
+                            //                 });
+                            //             }
+                            //         }
+                            //     }
+                            // }
+                        }
                     }
                 }
             }
@@ -424,7 +437,17 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             Label::new(|data: &MyRoute, _env: &_| format!("{}", data.route.short_name))
                 .with_font(HEADING_2),
         )
-        .with_child(Checkbox::new("").lens(MyRoute::selected));
+        .with_child(Checkbox::new("").lens(MyRoute::selected))
+        .with_child(Either::new(
+            |data: &MyRoute, _env: &Env| data.live,
+            Label::new(""),
+            Label::new("deleted").with_text_color(Color::RED),
+        ))
+        .with_child(Either::new(
+            |data: &MyRoute, _env: &Env| data.live,
+            Label::new(""),
+            Label::new("deleted").with_text_color(Color::RED),
+        ));
 
     Container::new(
         Flex::column()
@@ -501,13 +524,15 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
                 |data: &MyAgency, _env: &Env| data.expanded,
                 FilteredList::new(
                     List::new(route_ui).with_spacing(10.),
-                    |item_data: &MyRoute, filtered: &()| item_data.live,
+                    |item_data: &MyRoute, filtered: &bool| {
+                        *filtered || (!*filtered && item_data.live)
+                    },
                 )
                 .lens(druid::lens::Map::new(
-                    |data: &MyAgency| (data.routes.clone(), ()),
-                    |data: &mut MyAgency, inner: (Vector<MyRoute>, ())| {
+                    |data: &MyAgency| (data.routes.clone(), data.show_deleted),
+                    |data: &mut MyAgency, inner: (Vector<MyRoute>, bool)| {
                         data.routes = inner.0;
-                        // data.filter = inner.1;
+                        data.show_deleted = inner.1;
                     },
                 ))
                 .disabled_if(|data, _| !data.selected),
@@ -571,6 +596,8 @@ pub fn main_widget() -> impl Widget<AppData> {
     Flex::row()
         .with_child(
             Flex::column()
+                .with_child(Checkbox::new("show deleted").lens(AppData::show_deleted))
+                .with_default_spacer()
                 .with_child(Expander::new("Edits").lens(AppData::show_edits))
                 .with_default_spacer()
                 .with_child(

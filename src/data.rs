@@ -89,6 +89,7 @@ impl ListItem for MyTrip {
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyRoute {
+    pub new: bool,
     pub live: bool,
     pub selected: bool,
     pub expanded: bool,
@@ -145,6 +146,7 @@ impl ListItem for MyRoute {
 
 #[derive(Clone, Data, Default, Lens)]
 pub struct MyAgency {
+    pub show_deleted: bool,
     pub live: bool,
     pub selected: bool,
     pub expanded: bool,
@@ -154,6 +156,7 @@ pub struct MyAgency {
 }
 impl ListItem for MyAgency {
     fn new_child(&mut self) -> String {
+        println!("new route");
         todo!()
     }
     fn update_all(&mut self, value: bool) {
@@ -214,6 +217,7 @@ pub struct Edit {
 
 #[derive(Clone, Data, Lens)]
 pub struct AppData {
+    pub show_deleted: bool,
     pub show_edits: bool,
     pub show_actions: bool,
     #[data(ignore)]
@@ -290,6 +294,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
 
     let app_data = AppData {
+        show_deleted: true,
         show_edits: false,
         show_actions: false,
         gtfs: Rc::new(my_gtfs),
@@ -301,6 +306,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     .iter()
                     .filter(|route| route.agency_id == agency.id)
                     .map(|route| MyRoute {
+                        new: false,
                         live: true,
                         selected: true,
                         expanded: false,
@@ -354,6 +360,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     route1.route.short_name.cmp(&route2.route.short_name)
                 });
                 MyAgency {
+                    show_deleted: true,
                     live: true,
                     selected: true,
                     expanded: false,
