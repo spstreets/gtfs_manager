@@ -12,3 +12,4 @@ druid = { git = "https://github.com/linebender/druid", features = ["im", "image"
 gtfs-structures = { path = "../gtfs-structure" }
 # gtfs-structures = { git = "https://github.com/maxwell8888/gtfs-structure" }
 chrono = "0.2.16"
+rgb = "0.8"
