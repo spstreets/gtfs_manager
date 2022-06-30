@@ -930,6 +930,7 @@ dependencies = [
  "clap",
  "druid",
  "gtfs-structures",
+ "rgb",
  "uuid",
 ]
 

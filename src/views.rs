@@ -6,19 +6,22 @@ use druid::lens::{self, LensExt};
 use druid::text::{EditableText, TextStorage};
 use druid::widget::{
     Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, FlexParams, Label,
-    List, MainAxisAlignment, Scroll, TextBox,
+    List, MainAxisAlignment, RadioGroup, Scroll, TextBox,
 };
 use druid::{
     AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
     FontWeight, Insets, Lens, LocalizedString, Point, Selector, UnitPoint, UpdateCtx, Widget,
     WidgetExt, WindowDesc,
 };
+use gtfs_structures::ContinuousPickupDropOff;
 
 use crate::data::*;
 use crate::map::MapWidget;
 
+mod dropdown;
 mod expander;
 mod filtered_list;
+use dropdown::*;
 use expander::Expander;
 use filtered_list::FilteredList;
 
@@ -325,7 +328,7 @@ fn delete_item_button<T: Data + ListItem>() -> impl Widget<T> {
     })
 }
 fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
-    Flex::row()
+    Flex::column()
         .with_child(Button::new("new child").on_click(|ctx, data: &mut T, _| {
             ctx.submit_command(ITEM_NEW_CHILD.with((data.item_type(), data.id())));
         }))
@@ -431,69 +434,181 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
     .expand_width()
 }
 
+fn option_string_checkbox() -> impl Widget<Option<String>> {
+    // "poo".to_string().
+    Flex::row()
+        .with_child(Checkbox::new("").lens(druid::lens::Map::new(
+            |data: &Option<String>| match data {
+                Some(_) => true,
+                None => false,
+            },
+            |data: &mut Option<String>, inner: bool| {
+                *data = if inner {
+                    Some("nuttin".to_string())
+                } else {
+                    None
+                };
+            },
+        )))
+        .with_child(
+            TextBox::new()
+                .with_placeholder("hi")
+                .lens(druid::lens::Map::new(
+                    |data: &Option<String>| match data {
+                        Some(text) => text.clone(),
+                        None => "nutin".to_string(),
+                    },
+                    |data: &mut Option<String>, inner: String| {
+                        match data {
+                            Some(old_inner) => {
+                                old_inner.clear();
+                                old_inner.push_str(&inner);
+                            }
+                            None => {}
+                        };
+                    },
+                ))
+                .disabled_if(|data: &Option<String>, _| data.is_none()),
+        )
+}
+fn option_string() -> impl Widget<Option<String>> {
+    TextBox::new()
+        .with_placeholder("empty")
+        .lens(druid::lens::Map::new(
+            |data: &Option<String>| match data {
+                Some(text) => text.clone(),
+                None => "".to_string(),
+            },
+            |data: &mut Option<String>, inner: String| {
+                if inner.is_empty() {
+                    *data = None;
+                } else {
+                    *data = Some(inner);
+                }
+            },
+        ))
+}
+
+fn field_row<T: Data>(name: &str, update: impl Widget<T> + 'static) -> impl Widget<T> {
+    Flex::row()
+        .with_child(Label::new(name).fix_width(150.))
+        .with_child(update.fix_width(250.))
+        .with_child(Label::new("status").fix_width(100.))
+}
 pub fn route_ui() -> impl Widget<MyRoute> {
     let title = Flex::row()
         .with_child(
-            Label::new(|data: &MyRoute, _env: &_| format!("{}", data.route.short_name))
+            Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
                 .with_font(HEADING_2),
         )
         .with_child(Checkbox::new("").lens(MyRoute::selected))
+        .with_default_spacer()
         .with_child(Either::new(
             |data: &MyRoute, _env: &Env| data.live,
             Label::new(""),
             Label::new("deleted").with_text_color(Color::RED),
         ))
+        .with_default_spacer()
         .with_child(Either::new(
-            |data: &MyRoute, _env: &Env| data.live,
+            |data: &MyRoute, _env: &Env| data.new,
+            Label::new("new item").with_text_color(Color::RED),
             Label::new(""),
-            Label::new("deleted").with_text_color(Color::RED),
         ));
 
+    let fields = Flex::column()
+        .with_child(field_row(
+            "id",
+            Label::new(|data: &MyRoute, _: &_| format!("{:?}", data.id)),
+        ))
+        .with_child(field_row(
+            "short_name",
+            TextBox::new()
+                .with_placeholder("route short_name")
+                .lens(MyRoute::short_name),
+        ))
+        .with_child(field_row(
+            "long_name",
+            TextBox::new()
+                .with_placeholder("route long_name")
+                .lens(MyRoute::long_name),
+        ))
+        .with_child(field_row("desc", option_string().lens(MyRoute::desc)))
+        // route_type
+        .with_child(field_row("url", option_string().lens(MyRoute::url)))
+        .with_child(field_row(
+            "agency_id",
+            Label::new(|data: &MyRoute, _: &_| format!("{:?}", data.agency_id)),
+        ))
+        .with_child(field_row(
+            "order",
+            Label::new(|data: &MyRoute, _: &_| format!("{:?}", data.order)),
+        ))
+        // .with_child(
+        //     Flex::row()
+        //         .with_child(Label::new("desc"))
+        //         .with_child(RadioGroup::column(vec![Some(), None]).lens(MyRoute::desc)),
+        // )
+        // .with_child(
+        //     Flex::row()
+        //         .with_child(Label::new("continuous_pickup"))
+        //         .with_child(
+        //             // RadioGroup::column(MyContinuousPickupDropOff::radio_vec()).lens(
+        //             //     druid::lens::Map::new(
+        //             //         |data: &MyRoute| (data.continuous_pickup.0.clone(), ()),
+        //             //         |data: &mut MyRoute, inner: (ContinuousPickupDropOff, ())| {
+        //             //             data.continuous_pickup.0 = inner.0;
+        //             //             // data.filter = inner.1;
+        //             //         },
+        //             //     ),
+        //             // ),
+        //             RadioGroup::column(MyContinuousPickupDropOff::radio_vec()).lens(MyRoute::desc),
+        //         ),
+        // )
+        .with_child(field_row(
+            "continuous_pickup",
+            RadioGroup::column(Fruit::radio_vec()).lens(MyRoute::fruit),
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start);
+
     Container::new(
-        Flex::column()
-            .with_child(title)
-            .with_spacer(SPACING_1)
+        Flex::row()
             .with_child(
-                Flex::row()
-                    .with_child(Label::new("trip_headsign"))
+                Flex::column()
+                    .with_child(title)
+                    .with_spacer(SPACING_1)
+                    .with_child(fields)
+                    .with_spacer(SPACING_1)
                     .with_child(
-                        TextBox::new()
-                            .with_placeholder("route short_name")
-                            .lens(MyRoute::short_name), // .controller(TextBoxOnChange {}),
-                    ),
+                        Flex::row().with_child(Expander::new("Trips").lens(MyRoute::expanded)),
+                    )
+                    .with_default_spacer()
+                    .with_child(Either::new(
+                        |data: &MyRoute, _env: &Env| data.expanded,
+                        // removing filteredlist doesn't help with trips not updating
+                        // List::new(trip_ui)
+                        //     .with_spacing(10.)
+                        //     .lens(MyRoute::trips)
+                        //     .disabled_if(|data, _| !data.selected),
+                        // Flex::row(),
+                        FilteredList::new(
+                            List::new(trip_ui).with_spacing(10.),
+                            |item_data: &MyTrip, filtered: &()| item_data.live,
+                        )
+                        .lens(druid::lens::Map::new(
+                            |data: &MyRoute| (data.trips.clone(), ()),
+                            |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
+                                data.trips = inner.0;
+                                // data.filter = inner.1;
+                            },
+                        )),
+                        Flex::row(),
+                    ))
+                    .cross_axis_alignment(CrossAxisAlignment::Start)
+                    .padding((10., 10., 10., 10.)),
             )
-            .with_spacer(SPACING_1)
-            .with_child(
-                Flex::row()
-                    .with_child(Expander::new("Trips").lens(MyRoute::expanded))
-                    .with_child(update_all_buttons())
-                    .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                    .expand_width(),
-            )
-            .with_default_spacer()
-            .with_child(Either::new(
-                |data: &MyRoute, _env: &Env| data.expanded,
-                // removing filteredlist doesn't help with trips not updating
-                // List::new(trip_ui)
-                //     .with_spacing(10.)
-                //     .lens(MyRoute::trips)
-                //     .disabled_if(|data, _| !data.selected),
-                // Flex::row(),
-                FilteredList::new(
-                    List::new(trip_ui).with_spacing(10.),
-                    |item_data: &MyTrip, filtered: &()| item_data.live,
-                )
-                .lens(druid::lens::Map::new(
-                    |data: &MyRoute| (data.trips.clone(), ()),
-                    |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
-                        data.trips = inner.0;
-                        // data.filter = inner.1;
-                    },
-                )),
-                Flex::row(),
-            ))
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
+            .with_child(update_all_buttons())
+            .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+            .expand_width(),
     )
     .rounded(CORNER_RADIUS)
     .background(Color::grey(0.16))

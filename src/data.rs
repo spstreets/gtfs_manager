@@ -1,6 +1,10 @@
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::{Data, Lens, Widget, WidgetExt};
-use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
+use gtfs_structures::{
+    Agency, ContinuousPickupDropOff, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Stop,
+    StopTime, Trip,
+};
+use rgb::RGB8;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -87,16 +91,96 @@ impl ListItem for MyTrip {
     }
 }
 
-#[derive(Clone, Data, Default, Lens)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyRouteType(RouteType);
+impl Data for MyRouteType {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyRGB8(RGB8);
+impl Data for MyRGB8 {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct MyContinuousPickupDropOff(ContinuousPickupDropOff);
+impl MyContinuousPickupDropOff {
+    pub fn radio_vec() -> Vec<(String, ContinuousPickupDropOff)> {
+        vec![
+            (
+                "Continuous".to_string(),
+                ContinuousPickupDropOff::Continuous,
+            ),
+            (
+                "NotAvailable".to_string(),
+                ContinuousPickupDropOff::NotAvailable,
+            ),
+            (
+                "ArrangeByPhone".to_string(),
+                ContinuousPickupDropOff::ArrangeByPhone,
+            ),
+            (
+                "CoordinateWithDriver".to_string(),
+                ContinuousPickupDropOff::CoordinateWithDriver,
+            ),
+            (
+                "Unknown(99)".to_string(),
+                ContinuousPickupDropOff::Unknown(99),
+            ),
+        ]
+    }
+}
+impl Data for MyContinuousPickupDropOff {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Data, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub enum Fruit {
+    Apple,
+    Pear,
+    Orange,
+}
+impl Fruit {
+    pub fn radio_vec() -> Vec<(String, Fruit)> {
+        vec![
+            ("Apple".to_string(), Fruit::Apple),
+            ("Pear".to_string(), Fruit::Pear),
+            ("Orange".to_string(), Fruit::Orange),
+        ]
+    }
+}
+
+#[derive(Clone, Data, Lens)]
 pub struct MyRoute {
     pub new: bool,
     pub live: bool,
     pub selected: bool,
     pub expanded: bool,
+
+    pub id: String,
     pub short_name: String,
+    pub long_name: String,
+    pub desc: Option<String>,
+    pub route_type: MyRouteType,
+    pub url: Option<String>,
+    pub agency_id: Option<String>,
+    pub order: Option<u32>,
+    pub color: MyRGB8,
+    pub text_color: MyRGB8,
+    pub fruit: Fruit,
+    pub continuous_pickup: MyContinuousPickupDropOff,
+    pub continuous_drop_off: MyContinuousPickupDropOff,
+
     #[lens(ignore)]
     #[data(ignore)]
-    pub route: Rc<Route>,
+    pub route: Option<Rc<Route>>,
     pub trips: Vector<MyTrip>,
 }
 impl ListItem for MyRoute {
@@ -134,13 +218,17 @@ impl ListItem for MyRoute {
             .for_each(|trip| trip.update_all(value));
     }
     fn id(&self) -> String {
-        self.route.id.clone()
+        self.id.clone()
     }
     fn item_type(&self) -> String {
         "route".to_string()
     }
     fn data_info(&self) -> String {
-        format!("{} -> {}", self.route.short_name.clone(), self.short_name)
+        format!(
+            "{} -> {}",
+            self.route.as_ref().unwrap().short_name.clone(),
+            self.short_name
+        )
     }
 }
 
@@ -156,8 +244,33 @@ pub struct MyAgency {
 }
 impl ListItem for MyAgency {
     fn new_child(&mut self) -> String {
-        println!("new route");
-        todo!()
+        let new_route = MyRoute {
+            new: true,
+            live: true,
+            selected: true,
+            expanded: false,
+            id: Uuid::new_v4().to_string(),
+
+            short_name: "new route short name".to_string(),
+            long_name: "new route long name".to_string(),
+            desc: None,
+            route_type: MyRouteType(RouteType::Bus),
+            url: None,
+            agency_id: None,
+            order: None,
+            color: MyRGB8(RGB8::new(0, 0, 0)),
+            text_color: MyRGB8(RGB8::new(0, 0, 0)),
+            fruit: Fruit::Apple,
+            continuous_pickup: MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
+            continuous_drop_off: MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
+
+            route: None,
+            trips: Vector::new(),
+        };
+        let new_route_id = new_route.id();
+        self.routes.push_front(new_route);
+        println!("added new route");
+        new_route_id
     }
     fn update_all(&mut self, value: bool) {
         self.selected = value;
@@ -293,6 +406,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
 
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
 
+    let limited = true;
     let app_data = AppData {
         show_deleted: true,
         show_edits: false,
@@ -301,21 +415,54 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         expanded: true,
         agencies: agencies
             .iter()
+            // <limiting
+            .enumerate()
+            .filter(|(i, _)| if limited { *i < 5 } else { true })
+            .map(|(_, x)| x)
+            // limiting>
             .map(|agency| {
                 let mut routes = routes
                     .iter()
                     .filter(|route| route.agency_id == agency.id)
+                    // <limiting
+                    .enumerate()
+                    .filter(|(i, _)| if limited { *i < 5 } else { true })
+                    .map(|(_, x)| x)
+                    // limiting>
                     .map(|route| MyRoute {
                         new: false,
                         live: true,
                         selected: true,
                         expanded: false,
+
+                        id: route.id.clone(),
                         short_name: route.short_name.clone(),
-                        route: Rc::new(route.clone()),
+                        long_name: route.long_name.clone(),
+                        desc: route.desc.clone(),
+                        route_type: MyRouteType(route.route_type.clone()),
+                        url: route.url.clone(),
+                        agency_id: route.agency_id.clone(),
+                        order: route.order.clone(),
+                        color: MyRGB8(route.color.clone()),
+                        text_color: MyRGB8(route.text_color.clone()),
+                        fruit: Fruit::Apple,
+                        continuous_pickup: MyContinuousPickupDropOff(
+                            route.continuous_pickup.clone(),
+                        ),
+                        continuous_drop_off: MyContinuousPickupDropOff(
+                            route.continuous_drop_off.clone(),
+                        ),
+
+                        route: Some(Rc::new(route.clone())),
                         trips: trips
                             .iter()
                             .enumerate()
                             .filter(|(i, trip)| trip.route_id == route.id)
+                            // <limiting
+                            .enumerate()
+                            .filter(|(i, _)| if limited { *i < 5 } else { true })
+                            .map(|(_, x)| x)
+                            // limiting>
                             .map(|(i, trip)| {
                                 let (start_index, end_index) =
                                     stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
@@ -357,7 +504,12 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     })
                     .collect::<Vector<_>>();
                 routes.sort_by(|route1, route2| {
-                    route1.route.short_name.cmp(&route2.route.short_name)
+                    route1
+                        .route
+                        .as_ref()
+                        .unwrap()
+                        .short_name
+                        .cmp(&route2.route.as_ref().unwrap().short_name)
                 });
                 MyAgency {
                     show_deleted: true,
