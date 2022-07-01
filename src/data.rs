@@ -110,27 +110,27 @@ impl Data for MyRGB8 {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct MyContinuousPickupDropOff(ContinuousPickupDropOff);
 impl MyContinuousPickupDropOff {
-    pub fn radio_vec() -> Vec<(String, ContinuousPickupDropOff)> {
+    pub fn radio_vec() -> Vec<(String, MyContinuousPickupDropOff)> {
         vec![
             (
                 "Continuous".to_string(),
-                ContinuousPickupDropOff::Continuous,
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::Continuous),
             ),
             (
                 "NotAvailable".to_string(),
-                ContinuousPickupDropOff::NotAvailable,
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
             ),
             (
                 "ArrangeByPhone".to_string(),
-                ContinuousPickupDropOff::ArrangeByPhone,
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::ArrangeByPhone),
             ),
             (
                 "CoordinateWithDriver".to_string(),
-                ContinuousPickupDropOff::CoordinateWithDriver,
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::CoordinateWithDriver),
             ),
             (
                 "Unknown(99)".to_string(),
-                ContinuousPickupDropOff::Unknown(99),
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::Unknown(99)),
             ),
         ]
     }

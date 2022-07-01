@@ -494,6 +494,7 @@ fn field_row<T: Data>(name: &str, update: impl Widget<T> + 'static) -> impl Widg
         .with_child(Label::new(name).fix_width(150.))
         .with_child(update.fix_width(250.))
         .with_child(Label::new("status").fix_width(100.))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 pub fn route_ui() -> impl Widget<MyRoute> {
     let title = Flex::row()
@@ -548,25 +549,14 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         //         .with_child(Label::new("desc"))
         //         .with_child(RadioGroup::column(vec![Some(), None]).lens(MyRoute::desc)),
         // )
-        // .with_child(
-        //     Flex::row()
-        //         .with_child(Label::new("continuous_pickup"))
-        //         .with_child(
-        //             // RadioGroup::column(MyContinuousPickupDropOff::radio_vec()).lens(
-        //             //     druid::lens::Map::new(
-        //             //         |data: &MyRoute| (data.continuous_pickup.0.clone(), ()),
-        //             //         |data: &mut MyRoute, inner: (ContinuousPickupDropOff, ())| {
-        //             //             data.continuous_pickup.0 = inner.0;
-        //             //             // data.filter = inner.1;
-        //             //         },
-        //             //     ),
-        //             // ),
-        //             RadioGroup::column(MyContinuousPickupDropOff::radio_vec()).lens(MyRoute::desc),
-        //         ),
-        // )
         .with_child(field_row(
             "continuous_pickup",
-            RadioGroup::column(Fruit::radio_vec()).lens(MyRoute::fruit),
+            RadioGroup::column(MyContinuousPickupDropOff::radio_vec()).lens(druid::lens::Map::new(
+                |data: &MyRoute| data.continuous_pickup.clone(),
+                |data: &mut MyRoute, inner: MyContinuousPickupDropOff| {
+                    data.continuous_pickup = inner;
+                },
+            )),
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
