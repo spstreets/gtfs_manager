@@ -68,10 +68,11 @@ impl ListItem for MyTrip {
         todo!()
     }
     fn update_all(&mut self, value: bool) {
-        self.selected = value;
-        self.stops
-            .iter_mut()
-            .for_each(|stop| stop.update_all(value));
+        // self.selected = value;
+        self.stops.iter_mut().for_each(|stop| {
+            stop.selected = value;
+            // stop.update_all(value);
+        });
     }
     fn id(&self) -> String {
         self.trip.id.clone()
@@ -212,10 +213,11 @@ impl ListItem for MyRoute {
         new_trip_id
     }
     fn update_all(&mut self, value: bool) {
-        self.selected = value;
-        self.trips
-            .iter_mut()
-            .for_each(|trip| trip.update_all(value));
+        // self.selected = value;
+        self.trips.iter_mut().for_each(|trip| {
+            trip.selected = value;
+            trip.update_all(value);
+        });
     }
     fn id(&self) -> String {
         self.id.clone()
@@ -273,10 +275,10 @@ impl ListItem for MyAgency {
         new_route_id
     }
     fn update_all(&mut self, value: bool) {
-        self.selected = value;
-        self.routes
-            .iter_mut()
-            .for_each(|route| route.update_all(value));
+        self.routes.iter_mut().for_each(|route| {
+            route.selected = value;
+            route.update_all(value);
+        });
     }
     fn id(&self) -> String {
         // todo handle agency.id == None
