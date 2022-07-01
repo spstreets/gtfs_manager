@@ -340,6 +340,18 @@ fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
             data.update_all(false);
         }))
 }
+fn child_controls<T: Data + ListItem>() -> impl Widget<T> {
+    Flex::row()
+        .with_child(Button::new("new child").on_click(|ctx, data: &mut T, _| {
+            ctx.submit_command(ITEM_NEW_CHILD.with((data.item_type(), data.id())));
+        }))
+        .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
+            data.update_all(true);
+        }))
+        .with_child(Button::new("deselect all").on_click(|_, data: &mut T, _| {
+            data.update_all(false);
+        }))
+}
 
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
 pub fn stop_ui() -> impl Widget<MyStopTime> {
@@ -514,7 +526,9 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             |data: &MyRoute, _env: &Env| data.new,
             Label::new("new item").with_text_color(Color::RED),
             Label::new(""),
-        ));
+        ))
+        .with_default_spacer()
+        .with_child(delete_item_button());
 
     let fields = Flex::column()
         .with_child(field_row(
@@ -561,44 +575,56 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
     Container::new(
-        Flex::row()
+        Flex::column()
+            .with_child(title)
+            .with_spacer(SPACING_1)
             .with_child(
-                Flex::column()
-                    .with_child(title)
-                    .with_spacer(SPACING_1)
-                    .with_child(fields)
-                    .with_spacer(SPACING_1)
+                Flex::row()
+                    .with_child(Label::new("trip_headsign"))
                     .with_child(
-                        Flex::row().with_child(Expander::new("Trips").lens(MyRoute::expanded)),
-                    )
-                    .with_default_spacer()
+                        TextBox::new()
+                            .with_placeholder("route short_name")
+                            .lens(MyRoute::short_name), // .controller(TextBoxOnChange {}),
+                    ),
+            )
+            .with_spacer(SPACING_1)
+            .with_child(fields)
+            .with_spacer(SPACING_1)
+            .with_child(
+                Flex::row()
+                    .with_child(Expander::new("Trips").lens(MyRoute::expanded))
                     .with_child(Either::new(
-                        |data: &MyRoute, _env: &Env| data.expanded,
-                        // removing filteredlist doesn't help with trips not updating
-                        // List::new(trip_ui)
-                        //     .with_spacing(10.)
-                        //     .lens(MyRoute::trips)
-                        //     .disabled_if(|data, _| !data.selected),
-                        // Flex::row(),
-                        FilteredList::new(
-                            List::new(trip_ui).with_spacing(10.),
-                            |item_data: &MyTrip, filtered: &()| item_data.live,
-                        )
-                        .lens(druid::lens::Map::new(
-                            |data: &MyRoute| (data.trips.clone(), ()),
-                            |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
-                                data.trips = inner.0;
-                                // data.filter = inner.1;
-                            },
-                        )),
+                        |data: &MyRoute, _: &_| data.expanded,
+                        child_controls(),
                         Flex::row(),
                     ))
-                    .cross_axis_alignment(CrossAxisAlignment::Start)
-                    .padding((10., 10., 10., 10.)),
+                    .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                    .expand_width(),
             )
-            .with_child(update_all_buttons())
-            .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .expand_width(),
+            .with_default_spacer()
+            .with_child(Either::new(
+                |data: &MyRoute, _env: &Env| data.expanded,
+                // removing filteredlist doesn't help with trips not updating
+                // List::new(trip_ui)
+                //     .with_spacing(10.)
+                //     .lens(MyRoute::trips)
+                //     .disabled_if(|data, _| !data.selected),
+                // Flex::row(),
+                FilteredList::new(
+                    List::new(trip_ui).with_spacing(10.),
+                    |item_data: &MyTrip, filtered: &()| item_data.live,
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &MyRoute| (data.trips.clone(), ()),
+                    |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
+                        data.trips = inner.0;
+                        // data.filter = inner.1;
+                    },
+                )),
+                Flex::row(),
+            ))
+            .cross_axis_alignment(CrossAxisAlignment::Start)
+            .padding((10., 10., 10., 10.)),
     )
     .rounded(CORNER_RADIUS)
     .background(Color::grey(0.16))
