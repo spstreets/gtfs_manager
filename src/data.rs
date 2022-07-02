@@ -1,8 +1,8 @@
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::{Data, Lens, Widget, WidgetExt};
 use gtfs_structures::{
-    Agency, ContinuousPickupDropOff, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Stop,
-    StopTime, Trip,
+    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, RawGtfs,
+    RawStopTime, RawTrip, Route, RouteType, Stop, StopTime, Trip,
 };
 use rgb::RGB8;
 use std::collections::HashMap;
@@ -49,18 +49,110 @@ impl ListItem for MyStopTime {
     }
 }
 
-#[derive(Clone, Data, Debug, Default, Lens)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyDirectionType(pub DirectionType);
+impl MyDirectionType {
+    pub fn radio_vec() -> Vec<(String, MyDirectionType)> {
+        vec![
+            (
+                "Outbound".to_string(),
+                MyDirectionType(DirectionType::Outbound),
+            ),
+            (
+                "Inbound".to_string(),
+                MyDirectionType(DirectionType::Inbound),
+            ),
+        ]
+    }
+}
+impl Data for MyDirectionType {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyAvailability(pub Availability);
+impl MyAvailability {
+    pub fn radio_vec() -> Vec<(String, MyAvailability)> {
+        vec![
+            (
+                "InformationNotAvailable".to_string(),
+                MyAvailability(Availability::InformationNotAvailable),
+            ),
+            (
+                "Available".to_string(),
+                MyAvailability(Availability::Available),
+            ),
+            (
+                "NotAvailable".to_string(),
+                MyAvailability(Availability::NotAvailable),
+            ),
+            (
+                "Unknown(99)".to_string(),
+                MyAvailability(Availability::Unknown(99)),
+            ),
+        ]
+    }
+}
+impl Data for MyAvailability {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyBikesAllowedType(pub BikesAllowedType);
+impl MyBikesAllowedType {
+    pub fn radio_vec() -> Vec<(String, MyBikesAllowedType)> {
+        vec![
+            (
+                "NoBikeInfo".to_string(),
+                MyBikesAllowedType(BikesAllowedType::NoBikeInfo),
+            ),
+            (
+                "AtLeastOneBike".to_string(),
+                MyBikesAllowedType(BikesAllowedType::AtLeastOneBike),
+            ),
+            (
+                "NoBikesAllowed".to_string(),
+                MyBikesAllowedType(BikesAllowedType::NoBikesAllowed),
+            ),
+            (
+                "Unknown(99)".to_string(),
+                MyBikesAllowedType(BikesAllowedType::Unknown(99)),
+            ),
+        ]
+    }
+}
+impl Data for MyBikesAllowedType {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Clone, Data, Debug, Lens)]
 pub struct MyTrip {
     pub live: bool,
     pub selected: bool,
     pub expanded: bool,
+
+    pub id: String,
+    pub service_id: String,
+    pub route_id: String,
+    pub shape_id: Option<String>,
+    pub trip_headsign: Option<String>,
+    pub trip_short_name: Option<String>,
+    pub direction_id: Option<MyDirectionType>,
+    pub block_id: Option<String>,
+    pub wheelchair_accessible: MyAvailability,
+    pub bikes_allowed: MyBikesAllowedType,
     #[data(ignore)]
     #[lens(ignore)]
-    pub trip: Rc<RawTrip>,
+    pub trip: Option<Rc<RawTrip>>,
     // #[data(ignore)]
     // trip: RawTrip,
     pub name: String,
-    pub trip_headsign: String,
     pub stops: Vector<MyStopTime>,
 }
 impl ListItem for MyTrip {
@@ -75,25 +167,43 @@ impl ListItem for MyTrip {
         });
     }
     fn id(&self) -> String {
-        self.trip.id.clone()
+        self.id.clone()
     }
     fn item_type(&self) -> String {
         "trip".to_string()
     }
-    fn data_info(&self) -> String {
-        format!(
-            "{} -> {}",
-            self.trip
-                .trip_headsign
-                .clone()
-                .unwrap_or("no headsign".to_string()),
-            self.trip_headsign
-        )
-    }
+    // fn data_info(&self) -> String {
+    //     format!(
+    //         "{} -> {}",
+    //         self.trip
+    //             .trip_headsign
+    //             .clone()
+    //             .unwrap_or("no headsign".to_string()),
+    //         self.trip_headsign
+    //     )
+    // }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyRouteType(RouteType);
+pub struct MyRouteType(pub RouteType);
+impl MyRouteType {
+    pub fn radio_vec() -> Vec<(String, MyRouteType)> {
+        vec![
+            ("Tramway".to_string(), MyRouteType(RouteType::Tramway)),
+            ("Subway".to_string(), MyRouteType(RouteType::Subway)),
+            ("Rail".to_string(), MyRouteType(RouteType::Rail)),
+            ("Bus".to_string(), MyRouteType(RouteType::Bus)),
+            ("Ferry".to_string(), MyRouteType(RouteType::Ferry)),
+            ("CableCar".to_string(), MyRouteType(RouteType::CableCar)),
+            ("Gondola".to_string(), MyRouteType(RouteType::Gondola)),
+            ("Funicular".to_string(), MyRouteType(RouteType::Funicular)),
+            ("Coach".to_string(), MyRouteType(RouteType::Coach)),
+            ("Air".to_string(), MyRouteType(RouteType::Air)),
+            ("Taxi".to_string(), MyRouteType(RouteType::Taxi)),
+            ("Other(99)".to_string(), MyRouteType(RouteType::Other(99))),
+        ]
+    }
+}
 impl Data for MyRouteType {
     fn same(&self, other: &Self) -> bool {
         self.0 == other.0
@@ -101,7 +211,7 @@ impl Data for MyRouteType {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyRGB8(RGB8);
+pub struct MyRGB8(pub RGB8);
 impl Data for MyRGB8 {
     fn same(&self, other: &Self) -> bool {
         self.0 == other.0
@@ -175,7 +285,6 @@ pub struct MyRoute {
     pub order: Option<u32>,
     pub color: MyRGB8,
     pub text_color: MyRGB8,
-    pub fruit: Fruit,
     pub continuous_pickup: MyContinuousPickupDropOff,
     pub continuous_drop_off: MyContinuousPickupDropOff,
 
@@ -190,21 +299,20 @@ impl ListItem for MyRoute {
             live: true,
             selected: true,
             expanded: false,
-            trip: Rc::new(RawTrip {
-                // todo
-                id: Uuid::new_v4().to_string(),
-                service_id: "needtogetcalendar.serviceid".to_string(),
-                route_id: self.id(),
-                shape_id: None,
-                trip_headsign: None,
-                trip_short_name: None,
-                direction_id: None,
-                block_id: None,
-                wheelchair_accessible: gtfs_structures::Availability::InformationNotAvailable,
-                bikes_allowed: gtfs_structures::BikesAllowedType::NoBikeInfo,
-            }),
+
+            id: Uuid::new_v4().to_string(),
+            service_id: "needtogetcalendar.serviceid".to_string(),
+            route_id: self.id(),
+            shape_id: None,
+            trip_headsign: None,
+            trip_short_name: None,
+            direction_id: None,
+            block_id: None,
+            wheelchair_accessible: MyAvailability(Availability::InformationNotAvailable),
+            bikes_allowed: MyBikesAllowedType(BikesAllowedType::NoBikeInfo),
+
+            trip: None,
             name: "new trip name".to_string(),
-            trip_headsign: "new trip headsign".to_string(),
             stops: Vector::new(),
         };
         let new_trip_id = new_trip.id();
@@ -262,7 +370,6 @@ impl ListItem for MyAgency {
             order: None,
             color: MyRGB8(RGB8::new(0, 0, 0)),
             text_color: MyRGB8(RGB8::new(0, 0, 0)),
-            fruit: Fruit::Apple,
             continuous_pickup: MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
             continuous_drop_off: MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
 
@@ -447,7 +554,6 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                         order: route.order.clone(),
                         color: MyRGB8(route.color.clone()),
                         text_color: MyRGB8(route.text_color.clone()),
-                        fruit: Fruit::Apple,
                         continuous_pickup: MyContinuousPickupDropOff(
                             route.continuous_pickup.clone(),
                         ),
@@ -496,9 +602,22 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                                     live: true,
                                     selected: true,
                                     expanded: false,
-                                    trip: Rc::new(trip.clone()),
+
+                                    id: trip.id.clone(),
+                                    service_id: trip.service_id.clone(),
+                                    route_id: trip.route_id.clone(),
+                                    shape_id: trip.shape_id.clone(),
+                                    trip_headsign: trip.trip_headsign.clone(),
+                                    trip_short_name: trip.trip_short_name.clone(),
+                                    direction_id: trip.direction_id.map(|x| MyDirectionType(x)),
+                                    block_id: trip.block_id.clone(),
+                                    wheelchair_accessible: MyAvailability(
+                                        trip.wheelchair_accessible,
+                                    ),
+                                    bikes_allowed: MyBikesAllowedType(trip.bikes_allowed),
+
+                                    trip: Some(Rc::new(trip.clone())),
                                     name: trip.id.clone(),
-                                    trip_headsign: trip.trip_headsign.clone().unwrap(),
                                     stops,
                                 }
                             })

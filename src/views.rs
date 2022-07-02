@@ -6,14 +6,15 @@ use druid::lens::{self, LensExt};
 use druid::text::{EditableText, TextStorage};
 use druid::widget::{
     Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, FlexParams, Label,
-    LabelText, List, MainAxisAlignment, RadioGroup, Scroll, TextBox,
+    LabelText, List, MainAxisAlignment, Painter, RadioGroup, Scroll, TextBox,
 };
 use druid::{
     AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    FontWeight, Insets, Lens, LocalizedString, Point, Selector, UnitPoint, UpdateCtx, Widget,
-    WidgetExt, WindowDesc,
+    FontWeight, Insets, Lens, LocalizedString, PaintCtx, Point, RenderContext, Selector, UnitPoint,
+    UpdateCtx, Widget, WidgetExt, WindowDesc,
 };
 use gtfs_structures::ContinuousPickupDropOff;
+use rgb::RGB8;
 
 use crate::data::*;
 use crate::map::MapWidget;
@@ -380,71 +381,71 @@ pub fn stop_ui() -> impl Widget<MyStopTime> {
     .expand_width()
 }
 
-pub fn trip_ui() -> impl Widget<MyTrip> {
-    // let label = Label::new(|data: &bool, env: &Env| "hi");
-    let title = Flex::row()
-        .with_child(Label::new(|data: &MyTrip, _env: &_| {
-            format!("{}", data.name)
-        }))
-        .with_child(Checkbox::new("").lens(MyTrip::selected).on_click(
-            |ctx: &mut EventCtx, data: &mut MyTrip, env: &Env| {
-                if data.selected {
-                    data.selected = false;
-                    data.stops.iter_mut().for_each(|stop| stop.selected = false);
-                } else {
-                    data.selected = true;
-                    data.stops.iter_mut().for_each(|stop| stop.selected = true);
-                }
-            },
-        ));
+// pub fn trip_ui_old() -> impl Widget<MyTrip> {
+//     // let label = Label::new(|data: &bool, env: &Env| "hi");
+//     let title = Flex::row()
+//         .with_child(Label::new(|data: &MyTrip, _env: &_| {
+//             format!("{}", data.name)
+//         }))
+//         .with_child(Checkbox::new("").lens(MyTrip::selected).on_click(
+//             |ctx: &mut EventCtx, data: &mut MyTrip, env: &Env| {
+//                 if data.selected {
+//                     data.selected = false;
+//                     data.stops.iter_mut().for_each(|stop| stop.selected = false);
+//                 } else {
+//                     data.selected = true;
+//                     data.stops.iter_mut().for_each(|stop| stop.selected = true);
+//                 }
+//             },
+//         ));
 
-    Container::new(
-        Flex::column()
-            .with_child(title)
-            .with_spacer(SPACING_1)
-            .with_child(
-                Flex::row()
-                    .with_child(Label::new("trip_headsign"))
-                    .with_child(
-                        TextBox::new()
-                            .with_placeholder("trip_headsign")
-                            .lens(MyTrip::trip_headsign)
-                            .controller(TextBoxOnChange {}),
-                    ),
-            )
-            .with_spacer(SPACING_1)
-            .with_child(
-                Flex::row()
-                    .with_child(Expander::new("Stops").lens(MyTrip::expanded))
-                    .with_child(update_all_buttons())
-                    .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                    .expand_width(),
-            )
-            .with_default_spacer()
-            .with_child(Either::new(
-                |data: &MyTrip, _env: &Env| data.expanded,
-                FilteredList::new(
-                    List::new(stop_ui).with_spacing(10.),
-                    |item_data: &MyStopTime, filtered: &()| item_data.live,
-                )
-                .lens(druid::lens::Map::new(
-                    |data: &MyTrip| (data.stops.clone(), ()),
-                    |data: &mut MyTrip, inner: (Vector<MyStopTime>, ())| {
-                        data.stops = inner.0;
-                        // data.filter = inner.1;
-                    },
-                ))
-                .disabled_if(|data, _| !data.selected),
-                Flex::row(),
-            ))
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    // .background(Color::grey(0.1))
-    .background(Color::rgb(54. / 255., 74. / 255., 63. / 255.))
-    .expand_width()
-}
+//     Container::new(
+//         Flex::column()
+//             .with_child(title)
+//             .with_spacer(SPACING_1)
+//             .with_child(
+//                 Flex::row()
+//                     .with_child(Label::new("trip_headsign"))
+//                     .with_child(
+//                         TextBox::new()
+//                             .with_placeholder("trip_headsign")
+//                             .lens(MyTrip::trip_headsign)
+//                             .controller(TextBoxOnChange {}),
+//                     ),
+//             )
+//             .with_spacer(SPACING_1)
+//             .with_child(
+//                 Flex::row()
+//                     .with_child(Expander::new("Stops").lens(MyTrip::expanded))
+//                     .with_child(update_all_buttons())
+//                     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+//                     .expand_width(),
+//             )
+//             .with_default_spacer()
+//             .with_child(Either::new(
+//                 |data: &MyTrip, _env: &Env| data.expanded,
+//                 FilteredList::new(
+//                     List::new(stop_ui).with_spacing(10.),
+//                     |item_data: &MyStopTime, filtered: &()| item_data.live,
+//                 )
+//                 .lens(druid::lens::Map::new(
+//                     |data: &MyTrip| (data.stops.clone(), ()),
+//                     |data: &mut MyTrip, inner: (Vector<MyStopTime>, ())| {
+//                         data.stops = inner.0;
+//                         // data.filter = inner.1;
+//                     },
+//                 ))
+//                 .disabled_if(|data, _| !data.selected),
+//                 Flex::row(),
+//             ))
+//             .cross_axis_alignment(CrossAxisAlignment::Start)
+//             .padding((10., 10., 10., 10.)),
+//     )
+//     .rounded(CORNER_RADIUS)
+//     // .background(Color::grey(0.1))
+//     .background(Color::rgb(54. / 255., 74. / 255., 63. / 255.))
+//     .expand_width()
+// }
 
 fn option_string_checkbox() -> impl Widget<Option<String>> {
     // "poo".to_string().
@@ -517,6 +518,211 @@ fn field_row<T: Data>(
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
+pub fn trip_ui() -> impl Widget<MyTrip> {
+    let title = Flex::row()
+        .with_child(
+            Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
+        )
+        .with_child(Checkbox::new("").lens(MyTrip::selected))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyTrip, _env: &Env| data.live,
+            Label::new(""),
+            Label::new("deleted").with_text_color(Color::RED),
+        ))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyTrip, _env: &Env| data.trip.is_none(),
+            Label::new("new item").with_text_color(Color::RED),
+            Label::new(""),
+        ))
+        .with_default_spacer()
+        .with_child(delete_item_button());
+
+    let fields = Flex::column()
+        .with_child(field_row(
+            "id",
+            Label::new(|data: &MyTrip, _: &_| format!("{:?}", data.id)),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.id != data.id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "service_id",
+            Label::new(|data: &MyTrip, _: &_| format!("{:?}", data.service_id)),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.service_id != data.service_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "route_id",
+            Label::new(|data: &MyTrip, _: &_| format!("{:?}", data.route_id)),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.route_id != data.route_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "shape_id",
+            option_string().lens(MyTrip::shape_id),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.shape_id != data.shape_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "trip_headsign",
+            option_string().lens(MyTrip::trip_headsign),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.trip_headsign != data.trip_headsign,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "trip_short_name",
+            option_string().lens(MyTrip::trip_short_name),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.trip_short_name != data.trip_short_name,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "direction_id",
+            Dropdown::new(
+                Button::new(
+                    |data: &MyTrip, _: &Env| match data.direction_id.map(|x| x.0) {
+                        Some(val) => format!("{:?}", val),
+                        None => "None".to_string(),
+                    },
+                )
+                .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    Either::new(
+                        |data: &MyTrip, _: &_| data.direction_id.is_some(),
+                        RadioGroup::column(MyDirectionType::radio_vec())
+                            .fix_size(100., 400.)
+                            .lens(druid::lens::Map::new(
+                                |data: &MyTrip| data.direction_id.unwrap().clone(),
+                                |data: &mut MyTrip, inner: MyDirectionType| {
+                                    data.direction_id = Some(inner);
+                                },
+                            )),
+                        Label::new("None"),
+                    )
+                },
+            )
+            .align_left(),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.direction_id != data.direction_id.map(|x| x.0),
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "block_id",
+            option_string().lens(MyTrip::block_id),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.block_id != data.block_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "wheelchair_accessible",
+            Dropdown::new(
+                Button::new(|data: &MyTrip, _: &Env| format!("{:?}", data.wheelchair_accessible.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyAvailability::radio_vec())
+                        // .fix_size(5., 10.)
+                        .lens(druid::lens::Map::new(
+                            |data: &MyTrip| data.wheelchair_accessible.clone(),
+                            |data: &mut MyTrip, inner: MyAvailability| {
+                                data.wheelchair_accessible = inner;
+                            },
+                        ))
+                },
+            )
+            .align_left(),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.wheelchair_accessible != data.wheelchair_accessible.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "bikes_allowed",
+            Dropdown::new(
+                Button::new(|data: &MyTrip, _: &Env| format!("{:?}", data.bikes_allowed.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyBikesAllowedType::radio_vec()).lens(druid::lens::Map::new(
+                        |data: &MyTrip| data.bikes_allowed.clone(),
+                        |data: &mut MyTrip, inner: MyBikesAllowedType| {
+                            data.bikes_allowed = inner;
+                        },
+                    ))
+                },
+            )
+            .align_left(),
+            |data: &MyTrip, _: &_| match &data.trip {
+                Some(trip) => trip.bikes_allowed != data.bikes_allowed.0,
+                None => true,
+            },
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start);
+
+    let children_header = Flex::row()
+        .with_child(Expander::new("Stop times").lens(MyTrip::expanded))
+        .with_child(Either::new(
+            |data: &MyTrip, _: &_| data.expanded,
+            child_buttons(),
+            Flex::row(),
+        ))
+        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+        .expand_width();
+
+    let children = Either::new(
+        |data: &MyTrip, _env: &Env| data.expanded,
+        FilteredList::new(
+            List::new(stop_ui).with_spacing(10.),
+            |item_data: &MyStopTime, filtered: &()| item_data.live,
+        )
+        .lens(druid::lens::Map::new(
+            |data: &MyTrip| (data.stops.clone(), ()),
+            |data: &mut MyTrip, inner: (Vector<MyStopTime>, ())| {
+                data.stops = inner.0;
+                // data.filter = inner.1;
+            },
+        )),
+        Flex::row(),
+    );
+
+    Container::new(
+        Flex::column()
+            .with_child(title)
+            .with_spacer(SPACING_1)
+            .with_child(fields)
+            .with_spacer(SPACING_1)
+            .with_child(children_header)
+            .with_default_spacer()
+            .with_child(children)
+            .cross_axis_alignment(CrossAxisAlignment::Start)
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 74. / 255., 63. / 255.))
+    .expand_width()
+}
+
 pub fn route_ui() -> impl Widget<MyRoute> {
     let title = Flex::row()
         .with_child(
@@ -580,7 +786,29 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             },
         ))
         .with_default_spacer()
-        // route_type
+        .with_child(field_row(
+            "route_type",
+            Dropdown::new(
+                Button::new(|data: &MyRoute, _: &Env| format!("{:?}", data.route_type.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyRouteType::radio_vec())
+                        .fix_size(100., 400.)
+                        .lens(druid::lens::Map::new(
+                            |data: &MyRoute| data.route_type.clone(),
+                            |data: &mut MyRoute, inner: MyRouteType| {
+                                data.route_type = inner;
+                            },
+                        ))
+                },
+            )
+            .align_left(),
+            |data: &MyRoute, _: &_| match &data.route {
+                Some(route) => route.route_type != data.route_type.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
         .with_child(field_row(
             "url",
             option_string().lens(MyRoute::url),
@@ -608,11 +836,34 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             },
         ))
         .with_default_spacer()
-        // .with_child(
-        //     Flex::row()
-        //         .with_child(Label::new("desc"))
-        //         .with_child(RadioGroup::column(vec![Some(), None]).lens(MyRoute::desc)),
-        // )
+        .with_child(field_row(
+            "color",
+            Painter::new(|ctx: &mut PaintCtx, data: &MyRoute, _: &Env| {
+                let rect = ctx.size().to_rect();
+                let RGB8 { r, g, b } = data.color.0;
+                ctx.fill(rect, &Color::rgb8(r, g, b));
+            })
+            .fix_size(50., 10.),
+            |data: &MyRoute, _: &_| match &data.route {
+                Some(route) => route.color != data.color.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "text_color",
+            Painter::new(|ctx: &mut PaintCtx, data: &MyRoute, _: &Env| {
+                let rect = ctx.size().to_rect();
+                let RGB8 { r, g, b } = data.text_color.0;
+                ctx.fill(rect, &Color::rgb8(r, g, b));
+            })
+            .fix_size(50., 10.),
+            |data: &MyRoute, _: &_| match &data.route {
+                Some(route) => route.text_color != data.text_color.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
         .with_child(field_row(
             "continuous_pickup",
             Dropdown::new(
@@ -620,7 +871,7 @@ pub fn route_ui() -> impl Widget<MyRoute> {
                     .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
                 |_, _| {
                     RadioGroup::column(MyContinuousPickupDropOff::radio_vec())
-                        .fix_size(100., 400.)
+                        // .fix_size(5., 10.)
                         .lens(druid::lens::Map::new(
                             |data: &MyRoute| data.continuous_pickup.clone(),
                             |data: &mut MyRoute, inner: MyContinuousPickupDropOff| {
