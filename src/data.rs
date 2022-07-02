@@ -109,7 +109,7 @@ impl Data for MyRGB8 {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct MyContinuousPickupDropOff(ContinuousPickupDropOff);
+pub struct MyContinuousPickupDropOff(pub ContinuousPickupDropOff);
 impl MyContinuousPickupDropOff {
     pub fn radio_vec() -> Vec<(String, MyContinuousPickupDropOff)> {
         vec![
