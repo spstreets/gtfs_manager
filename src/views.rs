@@ -6,7 +6,7 @@ use druid::lens::{self, LensExt};
 use druid::text::{EditableText, TextStorage};
 use druid::widget::{
     Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, FlexParams, Label,
-    LabelText, List, MainAxisAlignment, Painter, RadioGroup, Scroll, TextBox,
+    LabelText, List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper, TextBox,
 };
 use druid::{
     AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
@@ -354,99 +354,6 @@ fn child_buttons<T: Data + ListItem>() -> impl Widget<T> {
         }))
 }
 
-// todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
-pub fn stop_ui() -> impl Widget<MyStopTime> {
-    Container::new(
-        Flex::row()
-            .with_child(
-                TextBox::new()
-                    .with_placeholder("stop name")
-                    .lens(MyStopTime::name),
-            )
-            .with_child(Checkbox::new("").lens(MyStopTime::selected))
-            .with_child(Label::new(|data: &MyStopTime, _env: &_| {
-                format!("arrival/departure: {:?}", data.stop_time.arrival_time)
-            }))
-            .with_child(delete_item_button())
-            // .with_child(Either::new(
-            //     |data: &Trip, _env: &Env| data.selected,
-            //     List::new(stop_ui).lens(Trip::stops),
-            //     Label::new(""),
-            // ))
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::grey(0.16))
-    .expand_width()
-}
-
-// pub fn trip_ui_old() -> impl Widget<MyTrip> {
-//     // let label = Label::new(|data: &bool, env: &Env| "hi");
-//     let title = Flex::row()
-//         .with_child(Label::new(|data: &MyTrip, _env: &_| {
-//             format!("{}", data.name)
-//         }))
-//         .with_child(Checkbox::new("").lens(MyTrip::selected).on_click(
-//             |ctx: &mut EventCtx, data: &mut MyTrip, env: &Env| {
-//                 if data.selected {
-//                     data.selected = false;
-//                     data.stops.iter_mut().for_each(|stop| stop.selected = false);
-//                 } else {
-//                     data.selected = true;
-//                     data.stops.iter_mut().for_each(|stop| stop.selected = true);
-//                 }
-//             },
-//         ));
-
-//     Container::new(
-//         Flex::column()
-//             .with_child(title)
-//             .with_spacer(SPACING_1)
-//             .with_child(
-//                 Flex::row()
-//                     .with_child(Label::new("trip_headsign"))
-//                     .with_child(
-//                         TextBox::new()
-//                             .with_placeholder("trip_headsign")
-//                             .lens(MyTrip::trip_headsign)
-//                             .controller(TextBoxOnChange {}),
-//                     ),
-//             )
-//             .with_spacer(SPACING_1)
-//             .with_child(
-//                 Flex::row()
-//                     .with_child(Expander::new("Stops").lens(MyTrip::expanded))
-//                     .with_child(update_all_buttons())
-//                     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-//                     .expand_width(),
-//             )
-//             .with_default_spacer()
-//             .with_child(Either::new(
-//                 |data: &MyTrip, _env: &Env| data.expanded,
-//                 FilteredList::new(
-//                     List::new(stop_ui).with_spacing(10.),
-//                     |item_data: &MyStopTime, filtered: &()| item_data.live,
-//                 )
-//                 .lens(druid::lens::Map::new(
-//                     |data: &MyTrip| (data.stops.clone(), ()),
-//                     |data: &mut MyTrip, inner: (Vector<MyStopTime>, ())| {
-//                         data.stops = inner.0;
-//                         // data.filter = inner.1;
-//                     },
-//                 ))
-//                 .disabled_if(|data, _| !data.selected),
-//                 Flex::row(),
-//             ))
-//             .cross_axis_alignment(CrossAxisAlignment::Start)
-//             .padding((10., 10., 10., 10.)),
-//     )
-//     .rounded(CORNER_RADIUS)
-//     // .background(Color::grey(0.1))
-//     .background(Color::rgb(54. / 255., 74. / 255., 63. / 255.))
-//     .expand_width()
-// }
-
 fn option_string_checkbox() -> impl Widget<Option<String>> {
     // "poo".to_string().
     Flex::row()
@@ -501,6 +408,36 @@ fn option_string() -> impl Widget<Option<String>> {
             },
         ))
 }
+fn option_u32() -> impl Widget<Option<u32>> {
+    Stepper::new().lens(druid::lens::Map::new(
+        |data: &Option<u32>| match data {
+            Some(num) => *num as f64,
+            None => 0.,
+        },
+        |data: &mut Option<u32>, inner: f64| {
+            if inner == 0. {
+                *data = None;
+            } else {
+                *data = Some(inner as u32);
+            }
+        },
+    ))
+}
+fn option_f32() -> impl Widget<Option<f32>> {
+    Stepper::new().lens(druid::lens::Map::new(
+        |data: &Option<f32>| match data {
+            Some(num) => *num as f64,
+            None => 0.,
+        },
+        |data: &mut Option<f32>, inner: f64| {
+            if inner == 0. {
+                *data = None;
+            } else {
+                *data = Some(inner as f32);
+            }
+        },
+    ))
+}
 
 fn field_row<T: Data>(
     name: &str,
@@ -516,6 +453,252 @@ fn field_row<T: Data>(
             Label::new("").fix_width(100.),
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start)
+}
+
+// todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
+pub fn stop_ui_old() -> impl Widget<MyStopTime> {
+    Container::new(
+        Flex::row()
+            .with_child(
+                TextBox::new()
+                    .with_placeholder("stop name")
+                    .lens(MyStopTime::name),
+            )
+            .with_child(Checkbox::new("").lens(MyStopTime::selected))
+            .with_child(Label::new(|data: &MyStopTime, _env: &_| {
+                format!("arrival/departure: {:?}", data.arrival_time)
+            }))
+            .with_child(delete_item_button())
+            // .with_child(Either::new(
+            //     |data: &Trip, _env: &Env| data.selected,
+            //     List::new(stop_ui).lens(Trip::stops),
+            //     Label::new(""),
+            // ))
+            .cross_axis_alignment(CrossAxisAlignment::Start)
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::grey(0.16))
+    .expand_width()
+}
+
+pub fn stop_ui() -> impl Widget<MyStopTime> {
+    let title = Flex::row()
+        .with_child(
+            Label::new(|data: &MyStopTime, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
+        )
+        .with_child(Checkbox::new("").lens(MyStopTime::selected))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyStopTime, _env: &Env| data.live,
+            Label::new(""),
+            Label::new("deleted").with_text_color(Color::RED),
+        ))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyStopTime, _env: &Env| data.stop_time.is_none(),
+            Label::new("new item").with_text_color(Color::RED),
+            Label::new(""),
+        ))
+        .with_default_spacer()
+        .with_child(delete_item_button());
+
+    let fields = Flex::column()
+        .with_child(field_row(
+            "trip_id",
+            Label::new(|data: &MyStopTime, _: &_| format!("{:?}", data.trip_id)),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.trip_id != data.trip_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "arrival_time",
+            option_u32().lens(MyStopTime::arrival_time),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.arrival_time != data.arrival_time,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "departure_time",
+            option_u32().lens(MyStopTime::departure_time),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.departure_time != data.departure_time,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "stop_id",
+            TextBox::new()
+                .with_placeholder("route stop_id")
+                .lens(MyStopTime::stop_id),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.stop_id != data.stop_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "stop_sequence",
+            Stepper::new().lens(druid::lens::Map::new(
+                |data: &MyStopTime| data.stop_sequence as f64,
+                |data: &mut MyStopTime, inner: f64| data.stop_sequence = inner as u16,
+            )),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.stop_sequence != data.stop_sequence,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "stop_headsign",
+            option_string().lens(MyStopTime::stop_headsign),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.stop_headsign != data.stop_headsign,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "pickup_type",
+            Dropdown::new(
+                Button::new(|data: &MyStopTime, _: &Env| format!("{:?}", data.pickup_type.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyPickupDropOffType::radio_vec())
+                        // .fix_size(5., 10.)
+                        .lens(druid::lens::Map::new(
+                            |data: &MyStopTime| data.pickup_type.clone(),
+                            |data: &mut MyStopTime, inner: MyPickupDropOffType| {
+                                data.pickup_type = inner;
+                            },
+                        ))
+                },
+            )
+            .align_left(),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.pickup_type != data.pickup_type.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "drop_off_type",
+            Dropdown::new(
+                Button::new(|data: &MyStopTime, _: &Env| format!("{:?}", data.drop_off_type.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyPickupDropOffType::radio_vec())
+                        // .fix_size(5., 10.)
+                        .lens(druid::lens::Map::new(
+                            |data: &MyStopTime| data.drop_off_type.clone(),
+                            |data: &mut MyStopTime, inner: MyPickupDropOffType| {
+                                data.drop_off_type = inner;
+                            },
+                        ))
+                },
+            )
+            .align_left(),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.drop_off_type != data.drop_off_type.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "continuous_pickup",
+            Dropdown::new(
+                Button::new(|data: &MyStopTime, _: &Env| format!("{:?}", data.continuous_pickup.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyContinuousPickupDropOff::radio_vec()).lens(
+                        druid::lens::Map::new(
+                            |data: &MyStopTime| data.continuous_pickup.clone(),
+                            |data: &mut MyStopTime, inner: MyContinuousPickupDropOff| {
+                                data.continuous_pickup = inner;
+                            },
+                        ),
+                    )
+                },
+            )
+            .align_left(),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.continuous_pickup != data.continuous_pickup.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "continuous_drop_off",
+            Dropdown::new(
+                Button::new(|data: &MyStopTime, _: &Env| {
+                    format!("{:?}", data.continuous_drop_off.0)
+                })
+                .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyContinuousPickupDropOff::radio_vec()).lens(
+                        druid::lens::Map::new(
+                            |data: &MyStopTime| data.continuous_drop_off.clone(),
+                            |data: &mut MyStopTime, inner: MyContinuousPickupDropOff| {
+                                data.continuous_drop_off = inner;
+                            },
+                        ),
+                    )
+                },
+            )
+            .align_left(),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.continuous_drop_off != data.continuous_drop_off.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "shape_dist_traveled",
+            option_f32().lens(MyStopTime::shape_dist_traveled),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.shape_dist_traveled != data.shape_dist_traveled,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "timepoint",
+            Dropdown::new(
+                Button::new(|data: &MyStopTime, _: &Env| format!("{:?}", data.timepoint.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyTimepointType::radio_vec()).lens(druid::lens::Map::new(
+                        |data: &MyStopTime| data.timepoint.clone(),
+                        |data: &mut MyStopTime, inner: MyTimepointType| {
+                            data.timepoint = inner;
+                        },
+                    ))
+                },
+            )
+            .align_left(),
+            |data: &MyStopTime, _: &_| match &data.stop_time {
+                Some(stop_time) => stop_time.timepoint != data.timepoint.0,
+                None => true,
+            },
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start);
+
+    Container::new(
+        Flex::column()
+            .with_child(title)
+            .with_spacer(SPACING_1)
+            .with_child(fields)
+            .cross_axis_alignment(CrossAxisAlignment::Start)
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::grey(0.16))
+    .expand_width()
 }
 
 pub fn trip_ui() -> impl Widget<MyTrip> {

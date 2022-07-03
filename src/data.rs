@@ -1,8 +1,9 @@
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::{Data, Lens, Widget, WidgetExt};
 use gtfs_structures::{
-    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, RawGtfs,
-    RawStopTime, RawTrip, Route, RouteType, Stop, StopTime, Trip,
+    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs,
+    PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Stop, StopTime,
+    TimepointType, Trip,
 };
 use rgb::RGB8;
 use std::collections::HashMap;
@@ -26,10 +27,23 @@ pub trait ListItem {
 pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
+
+    pub trip_id: String,
+    pub arrival_time: Option<u32>,
+    pub departure_time: Option<u32>,
+    pub stop_id: String,
     pub stop_sequence: u16,
+    pub stop_headsign: Option<String>,
+    pub pickup_type: MyPickupDropOffType,
+    pub drop_off_type: MyPickupDropOffType,
+    pub continuous_pickup: MyContinuousPickupDropOff,
+    pub continuous_drop_off: MyContinuousPickupDropOff,
+    pub shape_dist_traveled: Option<f32>,
+    pub timepoint: MyTimepointType,
+
     #[data(ignore)]
     #[lens(ignore)]
-    pub stop_time: Rc<RawStopTime>,
+    pub stop_time: Option<Rc<RawStopTime>>,
     // stop_time: RawStopTime,
     pub name: String,
     pub coord: (f64, f64),
@@ -42,10 +56,63 @@ impl ListItem for MyStopTime {
         self.selected = value;
     }
     fn id(&self) -> String {
-        self.stop_time.stop_id.clone()
+        self.stop_id.clone()
     }
     fn item_type(&self) -> String {
         "stop_time".to_string()
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyTimepointType(pub TimepointType);
+impl MyTimepointType {
+    pub fn radio_vec() -> Vec<(String, MyTimepointType)> {
+        vec![
+            (
+                "Approximate".to_string(),
+                MyTimepointType(TimepointType::Approximate),
+            ),
+            ("Exact".to_string(), MyTimepointType(TimepointType::Exact)),
+        ]
+    }
+}
+impl Data for MyTimepointType {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyPickupDropOffType(pub PickupDropOffType);
+impl MyPickupDropOffType {
+    pub fn radio_vec() -> Vec<(String, MyPickupDropOffType)> {
+        vec![
+            (
+                "Regular".to_string(),
+                MyPickupDropOffType(PickupDropOffType::Regular),
+            ),
+            (
+                "NotAvailable".to_string(),
+                MyPickupDropOffType(PickupDropOffType::NotAvailable),
+            ),
+            (
+                "ArrangeByPhone".to_string(),
+                MyPickupDropOffType(PickupDropOffType::ArrangeByPhone),
+            ),
+            (
+                "CoordinateWithDriver".to_string(),
+                MyPickupDropOffType(PickupDropOffType::CoordinateWithDriver),
+            ),
+            (
+                "Unknown(99)".to_string(),
+                MyPickupDropOffType(PickupDropOffType::Unknown(99)),
+            ),
+        ]
+    }
+}
+impl Data for MyPickupDropOffType {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 }
 
@@ -593,8 +660,31 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                                         MyStopTime {
                                             live: true,
                                             selected: true,
-                                            stop_sequence: stop_time.stop_sequence,
-                                            stop_time: Rc::new(stop_time.clone()),
+
+                                            trip_id: stop_time.trip_id.clone(),
+                                            arrival_time: stop_time.arrival_time.clone(),
+                                            departure_time: stop_time.departure_time.clone(),
+                                            stop_id: stop_time.stop_id.clone(),
+                                            stop_sequence: stop_time.stop_sequence.clone(),
+                                            stop_headsign: stop_time.stop_headsign.clone(),
+                                            pickup_type: MyPickupDropOffType(
+                                                stop_time.pickup_type.clone(),
+                                            ),
+                                            drop_off_type: MyPickupDropOffType(
+                                                stop_time.drop_off_type.clone(),
+                                            ),
+                                            continuous_pickup: MyContinuousPickupDropOff(
+                                                stop_time.continuous_pickup.clone(),
+                                            ),
+                                            continuous_drop_off: MyContinuousPickupDropOff(
+                                                stop_time.continuous_drop_off.clone(),
+                                            ),
+                                            shape_dist_traveled: stop_time
+                                                .shape_dist_traveled
+                                                .clone(),
+                                            timepoint: MyTimepointType(stop_time.timepoint.clone()),
+
+                                            stop_time: Some(Rc::new(stop_time.clone())),
                                             // stop_time: stop_time.clone(),
                                             name: stop.name.clone(),
                                             coord: (
