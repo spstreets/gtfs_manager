@@ -957,47 +957,144 @@ pub fn route_ui() -> impl Widget<MyRoute> {
 pub fn agency_ui() -> impl Widget<MyAgency> {
     let title = Flex::row()
         .with_child(
-            Label::new(|data: &MyAgency, _env: &_| format!("{}", data.agency.name))
-                .with_font(HEADING_2),
+            Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name)).with_font(HEADING_2),
         )
-        .with_child(Checkbox::new("").lens(MyAgency::selected));
+        .with_child(Checkbox::new("").lens(MyAgency::selected))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyAgency, _env: &Env| data.live,
+            Label::new(""),
+            Label::new("deleted").with_text_color(Color::RED),
+        ))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyAgency, _env: &Env| data.agency.is_none(),
+            Label::new("new item").with_text_color(Color::RED),
+            Label::new(""),
+        ))
+        .with_default_spacer()
+        .with_child(delete_item_button());
+
+    let fields = Flex::column()
+        .with_child(field_row(
+            "id",
+            option_string().lens(MyAgency::id),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.id != data.id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "name",
+            TextBox::new()
+                .with_placeholder("agency name")
+                .lens(MyAgency::name),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.name != data.name,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "url",
+            TextBox::new()
+                .with_placeholder("agency url")
+                .lens(MyAgency::url),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.url != data.url,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "timezone",
+            TextBox::new()
+                .with_placeholder("agency timezone")
+                .lens(MyAgency::timezone),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.timezone != data.timezone,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "lang",
+            option_string().lens(MyAgency::lang),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.lang != data.lang,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "phone",
+            option_string().lens(MyAgency::phone),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.phone != data.phone,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "fare_url",
+            option_string().lens(MyAgency::fare_url),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.fare_url != data.fare_url,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "email",
+            option_string().lens(MyAgency::email),
+            |data: &MyAgency, _: &_| match &data.agency {
+                Some(agency) => agency.email != data.email,
+                None => true,
+            },
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start);
+
+    let children_header = Flex::row()
+        .with_child(Expander::new("Routes").lens(MyAgency::expanded))
+        .with_child(Either::new(
+            |data: &MyAgency, _: &_| data.expanded,
+            child_buttons(),
+            Flex::row(),
+        ))
+        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+        .expand_width();
+
+    let children = Either::new(
+        |data: &MyAgency, _env: &Env| data.expanded,
+        FilteredList::new(
+            List::new(route_ui).with_spacing(10.),
+            |item_data: &MyRoute, filtered: &()| item_data.live,
+        )
+        .lens(druid::lens::Map::new(
+            |data: &MyAgency| (data.routes.clone(), ()),
+            |data: &mut MyAgency, inner: (Vector<MyRoute>, ())| {
+                data.routes = inner.0;
+                // data.filter = inner.1;
+            },
+        )),
+        Flex::row(),
+    );
 
     Container::new(
         Flex::column()
             .with_child(title)
             .with_spacer(SPACING_1)
-            .with_child(
-                Flex::row()
-                    .with_child(Expander::new("Routes").lens(MyAgency::expanded))
-                    .with_child(update_all_buttons())
-                    .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                    .expand_width(),
-            )
+            .with_child(fields)
+            .with_spacer(SPACING_1)
+            .with_child(children_header)
             .with_default_spacer()
-            .with_child(Either::new(
-                |data: &MyAgency, _env: &Env| data.expanded,
-                FilteredList::new(
-                    List::new(route_ui).with_spacing(10.),
-                    |item_data: &MyRoute, filtered: &bool| {
-                        *filtered || (!*filtered && item_data.live)
-                    },
-                )
-                .lens(druid::lens::Map::new(
-                    |data: &MyAgency| (data.routes.clone(), data.show_deleted),
-                    |data: &mut MyAgency, inner: (Vector<MyRoute>, bool)| {
-                        data.routes = inner.0;
-                        data.show_deleted = inner.1;
-                    },
-                ))
-                .disabled_if(|data, _| !data.selected),
-                Flex::row(),
-            ))
-            .cross_axis_alignment(CrossAxisAlignment::Start),
+            .with_child(children)
+            .cross_axis_alignment(CrossAxisAlignment::Start)
+            .padding((10., 10., 10., 10.)),
     )
-    .padding((10., 10., 10., 10.))
-    // .background(Color::grey(0.1))
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
     .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
     .fix_width(800.)
 }
 
@@ -1047,6 +1144,17 @@ pub fn main_widget() -> impl Widget<AppData> {
     // todo what's the difference between Point::ZERO and Point::ORIGIN?
     println!("make main widget");
     let map_widget = (MapWidget::new(1., 1., Point::ZERO)).expand();
+
+    let children_header = Flex::row()
+        .with_child(Expander::new("Agencies").lens(AppData::expanded))
+        .with_child(Either::new(
+            |data: &AppData, _: &_| data.expanded,
+            child_buttons(),
+            Flex::row(),
+        ))
+        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+        .expand_width();
+
     Flex::row()
         .with_child(
             Flex::column()
@@ -1080,13 +1188,7 @@ pub fn main_widget() -> impl Widget<AppData> {
                     .fix_width(800.),
                 )
                 .with_default_spacer()
-                .with_child(
-                    Flex::row()
-                        .with_child(Expander::new("Agencies").lens(AppData::expanded))
-                        .with_child(update_all_buttons())
-                        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                        .fix_width(800.),
-                )
+                .with_child(children_header.fix_width(800.))
                 .with_default_spacer()
                 .with_flex_child(
                     Either::new(

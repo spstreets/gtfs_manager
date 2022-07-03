@@ -348,8 +348,19 @@ pub struct MyAgency {
     pub live: bool,
     pub selected: bool,
     pub expanded: bool,
+
+    pub id: Option<String>,
+    pub name: String,
+    pub url: String,
+    pub timezone: String,
+    pub lang: Option<String>,
+    pub phone: Option<String>,
+    pub fare_url: Option<String>,
+    pub email: Option<String>,
+
+    #[lens(ignore)]
     #[data(ignore)]
-    pub agency: Agency,
+    pub agency: Option<Rc<Agency>>,
     pub routes: Vector<MyRoute>,
 }
 impl ListItem for MyAgency {
@@ -389,7 +400,7 @@ impl ListItem for MyAgency {
     }
     fn id(&self) -> String {
         // todo handle agency.id == None
-        self.agency.id.as_ref().unwrap().clone()
+        self.id.as_ref().unwrap().clone()
     }
     fn item_type(&self) -> String {
         "agency".to_string()
@@ -637,7 +648,17 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     live: true,
                     selected: true,
                     expanded: false,
-                    agency: agency.clone(),
+
+                    id: agency.id.clone(),
+                    name: agency.name.clone(),
+                    url: agency.url.clone(),
+                    timezone: agency.timezone.clone(),
+                    lang: agency.lang.clone(),
+                    phone: agency.phone.clone(),
+                    fare_url: agency.fare_url.clone(),
+                    email: agency.email.clone(),
+
+                    agency: Some(Rc::new(agency.clone())),
                     routes,
                 }
             })
