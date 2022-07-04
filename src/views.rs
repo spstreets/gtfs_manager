@@ -666,6 +666,7 @@ pub fn stop_ui() -> impl Widget<MyStop> {
     // .background(Color::grey(0.16))
     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
     // .expand_width()
+    .controller(ScrollToMeController {})
     .fix_width(600.)
 }
 
@@ -1597,4 +1598,29 @@ pub fn main_widget() -> impl Widget<AppData> {
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .padding(20.)
+}
+
+struct ScrollToMeController;
+impl<T, W: Widget<T>> Controller<T, W> for ScrollToMeController {
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+        child.event(ctx, event, data, env);
+        if let Event::MouseDown(_) = event {
+            ctx.scroll_to_view();
+        }
+    }
+
+    // fn lifecycle(
+    //     &mut self,
+    //     child: &mut W,
+    //     ctx: &mut druid::LifeCycleCtx,
+    //     event: &druid::LifeCycle,
+    //     data: &T,
+    //     env: &Env,
+    // ) {
+    //     child.lifecycle(ctx, event, data, env)
+    // }
+
+    // fn update(&mut self, child: &mut W, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
+    //     child.update(ctx, old_data, data, env)
+    // }
 }
