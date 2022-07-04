@@ -438,6 +438,24 @@ fn option_f32() -> impl Widget<Option<f32>> {
         },
     ))
 }
+fn option_num<T>() -> impl Widget<Option<T>>
+where
+    T: Data + Copy + std::convert::Into<f64> + std::convert::From<f64>,
+{
+    Stepper::new().lens(druid::lens::Map::new(
+        |data: &Option<T>| match data {
+            Some(num) => (*num).into(),
+            None => 0.,
+        },
+        |data: &mut Option<T>, inner: f64| {
+            if inner == 0. {
+                *data = None;
+            } else {
+                *data = Some(T::from(inner));
+            }
+        },
+    ))
+}
 
 fn field_row<T: Data>(
     name: &str,
@@ -455,34 +473,204 @@ fn field_row<T: Data>(
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
-// todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
-pub fn stop_ui_old() -> impl Widget<MyStopTime> {
-    Container::new(
-        Flex::row()
-            .with_child(
-                TextBox::new()
-                    .with_placeholder("stop name")
-                    .lens(MyStopTime::name),
+pub fn stop_ui() -> impl Widget<MyStop> {
+    let title = Flex::row()
+        .with_child(
+            Label::new(|data: &MyStop, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
+        )
+        .with_child(Checkbox::new("").lens(MyStop::selected))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyStop, _env: &Env| data.live,
+            Label::new(""),
+            Label::new("deleted").with_text_color(Color::RED),
+        ))
+        .with_default_spacer()
+        .with_child(Either::new(
+            |data: &MyStop, _env: &Env| data.stop.is_none(),
+            Label::new("new item").with_text_color(Color::RED),
+            Label::new(""),
+        ))
+        .with_default_spacer()
+        .with_child(delete_item_button());
+
+    let fields = Flex::column()
+        .with_child(field_row(
+            "id",
+            Label::new(|data: &MyStop, _: &_| format!("{:?}", data.id)),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.id != data.id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "code",
+            option_string().lens(MyStop::code),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.code != data.code,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "name",
+            TextBox::new()
+                .with_placeholder("stop name")
+                .lens(MyStop::name),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.name != data.name,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "description",
+            TextBox::new()
+                .with_placeholder("stop description")
+                .lens(MyStop::description),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.description != data.description,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "location_type",
+            Dropdown::new(
+                Button::new(|data: &MyStop, _: &Env| format!("{:?}", data.location_type.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyLocationType::radio_vec())
+                        // .fix_size(5., 10.)
+                        .lens(druid::lens::Map::new(
+                            |data: &MyStop| data.location_type.clone(),
+                            |data: &mut MyStop, inner: MyLocationType| {
+                                data.location_type = inner;
+                            },
+                        ))
+                },
             )
-            .with_child(Checkbox::new("").lens(MyStopTime::selected))
-            .with_child(Label::new(|data: &MyStopTime, _env: &_| {
-                format!("arrival/departure: {:?}", data.arrival_time)
-            }))
-            .with_child(delete_item_button())
-            // .with_child(Either::new(
-            //     |data: &Trip, _env: &Env| data.selected,
-            //     List::new(stop_ui).lens(Trip::stops),
-            //     Label::new(""),
-            // ))
+            .align_left(),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.location_type != data.location_type.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "parent_station",
+            option_string().lens(MyStop::parent_station),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.parent_station != data.parent_station,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "zone_id",
+            option_string().lens(MyStop::zone_id),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.zone_id != data.zone_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "url",
+            option_string().lens(MyStop::url),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.url != data.url,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "longitude",
+            option_num().lens(MyStop::longitude),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.longitude != data.longitude,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "latitude",
+            option_num().lens(MyStop::latitude),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.latitude != data.latitude,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "timezone",
+            option_string().lens(MyStop::timezone),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.timezone != data.timezone,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "wheelchair_boarding",
+            Dropdown::new(
+                Button::new(|data: &MyStop, _: &Env| format!("{:?}", data.wheelchair_boarding.0))
+                    .on_click(|ctx: &mut EventCtx, _, _| ctx.submit_notification(DROPDOWN_SHOW)),
+                |_, _| {
+                    RadioGroup::column(MyAvailability::radio_vec())
+                        // .fix_size(5., 10.)
+                        .lens(druid::lens::Map::new(
+                            |data: &MyStop| data.wheelchair_boarding.clone(),
+                            |data: &mut MyStop, inner: MyAvailability| {
+                                data.wheelchair_boarding = inner;
+                            },
+                        ))
+                },
+            )
+            .align_left(),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.wheelchair_boarding != data.wheelchair_boarding.0,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "level_id",
+            option_string().lens(MyStop::level_id),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.level_id != data.level_id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "platform_code",
+            option_string().lens(MyStop::platform_code),
+            |data: &MyStop, _: &_| match &data.stop {
+                Some(stop) => stop.platform_code != data.platform_code,
+                None => true,
+            },
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start);
+
+    Container::new(
+        Flex::column()
+            .with_child(title)
+            .with_spacer(SPACING_1)
+            .with_child(fields)
             .cross_axis_alignment(CrossAxisAlignment::Start)
             .padding((10., 10., 10., 10.)),
     )
     .rounded(CORNER_RADIUS)
-    .background(Color::grey(0.16))
-    .expand_width()
+    // .background(Color::grey(0.16))
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    // .expand_width()
+    .fix_width(600.)
 }
 
-pub fn stop_ui() -> impl Widget<MyStopTime> {
+// todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
+pub fn stop_time_ui() -> impl Widget<MyStopTime> {
     let title = Flex::row()
         .with_child(
             Label::new(|data: &MyStopTime, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
@@ -876,7 +1064,7 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
     let children = Either::new(
         |data: &MyTrip, _env: &Env| data.expanded,
         FilteredList::new(
-            List::new(stop_ui).with_spacing(10.),
+            List::new(stop_time_ui).with_spacing(10.),
             |item_data: &MyStopTime, filtered: &()| item_data.live,
         )
         .lens(druid::lens::Map::new(
@@ -1278,7 +1466,7 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
     )
     .rounded(CORNER_RADIUS)
     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .fix_width(800.)
+    .fix_width(600.)
 }
 
 fn edit() -> impl Widget<Edit> {
@@ -1328,7 +1516,7 @@ pub fn main_widget() -> impl Widget<AppData> {
     println!("make main widget");
     let map_widget = (MapWidget::new(1., 1., Point::ZERO)).expand();
 
-    let children_header = Flex::row()
+    let agencies_header = Flex::row()
         .with_child(Expander::new("Agencies").lens(AppData::expanded))
         .with_child(Either::new(
             |data: &AppData, _: &_| data.expanded,
@@ -1337,6 +1525,27 @@ pub fn main_widget() -> impl Widget<AppData> {
         ))
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .expand_width();
+
+    let agencies = Either::new(
+        |data: &AppData, _env: &Env| data.expanded,
+        Scroll::new(
+            Flex::column().with_child(
+                List::new(agency_ui)
+                    .with_spacing(10.)
+                    .lens(AppData::agencies),
+            ),
+        )
+        .fix_width(600.),
+        Flex::row().fix_width(600.),
+    )
+    // Scroll::new(
+    //     Flex::column().with_child(update_all_buttons()).with_child(
+    //         List::new(agency_ui)
+    //             .with_spacing(10.)
+    //             .lens(AppData::agencies),
+    //     ),
+    // )
+    .fix_width(600.);
 
     Flex::row()
         .with_child(
@@ -1351,10 +1560,10 @@ pub fn main_widget() -> impl Widget<AppData> {
                         List::new(edit)
                             .with_spacing(10.)
                             .lens(AppData::edits)
-                            .fix_width(800.),
-                        Flex::row().fix_width(800.),
+                            .fix_width(600.),
+                        Flex::row().fix_width(600.),
                     )
-                    .fix_width(800.),
+                    .fix_width(600.),
                 )
                 .with_default_spacer()
                 .with_child(Expander::new("Actions").lens(AppData::show_actions))
@@ -1365,38 +1574,24 @@ pub fn main_widget() -> impl Widget<AppData> {
                         List::new(action)
                             .with_spacing(10.)
                             .lens(AppData::actions)
-                            .fix_width(800.),
-                        Flex::row().fix_width(800.),
+                            .fix_width(600.),
+                        Flex::row().fix_width(600.),
                     )
-                    .fix_width(800.),
+                    .fix_width(600.),
                 )
                 .with_default_spacer()
-                .with_child(children_header.fix_width(800.))
+                .with_child(agencies_header.fix_width(600.))
                 .with_default_spacer()
-                .with_flex_child(
-                    Either::new(
-                        |data: &AppData, _env: &Env| data.expanded,
-                        Scroll::new(
-                            Flex::column().with_child(
-                                List::new(agency_ui)
-                                    .with_spacing(10.)
-                                    .lens(AppData::agencies),
-                            ),
-                        )
-                        .fix_width(800.),
-                        Flex::row().fix_width(800.),
-                    )
-                    // Scroll::new(
-                    //     Flex::column().with_child(update_all_buttons()).with_child(
-                    //         List::new(agency_ui)
-                    //             .with_spacing(10.)
-                    //             .lens(AppData::agencies),
-                    //     ),
-                    // )
-                    .fix_width(800.),
-                    1.,
-                )
+                .with_flex_child(agencies, 1.)
                 .cross_axis_alignment(CrossAxisAlignment::Start),
+        )
+        .with_default_spacer()
+        .with_child(
+            Scroll::new(
+                Flex::column()
+                    .with_child(List::new(stop_ui).with_spacing(10.).lens(AppData::stops)),
+            )
+            .fix_width(600.),
         )
         .with_spacer(20.)
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
