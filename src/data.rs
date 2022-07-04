@@ -1,15 +1,18 @@
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::{Data, Lens, Widget, WidgetExt};
 use gtfs_structures::{
-    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs,
+    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, Pathway,
     PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Stop, StopTime,
-    TimepointType, Trip,
+    StopTransfer, TimepointType, Trip,
 };
 use rgb::RGB8;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 use uuid::Uuid;
+
+mod newtypes;
+pub use newtypes::*;
 
 pub trait ListItem {
     fn new_child(&mut self) -> String;
@@ -21,6 +24,51 @@ pub trait ListItem {
         "not implemented".to_string()
     }
     // fn name(&self) -> String;
+}
+
+#[derive(Clone, Data, Debug, Lens)]
+pub struct MyStop {
+    pub live: bool,
+    pub selected: bool,
+
+    pub id: String,
+    pub code: Option<String>,
+    pub name: String,
+    pub description: String,
+    pub location_type: MyLocationType,
+    pub parent_station: Option<String>,
+    pub zone_id: Option<String>,
+    pub url: Option<String>,
+    pub longitude: Option<f64>,
+    pub latitude: Option<f64>,
+    pub timezone: Option<String>,
+    pub wheelchair_boarding: MyAvailability,
+    pub level_id: Option<String>,
+    pub platform_code: Option<String>,
+    // pub transfers: Vec<StopTransfer>,
+    // pub pathways: Vec<Pathway>,
+    pub transfers: usize,
+    pub pathways: usize,
+
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stop: Option<Rc<Stop>>,
+    // stop_time: RawStopTime,
+    pub coord: (f64, f64),
+}
+impl ListItem for MyStop {
+    fn new_child(&mut self) -> String {
+        todo!()
+    }
+    fn update_all(&mut self, value: bool) {
+        self.selected = value;
+    }
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+    fn item_type(&self) -> String {
+        "stop".to_string()
+    }
 }
 
 #[derive(Clone, Data, Debug, Lens)]
@@ -60,141 +108,6 @@ impl ListItem for MyStopTime {
     }
     fn item_type(&self) -> String {
         "stop_time".to_string()
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyTimepointType(pub TimepointType);
-impl MyTimepointType {
-    pub fn radio_vec() -> Vec<(String, MyTimepointType)> {
-        vec![
-            (
-                "Approximate".to_string(),
-                MyTimepointType(TimepointType::Approximate),
-            ),
-            ("Exact".to_string(), MyTimepointType(TimepointType::Exact)),
-        ]
-    }
-}
-impl Data for MyTimepointType {
-    fn same(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyPickupDropOffType(pub PickupDropOffType);
-impl MyPickupDropOffType {
-    pub fn radio_vec() -> Vec<(String, MyPickupDropOffType)> {
-        vec![
-            (
-                "Regular".to_string(),
-                MyPickupDropOffType(PickupDropOffType::Regular),
-            ),
-            (
-                "NotAvailable".to_string(),
-                MyPickupDropOffType(PickupDropOffType::NotAvailable),
-            ),
-            (
-                "ArrangeByPhone".to_string(),
-                MyPickupDropOffType(PickupDropOffType::ArrangeByPhone),
-            ),
-            (
-                "CoordinateWithDriver".to_string(),
-                MyPickupDropOffType(PickupDropOffType::CoordinateWithDriver),
-            ),
-            (
-                "Unknown(99)".to_string(),
-                MyPickupDropOffType(PickupDropOffType::Unknown(99)),
-            ),
-        ]
-    }
-}
-impl Data for MyPickupDropOffType {
-    fn same(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyDirectionType(pub DirectionType);
-impl MyDirectionType {
-    pub fn radio_vec() -> Vec<(String, MyDirectionType)> {
-        vec![
-            (
-                "Outbound".to_string(),
-                MyDirectionType(DirectionType::Outbound),
-            ),
-            (
-                "Inbound".to_string(),
-                MyDirectionType(DirectionType::Inbound),
-            ),
-        ]
-    }
-}
-impl Data for MyDirectionType {
-    fn same(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyAvailability(pub Availability);
-impl MyAvailability {
-    pub fn radio_vec() -> Vec<(String, MyAvailability)> {
-        vec![
-            (
-                "InformationNotAvailable".to_string(),
-                MyAvailability(Availability::InformationNotAvailable),
-            ),
-            (
-                "Available".to_string(),
-                MyAvailability(Availability::Available),
-            ),
-            (
-                "NotAvailable".to_string(),
-                MyAvailability(Availability::NotAvailable),
-            ),
-            (
-                "Unknown(99)".to_string(),
-                MyAvailability(Availability::Unknown(99)),
-            ),
-        ]
-    }
-}
-impl Data for MyAvailability {
-    fn same(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyBikesAllowedType(pub BikesAllowedType);
-impl MyBikesAllowedType {
-    pub fn radio_vec() -> Vec<(String, MyBikesAllowedType)> {
-        vec![
-            (
-                "NoBikeInfo".to_string(),
-                MyBikesAllowedType(BikesAllowedType::NoBikeInfo),
-            ),
-            (
-                "AtLeastOneBike".to_string(),
-                MyBikesAllowedType(BikesAllowedType::AtLeastOneBike),
-            ),
-            (
-                "NoBikesAllowed".to_string(),
-                MyBikesAllowedType(BikesAllowedType::NoBikesAllowed),
-            ),
-            (
-                "Unknown(99)".to_string(),
-                MyBikesAllowedType(BikesAllowedType::Unknown(99)),
-            ),
-        ]
-    }
-}
-impl Data for MyBikesAllowedType {
-    fn same(&self, other: &Self) -> bool {
-        self.0 == other.0
     }
 }
 
@@ -524,6 +437,7 @@ pub struct AppData {
     #[lens(ignore)]
     pub gtfs: Rc<MyGtfs>,
     pub agencies: Vector<MyAgency>,
+    pub stops: Vector<MyStop>,
     pub expanded: bool,
     pub actions: Vector<Action>,
     pub edits: Vector<Edit>,
@@ -560,6 +474,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         stops: stops.clone(),
     };
 
+    // creates stop_time_range_from_trip_id which is a hashmap where each key is a trip_id pointing to the index range of it's stop times in the sorted stop_times below
     // need to be able to grab a slice of stop times by trip id to avoid doing the below loads of times:
     // stop_times
     //     .iter()
@@ -584,7 +499,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     // insert final trip id
     stop_time_range_from_trip_id.insert(current_trip.clone(), (trip_start_index, trip_end_index));
 
-    // hash map for getting a top by stop_id
+    // hash map for getting a stop by stop_id
     let mut stop_map = HashMap::new();
     let stops2 = stops.clone();
     stops2.iter().for_each(|stop| {
@@ -751,6 +666,36 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                     agency: Some(Rc::new(agency.clone())),
                     routes,
                 }
+            })
+            .collect::<Vector<_>>(),
+        stops: stops
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| if limited { *i < 10 } else { true })
+            .map(|(_, x)| x)
+            .map(|stop| MyStop {
+                live: true,
+                selected: true,
+
+                id: stop.id.clone(),
+                code: stop.code.clone(),
+                name: stop.name.clone(),
+                description: stop.description.clone(),
+                location_type: MyLocationType(stop.location_type.clone()),
+                parent_station: stop.parent_station.clone(),
+                zone_id: stop.zone_id.clone(),
+                url: stop.url.clone(),
+                longitude: stop.longitude.clone(),
+                latitude: stop.latitude.clone(),
+                timezone: stop.timezone.clone(),
+                wheelchair_boarding: MyAvailability(stop.wheelchair_boarding.clone()),
+                level_id: stop.level_id.clone(),
+                platform_code: stop.platform_code.clone(),
+                transfers: stop.transfers.len(),
+                pathways: stop.pathways.len(),
+
+                stop: Some(Rc::new(stop.clone())),
+                coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
             })
             .collect::<Vector<_>>(),
         actions: Vector::new(),
