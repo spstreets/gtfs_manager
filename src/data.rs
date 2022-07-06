@@ -30,6 +30,7 @@ pub trait ListItem {
 pub struct MyStop {
     pub live: bool,
     pub selected: bool,
+    pub scroll_to_me: usize,
 
     pub id: String,
     pub code: Option<String>,
@@ -507,175 +508,177 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     });
 
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
+    let mut filtered_stop_ids = Vec::new();
 
     let limited = true;
+    let agencies = agencies
+        .iter()
+        // <limiting
+        .enumerate()
+        .filter(|(i, _)| if limited { *i < 5 } else { true })
+        .map(|(_, x)| x)
+        // limiting>
+        .map(|agency| {
+            let mut routes = routes
+                .iter()
+                .filter(|route| route.agency_id == agency.id)
+                // <limiting
+                .enumerate()
+                .filter(|(i, _)| if limited { *i < 5 } else { true })
+                .map(|(_, x)| x)
+                // limiting>
+                .map(|route| MyRoute {
+                    new: false,
+                    live: true,
+                    selected: true,
+                    expanded: false,
+
+                    id: route.id.clone(),
+                    short_name: route.short_name.clone(),
+                    long_name: route.long_name.clone(),
+                    desc: route.desc.clone(),
+                    route_type: MyRouteType(route.route_type.clone()),
+                    url: route.url.clone(),
+                    agency_id: route.agency_id.clone(),
+                    order: route.order.clone(),
+                    color: MyRGB8(route.color.clone()),
+                    text_color: MyRGB8(route.text_color.clone()),
+                    continuous_pickup: MyContinuousPickupDropOff(route.continuous_pickup.clone()),
+                    continuous_drop_off: MyContinuousPickupDropOff(
+                        route.continuous_drop_off.clone(),
+                    ),
+
+                    route: Some(Rc::new(route.clone())),
+                    trips: trips
+                        .iter()
+                        .enumerate()
+                        .filter(|(i, trip)| trip.route_id == route.id)
+                        // <limiting
+                        .enumerate()
+                        .filter(|(i, _)| if limited { *i < 5 } else { true })
+                        .map(|(_, x)| x)
+                        // limiting>
+                        .map(|(i, trip)| {
+                            let (start_index, end_index) =
+                                stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
+                            let mut stops = stop_times[start_index..end_index]
+                                .iter()
+                                // .filter(|stop_time| stop_time.trip_id == trip.id)
+                                .map(|stop_time| {
+                                    let stop = stop_map.get(&stop_time.stop_id).unwrap();
+                                    filtered_stop_ids.push(stop.id.clone());
+                                    MyStopTime {
+                                        live: true,
+                                        selected: true,
+
+                                        trip_id: stop_time.trip_id.clone(),
+                                        arrival_time: stop_time.arrival_time.clone(),
+                                        departure_time: stop_time.departure_time.clone(),
+                                        stop_id: stop_time.stop_id.clone(),
+                                        stop_sequence: stop_time.stop_sequence.clone(),
+                                        stop_headsign: stop_time.stop_headsign.clone(),
+                                        pickup_type: MyPickupDropOffType(
+                                            stop_time.pickup_type.clone(),
+                                        ),
+                                        drop_off_type: MyPickupDropOffType(
+                                            stop_time.drop_off_type.clone(),
+                                        ),
+                                        continuous_pickup: MyContinuousPickupDropOff(
+                                            stop_time.continuous_pickup.clone(),
+                                        ),
+                                        continuous_drop_off: MyContinuousPickupDropOff(
+                                            stop_time.continuous_drop_off.clone(),
+                                        ),
+                                        shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
+                                        timepoint: MyTimepointType(stop_time.timepoint.clone()),
+
+                                        stop_time: Some(Rc::new(stop_time.clone())),
+                                        // stop_time: stop_time.clone(),
+                                        name: stop.name.clone(),
+                                        coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                                    }
+                                })
+                                .collect::<Vector<_>>();
+                            stops.sort_by(|stop1, stop2| {
+                                stop1.stop_sequence.cmp(&stop2.stop_sequence)
+                            });
+
+                            // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
+                            MyTrip {
+                                live: true,
+                                selected: true,
+                                expanded: false,
+
+                                id: trip.id.clone(),
+                                service_id: trip.service_id.clone(),
+                                route_id: trip.route_id.clone(),
+                                shape_id: trip.shape_id.clone(),
+                                trip_headsign: trip.trip_headsign.clone(),
+                                trip_short_name: trip.trip_short_name.clone(),
+                                direction_id: trip.direction_id.map(|x| MyDirectionType(x)),
+                                block_id: trip.block_id.clone(),
+                                wheelchair_accessible: MyAvailability(trip.wheelchair_accessible),
+                                bikes_allowed: MyBikesAllowedType(trip.bikes_allowed),
+
+                                trip: Some(Rc::new(trip.clone())),
+                                name: trip.id.clone(),
+                                stops,
+                            }
+                        })
+                        .collect::<Vector<_>>(),
+                })
+                .collect::<Vector<_>>();
+            routes.sort_by(|route1, route2| {
+                route1
+                    .route
+                    .as_ref()
+                    .unwrap()
+                    .short_name
+                    .cmp(&route2.route.as_ref().unwrap().short_name)
+            });
+            MyAgency {
+                show_deleted: true,
+                live: true,
+                selected: true,
+                expanded: false,
+
+                id: agency.id.clone(),
+                name: agency.name.clone(),
+                url: agency.url.clone(),
+                timezone: agency.timezone.clone(),
+                lang: agency.lang.clone(),
+                phone: agency.phone.clone(),
+                fare_url: agency.fare_url.clone(),
+                email: agency.email.clone(),
+
+                agency: Some(Rc::new(agency.clone())),
+                routes,
+            }
+        })
+        .collect::<Vector<_>>();
+
+    // let stops = stops
+    //     .iter()
+    //     .filter(|stop| filtered_stop_ids.contains(&stop.id))
+    //     .collect::<Vec<_>>();
+
     let app_data = AppData {
         show_deleted: true,
         show_edits: false,
         show_actions: false,
         gtfs: Rc::new(my_gtfs),
         expanded: true,
-        agencies: agencies
-            .iter()
-            // <limiting
-            .enumerate()
-            .filter(|(i, _)| if limited { *i < 5 } else { true })
-            .map(|(_, x)| x)
-            // limiting>
-            .map(|agency| {
-                let mut routes = routes
-                    .iter()
-                    .filter(|route| route.agency_id == agency.id)
-                    // <limiting
-                    .enumerate()
-                    .filter(|(i, _)| if limited { *i < 5 } else { true })
-                    .map(|(_, x)| x)
-                    // limiting>
-                    .map(|route| MyRoute {
-                        new: false,
-                        live: true,
-                        selected: true,
-                        expanded: false,
-
-                        id: route.id.clone(),
-                        short_name: route.short_name.clone(),
-                        long_name: route.long_name.clone(),
-                        desc: route.desc.clone(),
-                        route_type: MyRouteType(route.route_type.clone()),
-                        url: route.url.clone(),
-                        agency_id: route.agency_id.clone(),
-                        order: route.order.clone(),
-                        color: MyRGB8(route.color.clone()),
-                        text_color: MyRGB8(route.text_color.clone()),
-                        continuous_pickup: MyContinuousPickupDropOff(
-                            route.continuous_pickup.clone(),
-                        ),
-                        continuous_drop_off: MyContinuousPickupDropOff(
-                            route.continuous_drop_off.clone(),
-                        ),
-
-                        route: Some(Rc::new(route.clone())),
-                        trips: trips
-                            .iter()
-                            .enumerate()
-                            .filter(|(i, trip)| trip.route_id == route.id)
-                            // <limiting
-                            .enumerate()
-                            .filter(|(i, _)| if limited { *i < 5 } else { true })
-                            .map(|(_, x)| x)
-                            // limiting>
-                            .map(|(i, trip)| {
-                                let (start_index, end_index) =
-                                    stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
-                                let mut stops = stop_times[start_index..end_index]
-                                    .iter()
-                                    // .filter(|stop_time| stop_time.trip_id == trip.id)
-                                    .map(|stop_time| {
-                                        let stop = stop_map.get(&stop_time.stop_id).unwrap();
-                                        MyStopTime {
-                                            live: true,
-                                            selected: true,
-
-                                            trip_id: stop_time.trip_id.clone(),
-                                            arrival_time: stop_time.arrival_time.clone(),
-                                            departure_time: stop_time.departure_time.clone(),
-                                            stop_id: stop_time.stop_id.clone(),
-                                            stop_sequence: stop_time.stop_sequence.clone(),
-                                            stop_headsign: stop_time.stop_headsign.clone(),
-                                            pickup_type: MyPickupDropOffType(
-                                                stop_time.pickup_type.clone(),
-                                            ),
-                                            drop_off_type: MyPickupDropOffType(
-                                                stop_time.drop_off_type.clone(),
-                                            ),
-                                            continuous_pickup: MyContinuousPickupDropOff(
-                                                stop_time.continuous_pickup.clone(),
-                                            ),
-                                            continuous_drop_off: MyContinuousPickupDropOff(
-                                                stop_time.continuous_drop_off.clone(),
-                                            ),
-                                            shape_dist_traveled: stop_time
-                                                .shape_dist_traveled
-                                                .clone(),
-                                            timepoint: MyTimepointType(stop_time.timepoint.clone()),
-
-                                            stop_time: Some(Rc::new(stop_time.clone())),
-                                            // stop_time: stop_time.clone(),
-                                            name: stop.name.clone(),
-                                            coord: (
-                                                stop.longitude.unwrap(),
-                                                stop.latitude.unwrap(),
-                                            ),
-                                        }
-                                    })
-                                    .collect::<Vector<_>>();
-                                stops.sort_by(|stop1, stop2| {
-                                    stop1.stop_sequence.cmp(&stop2.stop_sequence)
-                                });
-
-                                // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
-                                MyTrip {
-                                    live: true,
-                                    selected: true,
-                                    expanded: false,
-
-                                    id: trip.id.clone(),
-                                    service_id: trip.service_id.clone(),
-                                    route_id: trip.route_id.clone(),
-                                    shape_id: trip.shape_id.clone(),
-                                    trip_headsign: trip.trip_headsign.clone(),
-                                    trip_short_name: trip.trip_short_name.clone(),
-                                    direction_id: trip.direction_id.map(|x| MyDirectionType(x)),
-                                    block_id: trip.block_id.clone(),
-                                    wheelchair_accessible: MyAvailability(
-                                        trip.wheelchair_accessible,
-                                    ),
-                                    bikes_allowed: MyBikesAllowedType(trip.bikes_allowed),
-
-                                    trip: Some(Rc::new(trip.clone())),
-                                    name: trip.id.clone(),
-                                    stops,
-                                }
-                            })
-                            .collect::<Vector<_>>(),
-                    })
-                    .collect::<Vector<_>>();
-                routes.sort_by(|route1, route2| {
-                    route1
-                        .route
-                        .as_ref()
-                        .unwrap()
-                        .short_name
-                        .cmp(&route2.route.as_ref().unwrap().short_name)
-                });
-                MyAgency {
-                    show_deleted: true,
-                    live: true,
-                    selected: true,
-                    expanded: false,
-
-                    id: agency.id.clone(),
-                    name: agency.name.clone(),
-                    url: agency.url.clone(),
-                    timezone: agency.timezone.clone(),
-                    lang: agency.lang.clone(),
-                    phone: agency.phone.clone(),
-                    fare_url: agency.fare_url.clone(),
-                    email: agency.email.clone(),
-
-                    agency: Some(Rc::new(agency.clone())),
-                    routes,
-                }
-            })
-            .collect::<Vector<_>>(),
+        agencies,
         stops: stops
             .iter()
-            .enumerate()
-            .filter(|(i, _)| if limited { *i < 10 } else { true })
-            .map(|(_, x)| x)
+            // .enumerate()
+            // .filter(|(i, _)| if limited { *i < 10 } else { true })
+            // .map(|(_, x)| x)
+            .filter(|stop| filtered_stop_ids.contains(&stop.id))
             .map(|stop| MyStop {
                 live: true,
                 selected: true,
+                scroll_to_me: 0,
 
                 id: stop.id.clone(),
                 code: stop.code.clone(),

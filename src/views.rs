@@ -44,6 +44,7 @@ const ITEM_UPDATE: Selector<(String, String)> = Selector::new("item.update");
 // (<item type>, <parent id>)
 const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.child");
 const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
+const SHOW_STOP: Selector<String> = Selector::new("show.stop");
 
 pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
@@ -296,6 +297,15 @@ impl AppDelegate<AppData> for Delegate {
                 }
             }
             data.actions.retain(|edit| edit.id != *edit_id);
+            druid::Handled::Yes
+        } else if let Some(stop_id) = cmd.get(SHOW_STOP) {
+            dbg!(stop_id);
+            for stop in data.stops.iter_mut() {
+                if &stop.id == stop_id {
+                    dbg!("update scroll");
+                    stop.scroll_to_me += 1;
+                }
+            }
             druid::Handled::Yes
         } else {
             druid::Handled::No
@@ -720,11 +730,23 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
             },
         ))
         .with_default_spacer()
+        // .with_child(field_row(
+        //     "stop_id",
+        //     TextBox::new()
+        //         .with_placeholder("route stop_id")
+        //         .lens(MyStopTime::stop_id),
+        //     |data: &MyStopTime, _: &_| match &data.stop_time {
+        //         Some(stop_time) => stop_time.stop_id != data.stop_id,
+        //         None => true,
+        //     },
+        // ))
         .with_child(field_row(
             "stop_id",
-            TextBox::new()
-                .with_placeholder("route stop_id")
-                .lens(MyStopTime::stop_id),
+            Button::new(|data: &MyStopTime, _: &_| data.stop_id.clone()).on_click(
+                |ctx: &mut EventCtx, data: &mut MyStopTime, _| {
+                    ctx.submit_command(SHOW_STOP.with(data.stop_id.clone()));
+                },
+            ),
             |data: &MyStopTime, _: &_| match &data.stop_time {
                 Some(stop_time) => stop_time.stop_id != data.stop_id,
                 None => true,
@@ -1601,8 +1623,15 @@ pub fn main_widget() -> impl Widget<AppData> {
 }
 
 struct ScrollToMeController;
-impl<T, W: Widget<T>> Controller<T, W> for ScrollToMeController {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<W: Widget<MyStop>> Controller<MyStop, W> for ScrollToMeController {
+    fn event(
+        &mut self,
+        child: &mut W,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut MyStop,
+        env: &Env,
+    ) {
         child.event(ctx, event, data, env);
         if let Event::MouseDown(_) = event {
             ctx.scroll_to_view();
@@ -1620,7 +1649,18 @@ impl<T, W: Widget<T>> Controller<T, W> for ScrollToMeController {
     //     child.lifecycle(ctx, event, data, env)
     // }
 
-    // fn update(&mut self, child: &mut W, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-    //     child.update(ctx, old_data, data, env)
-    // }
+    fn update(
+        &mut self,
+        child: &mut W,
+        ctx: &mut UpdateCtx,
+        old_data: &MyStop,
+        data: &MyStop,
+        env: &Env,
+    ) {
+        if data.scroll_to_me > old_data.scroll_to_me {
+            dbg!("scroll_to_view");
+            ctx.scroll_to_view();
+        }
+        child.update(ctx, old_data, data, env)
+    }
 }

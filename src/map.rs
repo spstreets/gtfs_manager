@@ -88,8 +88,6 @@ impl Widget<AppData> for MapWidget {
         data: &AppData,
         env: &Env,
     ) {
-        println!("update");
-
         'outer: for (agency, old_agency) in data.agencies.iter().zip(old_data.agencies.iter()) {
             if !agency.selected.same(&old_agency.selected) {
                 ctx.request_paint();
@@ -130,7 +128,6 @@ impl Widget<AppData> for MapWidget {
         _data: &AppData,
         _env: &Env,
     ) -> Size {
-        println!("layout");
         // rather than changing the size ratio of the widget based on on the shape of what is being drawn, it is best to always keep the widget 1:1 and draw the paths relative to this
         // if bc.is_width_bounded() && bc.is_height_bounded() {
         //     bc.max()
@@ -146,7 +143,7 @@ impl Widget<AppData> for MapWidget {
     }
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
         // println!("map paint");
-        
+
         // Clear the whole widget with the color of your choice
         // (ctx.size() returns the size of the layout rect we're painting in)
         // Note: ctx also has a `clear` method, but that clears the whole context,
