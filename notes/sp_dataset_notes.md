@@ -1,0 +1,3 @@
+* Arrival times and depart times are identical for all stop_times.
+* The entire dataset is "regular" services which operate based on headways (which are provided for each hour of the day) rather than a fixed schedule.
+* stop_times seems to pick a random hour of no significance and then starting at the beginning of the hour, say 17:00, lists the arrival/departure times for each subsequent stop in the trip, and that's it. Assume these are estimated since the services are operating based on headways.
