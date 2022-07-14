@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# deepsize = "0.2.0"
+deepsize = { path = "../deepsize", features = ["im"] }
 clap = { version = "3.1.12", features = ["derive"] }
 uuid = { version = "1.1.2", features = ["v4"] }
 druid = { git = "https://github.com/linebender/druid", features = ["im", "image", "png"] }
@@ -12,4 +14,5 @@ druid = { git = "https://github.com/linebender/druid", features = ["im", "image"
 gtfs-structures = { path = "../gtfs-structure" }
 # gtfs-structures = { git = "https://github.com/maxwell8888/gtfs-structure" }
 chrono = "0.2.16"
-rgb = "0.8"
+# rgb = "0.8"
+rgb = { path = "../rust-rgb"}

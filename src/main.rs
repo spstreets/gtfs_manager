@@ -18,6 +18,7 @@ use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, 
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Debug;
+use std::io::{stdin, stdout, Read, Write};
 use std::rc::Rc;
 
 use gtfs_manager::{main_widget, make_initial_data, AppData, Delegate, ListItem, MapWidget};
@@ -43,6 +44,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let main_window = WindowDesc::new(main_widget())
         .title("Select")
         .window_size((1400., 1000.));
+
+    let mut stdout = stdout();
+    stdout.write(b"Press Enter to continue...").unwrap();
+    stdout.flush().unwrap();
+    stdin().read(&mut [0]).unwrap();
 
     println!("launching app");
     AppLauncher::with_window(main_window)

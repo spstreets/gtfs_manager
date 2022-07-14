@@ -1,3 +1,4 @@
+use deepsize::DeepSizeOf;
 use druid::Data;
 use gtfs_structures::{
     Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs,
@@ -5,7 +6,7 @@ use gtfs_structures::{
     StopTime, TimepointType, Trip,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyLocationType(pub LocationType);
 impl MyLocationType {
     pub fn radio_vec() -> Vec<(String, MyLocationType)> {
@@ -43,7 +44,7 @@ impl Data for MyLocationType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyTimepointType(pub TimepointType);
 impl MyTimepointType {
     pub fn radio_vec() -> Vec<(String, MyTimepointType)> {
@@ -62,7 +63,7 @@ impl Data for MyTimepointType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyPickupDropOffType(pub PickupDropOffType);
 impl MyPickupDropOffType {
     pub fn radio_vec() -> Vec<(String, MyPickupDropOffType)> {
@@ -96,7 +97,7 @@ impl Data for MyPickupDropOffType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyDirectionType(pub DirectionType);
 impl MyDirectionType {
     pub fn radio_vec() -> Vec<(String, MyDirectionType)> {
@@ -118,7 +119,7 @@ impl Data for MyDirectionType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyAvailability(pub Availability);
 impl MyAvailability {
     pub fn radio_vec() -> Vec<(String, MyAvailability)> {
@@ -148,7 +149,7 @@ impl Data for MyAvailability {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyBikesAllowedType(pub BikesAllowedType);
 impl MyBikesAllowedType {
     pub fn radio_vec() -> Vec<(String, MyBikesAllowedType)> {

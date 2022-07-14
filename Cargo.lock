@@ -433,6 +433,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "deepsize"
+version = "0.2.0"
+dependencies = [
+ "deepsize_derive",
+ "im",
+]
+
+[[package]]
+name = "deepsize_derive"
+version = "0.1.2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "deflate"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -910,6 +927,7 @@ dependencies = [
  "bytes",
  "chrono 0.4.19",
  "csv",
+ "deepsize",
  "derivative",
  "futures",
  "itertools",
@@ -928,6 +946,7 @@ version = "0.1.0"
 dependencies = [
  "chrono 0.2.25",
  "clap",
+ "deepsize",
  "druid",
  "gtfs-structures",
  "rgb",
@@ -1803,11 +1822,10 @@ dependencies = [
 
 [[package]]
 name = "rgb"
-version = "0.8.32"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e74fdc210d8f24a7dbfedc13b04ba5764f5232754ccebfdf5fff1bad791ccbc6"
+version = "0.8.33"
 dependencies = [
  "bytemuck",
+ "deepsize",
 ]
 
 [[package]]

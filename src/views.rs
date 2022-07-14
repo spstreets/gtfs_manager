@@ -90,37 +90,37 @@ impl AppDelegate<AppData> for Delegate {
                 for route in agency.routes.iter_mut() {
                     if item_delete.0 == "route".to_string() && route.id() == item_delete.1 {
                         route.live = false;
-                        data.actions.push_back(Action {
-                            id: data.actions.len(),
-                            edit_type: EditType::Delete,
-                            item_type: "route".to_string(),
-                            item_id: route.id(),
-                            item_data: Some(Rc::new(route.clone())),
-                        });
+                        // data.actions.push_back(Action {
+                        //     id: data.actions.len(),
+                        //     edit_type: EditType::Delete,
+                        //     item_type: "route".to_string(),
+                        //     item_id: route.id(),
+                        //     item_data: Some(Rc::new(route.clone())),
+                        // });
                     } else {
                         for trip in route.trips.iter_mut() {
                             if item_delete.0 == "trip".to_string() && trip.id() == item_delete.1 {
                                 trip.live = false;
-                                data.actions.push_back(Action {
-                                    id: data.actions.len(),
-                                    edit_type: EditType::Delete,
-                                    item_type: "trip".to_string(),
-                                    item_id: trip.id(),
-                                    item_data: Some(Rc::new(trip.clone())),
-                                });
+                                // data.actions.push_back(Action {
+                                //     id: data.actions.len(),
+                                //     edit_type: EditType::Delete,
+                                //     item_type: "trip".to_string(),
+                                //     item_id: trip.id(),
+                                //     item_data: Some(Rc::new(trip.clone())),
+                                // });
                             } else {
                                 for stop_time in trip.stops.iter_mut() {
                                     if item_delete.0 == "stop_time".to_string()
                                         && stop_time.id() == item_delete.1
                                     {
                                         stop_time.live = false;
-                                        data.actions.push_back(Action {
-                                            id: data.actions.len(),
-                                            edit_type: EditType::Delete,
-                                            item_type: "stop_time".to_string(),
-                                            item_id: stop_time.id(),
-                                            item_data: Some(Rc::new(stop_time.clone())),
-                                        });
+                                        // data.actions.push_back(Action {
+                                        //     id: data.actions.len(),
+                                        //     edit_type: EditType::Delete,
+                                        //     item_type: "stop_time".to_string(),
+                                        //     item_id: stop_time.id(),
+                                        //     item_data: Some(Rc::new(stop_time.clone())),
+                                        // });
                                     }
                                 }
                             }
@@ -132,73 +132,74 @@ impl AppDelegate<AppData> for Delegate {
             druid::Handled::Yes
         } else if let Some(item_update) = cmd.get(ITEM_UPDATE) {
             dbg!(item_update);
-            if item_update.0 == "trip".to_string() {
-                for agency in data.agencies.iter() {
-                    for route in agency.routes.iter() {
-                        for trip in route.trips.iter() {
-                            if trip.id() == item_update.1 {
-                                dbg!(&trip.trip_headsign);
-                                if data.actions.len() > 0
-                                    && trip.id()
-                                        == data
-                                            .actions
-                                            .last()
-                                            .unwrap()
-                                            .item_data
-                                            .as_ref()
-                                            .unwrap()
-                                            .id()
-                                    && data.actions.last().unwrap().edit_type == EditType::Update
-                                {
-                                    data.actions
-                                        .get_mut(data.actions.len() - 1)
-                                        .unwrap()
-                                        .item_data = Some(Rc::new(trip.clone()));
-                                } else {
-                                    let edit = Action {
-                                        id: data.actions.len(),
-                                        edit_type: EditType::Update,
-                                        item_type: "trip".to_string(),
-                                        item_id: trip.id(),
-                                        item_data: Some(Rc::new(trip.clone())),
-                                    };
-                                    data.actions.push_back(edit);
-                                }
+            // if item_update.0 == "trip".to_string() {
+            //     for agency in data.agencies.iter() {
+            //         for route in agency.routes.iter() {
+            //             for trip in route.trips.iter() {
+            //                 if trip.id() == item_update.1 {
+            //                     dbg!(&trip.trip_headsign);
+            //                     if data.actions.len() > 0
+            //                         && trip.id()
+            //                             == data
+            //                                 .actions
+            //                                 .last()
+            //                                 .unwrap()
+            //                                 .item_data
+            //                                 .as_ref()
+            //                                 .unwrap()
+            //                                 .id()
+            //                         && data.actions.last().unwrap().edit_type == EditType::Update
+            //                     {
+            //                         data.actions
+            //                             .get_mut(data.actions.len() - 1)
+            //                             .unwrap()
+            //                             .item_data = Some(Rc::new(trip.clone()));
+            //                     } else {
+            //                         let edit = Action {
+            //                             id: data.actions.len(),
+            //                             edit_type: EditType::Update,
+            //                             item_type: "trip".to_string(),
+            //                             item_id: trip.id(),
+            //                             item_data: Some(Rc::new(trip.clone())),
+            //                         };
+            //                         data.actions.push_back(edit);
+            //                     }
 
-                                // edit = Action {
-                                //     id: data.edits.len(),
-                                //     edit_type: EditType::Update,
-                                //     item_type: "trip".to_string(),
-                                //     item_id: trip.id(),
-                                //     item_data: Some(Rc::new(trip.clone())),
-                                // };
-                                // match data.edits.iter().position(|edit| {
-                                //     edit.item_id == item_update.1
-                                //         && edit.edit_type == EditType::Update
-                                // }) {
-                                //     Some(index) => {
-                                //         data.edits.set(index, edit);
-                                //     }
-                                //     None => {
-                                //         data.edits.push_back(edit);
-                                //     }
-                                // };
-                            }
-                            // for stop_time in trip.stops.iter() {
-                            //     if !stop_time.live {
-                            //         data.edits.push_back(Edit {
-                            //             id: data.edits.len(),
-                            //             edit_type: EditType::Delete,
-                            //             item_type: "stop_time".to_string(),
-                            //             item_id: stop_time.id(),
-                            //             item_data: Some(Rc::new(stop_time.clone())),
-                            //         });
-                            //     }
-                            // }
-                        }
-                    }
-                }
-            }
+            //                     // edit = Action {
+            //                     //     id: data.edits.len(),
+            //                     //     edit_type: EditType::Update,
+            //                     //     item_type: "trip".to_string(),
+            //                     //     item_id: trip.id(),
+            //                     //     item_data: Some(Rc::new(trip.clone())),
+            //                     // };
+            //                     // match data.edits.iter().position(|edit| {
+            //                     //     edit.item_id == item_update.1
+            //                     //         && edit.edit_type == EditType::Update
+            //                     // }) {
+            //                     //     Some(index) => {
+            //                     //         data.edits.set(index, edit);
+            //                     //     }
+            //                     //     None => {
+            //                     //         data.edits.push_back(edit);
+            //                     //     }
+            //                     // };
+            //                 }
+            //                 // for stop_time in trip.stops.iter() {
+            //                 //     if !stop_time.live {
+            //                 //         data.edits.push_back(Edit {
+            //                 //             id: data.edits.len(),
+            //                 //             edit_type: EditType::Delete,
+            //                 //             item_type: "stop_time".to_string(),
+            //                 //             item_id: stop_time.id(),
+            //                 //             item_data: Some(Rc::new(stop_time.clone())),
+            //                 //         });
+            //                 //     }
+            //                 // }
+            //             }
+            //         }
+            //     }
+            // }
+
             // for stop_time in data.gtfs.stop_times {
             //     if stop_time.
             // }
@@ -214,89 +215,90 @@ impl AppDelegate<AppData> for Delegate {
             let (item_type, parent_id) = item;
 
             // data.edits.clear();
-            for agency in data.agencies.iter_mut() {
-                if item_type == "agency" && &agency.id() == parent_id {
-                    agency.new_child();
-                    data.actions.push_back(Action {
-                        id: data.actions.len(),
-                        edit_type: EditType::Create,
-                        // todo is the item type route? or should it be a trip?
-                        item_type: "route".to_string(),
-                        item_id: agency.id(),
-                        item_data: Some(Rc::new(agency.clone())),
-                    });
-                } else {
-                    for route in agency.routes.iter_mut() {
-                        if item_type == "route" && &route.id() == parent_id {
-                            route.new_child();
-                            data.actions.push_back(Action {
-                                id: data.actions.len(),
-                                edit_type: EditType::Create,
-                                // todo is the item type route? or should it be a trip?
-                                item_type: "trip".to_string(),
-                                item_id: route.id(),
-                                item_data: Some(Rc::new(route.clone())),
-                            });
-                        } else {
-                            // for trip in route.trips.iter_mut() {
-                            //     if item_type == "trip" {
-                            //         trip.live = false;
-                            //         data.edits.push_back(Edit {
-                            //             id: data.edits.len(),
-                            //             edit_type: EditType::Delete,
-                            //             item_type: "trip".to_string(),
-                            //             item_id: trip.id(),
-                            //             item_data: Some(Rc::new(trip.clone())),
-                            //         });
-                            //     } else {
-                            //         for stop_time in trip.stops.iter_mut() {
-                            //             if item_type == "stop_time" {
-                            //                 stop_time.live = false;
-                            //                 data.edits.push_back(Edit {
-                            //                     id: data.edits.len(),
-                            //                     edit_type: EditType::Delete,
-                            //                     item_type: "stop_time".to_string(),
-                            //                     item_id: stop_time.id(),
-                            //                     item_data: Some(Rc::new(stop_time.clone())),
-                            //                 });
-                            //             }
-                            //         }
-                            //     }
-                            // }
-                        }
-                    }
-                }
-            }
+            // for agency in data.agencies.iter_mut() {
+            //     if item_type == "agency" && &agency.id() == parent_id {
+            //         agency.new_child();
+            //         data.actions.push_back(Action {
+            //             id: data.actions.len(),
+            //             edit_type: EditType::Create,
+            //             // todo is the item type route? or should it be a trip?
+            //             item_type: "route".to_string(),
+            //             item_id: agency.id(),
+            //             item_data: Some(Rc::new(agency.clone())),
+            //         });
+            //     } else {
+            //         for route in agency.routes.iter_mut() {
+            //             if item_type == "route" && &route.id() == parent_id {
+            //                 route.new_child();
+            //                 data.actions.push_back(Action {
+            //                     id: data.actions.len(),
+            //                     edit_type: EditType::Create,
+            //                     // todo is the item type route? or should it be a trip?
+            //                     item_type: "trip".to_string(),
+            //                     item_id: route.id(),
+            //                     item_data: Some(Rc::new(route.clone())),
+            //                 });
+            //             } else {
+            //                 // for trip in route.trips.iter_mut() {
+            //                 //     if item_type == "trip" {
+            //                 //         trip.live = false;
+            //                 //         data.edits.push_back(Edit {
+            //                 //             id: data.edits.len(),
+            //                 //             edit_type: EditType::Delete,
+            //                 //             item_type: "trip".to_string(),
+            //                 //             item_id: trip.id(),
+            //                 //             item_data: Some(Rc::new(trip.clone())),
+            //                 //         });
+            //                 //     } else {
+            //                 //         for stop_time in trip.stops.iter_mut() {
+            //                 //             if item_type == "stop_time" {
+            //                 //                 stop_time.live = false;
+            //                 //                 data.edits.push_back(Edit {
+            //                 //                     id: data.edits.len(),
+            //                 //                     edit_type: EditType::Delete,
+            //                 //                     item_type: "stop_time".to_string(),
+            //                 //                     item_id: stop_time.id(),
+            //                 //                     item_data: Some(Rc::new(stop_time.clone())),
+            //                 //                 });
+            //                 //             }
+            //                 //         }
+            //                 //     }
+            //                 // }
+            //             }
+            //         }
+            //     }
+            // }
+
             // druid::Handled::No
             druid::Handled::Yes
         } else if let Some(edit_id) = cmd.get(EDIT_DELETE) {
             dbg!(edit_id);
-            let edit = data.actions.get(*edit_id).unwrap();
-            if edit.item_type == "stop_time".to_string() {
-                for agency in data.agencies.iter_mut() {
-                    for route in agency.routes.iter_mut() {
-                        for trip in route.trips.iter_mut() {
-                            for stop_time in trip.stops.iter_mut() {
-                                if stop_time.id() == edit.item_id {
-                                    stop_time.live = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if edit.item_type == "trip".to_string() {
-                for agency in data.agencies.iter_mut() {
-                    for route in agency.routes.iter_mut() {
-                        for trip in route.trips.iter_mut() {
-                            if trip.id() == edit.item_id {
-                                trip.live = true;
-                            }
-                        }
-                    }
-                }
-            }
-            data.actions.retain(|edit| edit.id != *edit_id);
+            // let edit = data.actions.get(*edit_id).unwrap();
+            // if edit.item_type == "stop_time".to_string() {
+            //     for agency in data.agencies.iter_mut() {
+            //         for route in agency.routes.iter_mut() {
+            //             for trip in route.trips.iter_mut() {
+            //                 for stop_time in trip.stops.iter_mut() {
+            //                     if stop_time.id() == edit.item_id {
+            //                         stop_time.live = true;
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            // if edit.item_type == "trip".to_string() {
+            //     for agency in data.agencies.iter_mut() {
+            //         for route in agency.routes.iter_mut() {
+            //             for trip in route.trips.iter_mut() {
+            //                 if trip.id() == edit.item_id {
+            //                     trip.live = true;
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            // data.actions.retain(|edit| edit.id != *edit_id);
             druid::Handled::Yes
         } else if let Some(stop_id) = cmd.get(SHOW_STOP) {
             dbg!(stop_id);
@@ -1144,51 +1146,22 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         .with_child(
             Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
                 .with_font(HEADING_2),
-        )
-        .with_child(Checkbox::new("").lens(MyRoute::selected))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyRoute, _env: &Env| data.live,
-            Label::new(""),
-            Label::new("deleted").with_text_color(Color::RED),
-        ))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyRoute, _env: &Env| data.new,
-            Label::new("new item").with_text_color(Color::RED),
-            Label::new(""),
-        ))
-        .with_default_spacer()
-        .with_child(delete_item_button());
-
-    let fieldsdfa = Flex::column()
-        .with_child(field_row(
-            "id",
-            Label::new(|data: &MyRoute, _: &_| format!("{:?}", data.id)),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.id != data.id,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "short_name",
-            Label::new(|data: &MyRoute, _: &_| data.short_name.clone()),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.short_name != data.short_name,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "long_name",
-            Label::new(|data: &MyRoute, _: &_| data.long_name.clone()),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.long_name != data.long_name,
-                None => true,
-            },
-        ))
-        .cross_axis_alignment(CrossAxisAlignment::Start);
+        );
+        // .with_child(Checkbox::new("").lens(MyRoute::selected))
+        // .with_default_spacer()
+        // .with_child(Either::new(
+        //     |data: &MyRoute, _env: &Env| data.live,
+        //     Label::new(""),
+        //     Label::new("deleted").with_text_color(Color::RED),
+        // ))
+        // .with_default_spacer()
+        // .with_child(Either::new(
+        //     |data: &MyRoute, _env: &Env| data.new,
+        //     Label::new("new item").with_text_color(Color::RED),
+        //     Label::new(""),
+        // ))
+        // .with_default_spacer()
+        // .with_child(delete_item_button());
 
     let fields = Flex::column()
         .with_child(field_row(
@@ -1357,9 +1330,9 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
     let children_header = Flex::row()
-        .with_child(Expander::new("Trip variants").lens(MyRoute::expanded))
+        .with_child(Expander::new("Trip variants").lens(MyRoute::children_expanded))
         .with_child(Either::new(
-            |data: &MyRoute, _: &_| data.expanded,
+            |data: &MyRoute, _: &_| data.children_expanded,
             child_buttons(),
             Flex::row(),
         ))
@@ -1367,7 +1340,7 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         .expand_width();
 
     let children = Either::new(
-        |data: &MyRoute, _env: &Env| data.expanded,
+        |data: &MyRoute, _env: &Env| data.children_expanded,
         FilteredList::new(
             List::new(trip_ui).with_spacing(10.),
             |item_data: &MyTrip, filtered: &()| item_data.live,
@@ -1386,7 +1359,12 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         Flex::column()
             .with_child(title)
             .with_spacer(SPACING_1)
-            .with_child(fields)
+            .with_child(Expander::new("Fields").lens(MyRoute::fields_expanded))
+            .with_child(Either::new(
+                |data: &MyRoute, _: &_| data.fields_expanded,
+                fields,
+                Flex::row(),
+            ))
             .with_spacer(SPACING_1)
             .with_child(children_header)
             .with_default_spacer()
@@ -1550,40 +1528,40 @@ fn edit() -> impl Widget<Edit> {
         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
         .rounded(CORNER_RADIUS)
 }
-fn action() -> impl Widget<Action> {
-    Container::new(
-        Flex::row()
-            .with_child(Label::new(|data: &Action, _: &_| match data.edit_type {
-                EditType::Delete => format!(
-                    "Delete: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-                EditType::Create => format!(
-                    "Create: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-                EditType::Update => format!(
-                    "Update: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-            }))
-            .with_child(
-                Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Action, _| {
-                    ctx.submit_command(EDIT_DELETE.with(data.id));
-                }),
-            ),
-    )
-    .padding((10., 10., 10., 10.))
-    // .background(Color::grey(0.1))
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .rounded(CORNER_RADIUS)
-}
+// fn action() -> impl Widget<Action> {
+//     Container::new(
+//         Flex::row()
+//             .with_child(Label::new(|data: &Action, _: &_| match data.edit_type {
+//                 EditType::Delete => format!(
+//                     "Delete: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//                 EditType::Create => format!(
+//                     "Create: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//                 EditType::Update => format!(
+//                     "Update: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//             }))
+//             .with_child(
+//                 Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Action, _| {
+//                     ctx.submit_command(EDIT_DELETE.with(data.id));
+//                 }),
+//             ),
+//     )
+//     .padding((10., 10., 10., 10.))
+//     // .background(Color::grey(0.1))
+//     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+//     .rounded(CORNER_RADIUS)
+// }
 
 pub fn main_widget() -> impl Widget<AppData> {
     // todo what's the difference between Point::ZERO and Point::ORIGIN?
@@ -1642,17 +1620,17 @@ pub fn main_widget() -> impl Widget<AppData> {
                 .with_default_spacer()
                 .with_child(Expander::new("Actions").lens(AppData::show_actions))
                 .with_default_spacer()
-                .with_child(
-                    Either::new(
-                        |data: &AppData, _env: &Env| data.show_actions,
-                        List::new(action)
-                            .with_spacing(10.)
-                            .lens(AppData::actions)
-                            .fix_width(600.),
-                        Flex::row().fix_width(600.),
-                    )
-                    .fix_width(600.),
-                )
+                // .with_child(
+                //     Either::new(
+                //         |data: &AppData, _env: &Env| data.show_actions,
+                //         List::new(action)
+                //             .with_spacing(10.)
+                //             .lens(AppData::actions)
+                //             .fix_width(600.),
+                //         Flex::row().fix_width(600.),
+                //     )
+                //     .fix_width(600.),
+                // )
                 .with_default_spacer()
                 .with_child(agencies_header.fix_width(600.))
                 .with_default_spacer()
@@ -1693,7 +1671,7 @@ pub fn main_widget() -> impl Widget<AppData> {
             .fix_width(600.),
         )
         .with_spacer(20.)
-        .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
+        // .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .padding(20.)

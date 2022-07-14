@@ -1,3 +1,4 @@
+use deepsize::DeepSizeOf;
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::{Data, Lens, Widget, WidgetExt};
 use gtfs_structures::{
@@ -8,6 +9,7 @@ use gtfs_structures::{
 use rgb::RGB8;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::mem::size_of_val;
 use std::rc::Rc;
 use uuid::Uuid;
 
@@ -26,7 +28,7 @@ pub trait ListItem {
     // fn name(&self) -> String;
 }
 
-#[derive(Clone, Data, Debug, Lens)]
+#[derive(Clone, Data, Debug, Lens, DeepSizeOf)]
 pub struct MyStop {
     pub live: bool,
     pub selected: bool,
@@ -72,7 +74,7 @@ impl ListItem for MyStop {
     }
 }
 
-#[derive(Clone, Data, Debug, Lens)]
+#[derive(Clone, Data, Debug, Lens, DeepSizeOf)]
 pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
@@ -112,7 +114,7 @@ impl ListItem for MyStopTime {
     }
 }
 
-#[derive(Clone, Data, Debug, Lens)]
+#[derive(Clone, Data, Debug, Lens, DeepSizeOf)]
 pub struct MyTrip {
     pub live: bool,
     pub selected: bool,
@@ -165,7 +167,7 @@ impl ListItem for MyTrip {
     // }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyRouteType(pub RouteType);
 impl MyRouteType {
     pub fn radio_vec() -> Vec<(String, MyRouteType)> {
@@ -191,7 +193,7 @@ impl Data for MyRouteType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, DeepSizeOf)]
 pub struct MyRGB8(pub RGB8);
 impl Data for MyRGB8 {
     fn same(&self, other: &Self) -> bool {
@@ -199,7 +201,7 @@ impl Data for MyRGB8 {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, DeepSizeOf)]
 pub struct MyContinuousPickupDropOff(pub ContinuousPickupDropOff);
 impl MyContinuousPickupDropOff {
     pub fn radio_vec() -> Vec<(String, MyContinuousPickupDropOff)> {
@@ -249,12 +251,13 @@ impl Fruit {
     }
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, DeepSizeOf)]
 pub struct MyRoute {
     pub new: bool,
     pub live: bool,
     pub selected: bool,
-    pub expanded: bool,
+    pub fields_expanded: bool,
+    pub children_expanded: bool,
 
     pub id: String,
     pub short_name: String,
@@ -323,7 +326,7 @@ impl ListItem for MyRoute {
     }
 }
 
-#[derive(Clone, Data, Default, Lens)]
+#[derive(Clone, Data, Default, Lens, DeepSizeOf)]
 pub struct MyAgency {
     pub show_deleted: bool,
     pub live: bool,
@@ -350,7 +353,8 @@ impl ListItem for MyAgency {
             new: true,
             live: true,
             selected: true,
-            expanded: false,
+            fields_expanded: false,
+            children_expanded: false,
             id: Uuid::new_v4().to_string(),
 
             short_name: "new route short name".to_string(),
@@ -388,34 +392,38 @@ impl ListItem for MyAgency {
     }
 }
 
-#[derive(Clone, Data, Debug, PartialEq)]
+#[derive(Clone, Data, Debug, PartialEq, DeepSizeOf)]
 pub enum EditType {
     Delete,
     Update,
     Create,
 }
-#[derive(Clone, Data, Lens)]
-pub struct Action {
-    pub id: usize,
-    pub edit_type: EditType,
-    pub item_type: String,
-    pub item_id: String,
-    // todo this of course means that the edit list won't get updated when eg a field name changes
-    // #[data(ignore)]
-    #[lens(ignore)]
-    pub item_data: Option<Rc<dyn ListItem>>,
-}
-impl Debug for Action {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Edit")
-            .field("id", &self.id)
-            .field("edit_type", &self.edit_type)
-            .field("item_type", &self.item_type)
-            .field("item_id", &self.item_id)
-            .finish()
-    }
-}
 
+trait NewTrait: ListItem + DeepSizeOf {}
+
+// #[derive(Clone, Data, Lens, DeepSizeOf)]
+// pub struct Action {
+//     pub id: usize,
+//     pub edit_type: EditType,
+//     pub item_type: String,
+//     pub item_id: String,
+//     // todo this of course means that the edit list won't get updated when eg a field name changes
+//     // #[data(ignore)]
+//     #[lens(ignore)]
+//     pub item_data: Option<Rc<dyn NewTrait>>,
+// }
+// impl Debug for Action {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct("Edit")
+//             .field("id", &self.id)
+//             .field("edit_type", &self.edit_type)
+//             .field("item_type", &self.item_type)
+//             .field("item_id", &self.item_id)
+//             .finish()
+//     }
+// }
+
+#[derive(DeepSizeOf)]
 pub struct MyGtfs {
     pub agencies: Vec<Agency>,
     pub routes: Vec<Route>,
@@ -424,12 +432,12 @@ pub struct MyGtfs {
     pub stops: Vec<Stop>,
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, DeepSizeOf)]
 pub struct Edit {
     id: usize,
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, DeepSizeOf)]
 pub struct AppData {
     pub show_deleted: bool,
     pub show_edits: bool,
@@ -440,7 +448,7 @@ pub struct AppData {
     pub agencies: Vector<MyAgency>,
     pub stops: Vector<MyStop>,
     pub expanded: bool,
-    pub actions: Vector<Action>,
+    // pub actions: Vector<Action>,
     pub edits: Vector<Edit>,
 }
 impl ListItem for AppData {
@@ -524,14 +532,15 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 .filter(|route| route.agency_id == agency.id)
                 // <limiting
                 .enumerate()
-                .filter(|(i, _)| if limited { *i < 10 } else { true })
+                .filter(|(i, _)| if limited { *i < 1200 } else { true })
                 .map(|(_, x)| x)
                 // limiting>
                 .map(|route| MyRoute {
                     new: false,
                     live: true,
                     selected: true,
-                    expanded: false,
+                    fields_expanded: false,
+                    children_expanded: false,
 
                     id: route.id.clone(),
                     short_name: route.short_name.clone(),
@@ -707,8 +716,9 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
             })
             .collect::<Vector<_>>(),
-        actions: Vector::new(),
+        // actions: Vector::new(),
         edits: Vector::new(),
     };
+    dbg!(app_data.deep_size_of() / 1000000);
     app_data
 }
