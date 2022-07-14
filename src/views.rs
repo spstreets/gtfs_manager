@@ -303,7 +303,10 @@ impl AppDelegate<AppData> for Delegate {
             for stop in data.stops.iter_mut() {
                 if &stop.id == stop_id {
                     dbg!("update scroll");
-                    stop.scroll_to_me += 1;
+                    // stop.scroll_to_me += 1;
+                    stop.selected = true;
+                } else {
+                    stop.selected = false;
                 }
             }
             druid::Handled::Yes
@@ -314,7 +317,6 @@ impl AppDelegate<AppData> for Delegate {
 }
 
 struct TextBoxOnChange;
-
 impl<W: Widget<MyTrip>> Controller<MyTrip, W> for TextBoxOnChange {
     fn update(
         &mut self,
@@ -333,6 +335,7 @@ impl<W: Widget<MyTrip>> Controller<MyTrip, W> for TextBoxOnChange {
         child.update(ctx, old_data, data, env);
     }
 }
+
 fn delete_item_button<T: Data + ListItem>() -> impl Widget<T> {
     Button::new("delete").on_click(|ctx, data: &mut T, _| {
         ctx.submit_command(ITEM_DELETE.with((data.item_type(), data.id())));
@@ -904,6 +907,19 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
             .with_child(title)
             .with_spacer(SPACING_1)
             .with_child(fields)
+            // .with_child(
+            //     FilteredList::new(
+            //         List::new(stop_ui).with_spacing(10.),
+            //         |item_data: &MyStopTime, filtered: &()| item_data.live,
+            //     )
+            //     .lens(druid::lens::Map::new(
+            //         |data: &MyStopTime| (data.stops.clone(), ()),
+            //         |data: &mut MyStopTime, inner: (Vector<MyStop>, ())| {
+            //             data.stops = inner.0;
+            //             // data.filter = inner.1;
+            //         },
+            //     )),
+            // )
             .cross_axis_alignment(CrossAxisAlignment::Start)
             .padding((10., 10., 10., 10.)),
     )
@@ -1075,7 +1091,13 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
     let children_header = Flex::row()
-        .with_child(Expander::new("Stop times").lens(MyTrip::expanded))
+        .with_child(
+            Flex::row()
+                .with_child(Label::new(|data: &MyTrip, _: &_| {
+                    data.stops.len().to_string()
+                }))
+                .with_child(Expander::new("Stop times").lens(MyTrip::expanded)),
+        )
         .with_child(Either::new(
             |data: &MyTrip, _: &_| data.expanded,
             child_buttons(),
@@ -1138,6 +1160,35 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         ))
         .with_default_spacer()
         .with_child(delete_item_button());
+
+    let fieldsdfa = Flex::column()
+        .with_child(field_row(
+            "id",
+            Label::new(|data: &MyRoute, _: &_| format!("{:?}", data.id)),
+            |data: &MyRoute, _: &_| match &data.route {
+                Some(route) => route.id != data.id,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "short_name",
+            Label::new(|data: &MyRoute, _: &_| data.short_name.clone()),
+            |data: &MyRoute, _: &_| match &data.route {
+                Some(route) => route.short_name != data.short_name,
+                None => true,
+            },
+        ))
+        .with_default_spacer()
+        .with_child(field_row(
+            "long_name",
+            Label::new(|data: &MyRoute, _: &_| data.long_name.clone()),
+            |data: &MyRoute, _: &_| match &data.route {
+                Some(route) => route.long_name != data.long_name,
+                None => true,
+            },
+        ))
+        .cross_axis_alignment(CrossAxisAlignment::Start);
 
     let fields = Flex::column()
         .with_child(field_row(
@@ -1306,7 +1357,7 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
     let children_header = Flex::row()
-        .with_child(Expander::new("Trips").lens(MyRoute::expanded))
+        .with_child(Expander::new("Trip variants").lens(MyRoute::expanded))
         .with_child(Either::new(
             |data: &MyRoute, _: &_| data.expanded,
             child_buttons(),
@@ -1608,16 +1659,42 @@ pub fn main_widget() -> impl Widget<AppData> {
                 .with_flex_child(agencies, 1.)
                 .cross_axis_alignment(CrossAxisAlignment::Start),
         )
+        // .with_default_spacer()
+        // .with_child(Either::new(
+        //     |data: &AppData, _: &_| !data.expanded,
+        //     Scroll::new(
+        //         Flex::column()
+        //             .with_child(List::new(stop_ui).with_spacing(10.).lens(AppData::stops)),
+        //     )
+        //     .fix_width(600.),
+        //     Label::new("sup").fix_width(600.),
+        // ))
+        // .with_default_spacer()
+        // .with_child(
+        //     Scroll::new(
+        //         Flex::column()
+        //             .with_child(List::new(stop_ui).with_spacing(10.).lens(AppData::stops)),
+        //     )
+        //     .fix_width(600.),
+        // )
         .with_default_spacer()
         .with_child(
-            Scroll::new(
-                Flex::column()
-                    .with_child(List::new(stop_ui).with_spacing(10.).lens(AppData::stops)),
+            FilteredList::new(
+                List::new(stop_ui).with_spacing(10.),
+                |stop: &MyStop, filtered: &()| stop.selected,
             )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.stops.clone(), ()),
+                |data: &mut AppData, inner: (Vector<MyStop>, ())| {
+                    data.stops = inner.0;
+                    // data.filter = inner.1;
+                },
+            ))
             .fix_width(600.),
         )
         .with_spacer(20.)
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .padding(20.)
 }
