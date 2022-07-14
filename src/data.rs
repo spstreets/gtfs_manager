@@ -524,7 +524,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 .filter(|route| route.agency_id == agency.id)
                 // <limiting
                 .enumerate()
-                .filter(|(i, _)| if limited { *i < 5 } else { true })
+                .filter(|(i, _)| if limited { *i < 10 } else { true })
                 .map(|(_, x)| x)
                 // limiting>
                 .map(|route| MyRoute {
@@ -554,9 +554,9 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                         .enumerate()
                         .filter(|(i, trip)| trip.route_id == route.id)
                         // <limiting
-                        .enumerate()
-                        .filter(|(i, _)| if limited { *i < 5 } else { true })
-                        .map(|(_, x)| x)
+                        // .enumerate()
+                        // .filter(|(i, _)| if limited { *i < 5 } else { true })
+                        // .map(|(_, x)| x)
                         // limiting>
                         .map(|(i, trip)| {
                             let (start_index, end_index) =
@@ -674,10 +674,16 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
             // .enumerate()
             // .filter(|(i, _)| if limited { *i < 10 } else { true })
             // .map(|(_, x)| x)
-            .filter(|stop| filtered_stop_ids.contains(&stop.id))
+            .filter(|stop| {
+                if limited {
+                    filtered_stop_ids.contains(&stop.id)
+                } else {
+                    true
+                }
+            })
             .map(|stop| MyStop {
                 live: true,
-                selected: true,
+                selected: false,
                 scroll_to_me: 0,
 
                 id: stop.id.clone(),
