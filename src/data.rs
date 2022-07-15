@@ -79,24 +79,52 @@ pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
 
+    #[data(ignore)]
+    #[lens(ignore)]
     pub trip_id: String,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub arrival_time: Option<u32>,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub departure_time: Option<u32>,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub stop_id: String,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub stop_sequence: u16,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub stop_headsign: Option<String>,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub pickup_type: MyPickupDropOffType,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub drop_off_type: MyPickupDropOffType,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub continuous_pickup: MyContinuousPickupDropOff,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub continuous_drop_off: MyContinuousPickupDropOff,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub shape_dist_traveled: Option<f32>,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub timepoint: MyTimepointType,
-
+    
     #[data(ignore)]
     #[lens(ignore)]
     pub stop_time: Option<Rc<RawStopTime>>,
     // stop_time: RawStopTime,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub name: String,
+    #[data(ignore)]
+    #[lens(ignore)]
     pub coord: (f64, f64),
 }
 impl ListItem for MyStopTime {
@@ -616,7 +644,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                                 stops
                                     .iter()
                                     .enumerate()
-                                    .filter(|(i, _)| *i < 8)
+                                    .filter(|(i, _)| *i < 100)
                                     .map(|(_, x)| x.clone())
                                     .collect::<Vector<_>>()
                             } else {

@@ -48,7 +48,6 @@ impl Widget<AppData> for MapWidget {
                     // zoom in
                     self.zoom_level *= (change.abs() + multiplier) / multiplier;
                 }
-                println!("scrolling");
                 ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {

@@ -708,43 +708,33 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
         .with_child(delete_item_button());
 
     let fields = Flex::column()
-        .with_child(field_row(
-            "trip_id",
-            Label::new(|data: &MyStopTime, _: &_| format!("{:?}", data.trip_id)),
-            |data: &MyStopTime, _: &_| match &data.stop_time {
-                Some(stop_time) => stop_time.trip_id != data.trip_id,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "arrival_time",
-            option_u32().lens(MyStopTime::arrival_time),
-            |data: &MyStopTime, _: &_| match &data.stop_time {
-                Some(stop_time) => stop_time.arrival_time != data.arrival_time,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "departure_time",
-            option_u32().lens(MyStopTime::departure_time),
-            |data: &MyStopTime, _: &_| match &data.stop_time {
-                Some(stop_time) => stop_time.departure_time != data.departure_time,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
         // .with_child(field_row(
-        //     "stop_id",
-        //     TextBox::new()
-        //         .with_placeholder("route stop_id")
-        //         .lens(MyStopTime::stop_id),
+        //     "trip_id",
+        //     Label::new(|data: &MyStopTime, _: &_| format!("{:?}", data.trip_id)),
         //     |data: &MyStopTime, _: &_| match &data.stop_time {
-        //         Some(stop_time) => stop_time.stop_id != data.stop_id,
+        //         Some(stop_time) => stop_time.trip_id != data.trip_id,
         //         None => true,
         //     },
         // ))
+        // .with_default_spacer()
+        // .with_child(field_row(
+        //     "arrival_time",
+        //     option_u32().lens(MyStopTime::arrival_time),
+        //     |data: &MyStopTime, _: &_| match &data.stop_time {
+        //         Some(stop_time) => stop_time.arrival_time != data.arrival_time,
+        //         None => true,
+        //     },
+        // ))
+        // .with_default_spacer()
+        // .with_child(field_row(
+        //     "departure_time",
+        //     option_u32().lens(MyStopTime::departure_time),
+        //     |data: &MyStopTime, _: &_| match &data.stop_time {
+        //         Some(stop_time) => stop_time.departure_time != data.departure_time,
+        //         None => true,
+        //     },
+        // ))
+        // .with_default_spacer()
         .with_child(field_row(
             "stop_id",
             Button::new(|data: &MyStopTime, _: &_| data.stop_id.clone()).on_click(
@@ -770,13 +760,22 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
             },
         ))
         .with_default_spacer()
+        // .with_child(field_row(
+        //     "stop_headsign",
+        //     option_string().lens(MyStopTime::stop_headsign),
+        //     |data: &MyStopTime, _: &_| match &data.stop_time {
+        //         Some(stop_time) => stop_time.stop_headsign != data.stop_headsign,
+        //         None => true,
+        //     },
+        // ))
+        // .with_default_spacer()
         .with_child(field_row(
             "stop_headsign",
-            option_string().lens(MyStopTime::stop_headsign),
-            |data: &MyStopTime, _: &_| match &data.stop_time {
-                Some(stop_time) => stop_time.stop_headsign != data.stop_headsign,
-                None => true,
-            },
+            Label::new(|data: &MyStopTime, _: &_| match &data.stop_headsign {
+                Some(stop_head_sign) => stop_head_sign.clone(),
+                None => "empty".to_string(),
+            }),
+            |data: &MyStopTime, _: &_| false,
         ))
         .with_default_spacer()
         .with_child(field_row(
@@ -873,13 +872,21 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
             },
         ))
         .with_default_spacer()
+        // .with_child(field_row(
+        //     "shape_dist_traveled",
+        //     option_f32().lens(MyStopTime::shape_dist_traveled),
+        //     |data: &MyStopTime, _: &_| match &data.stop_time {
+        //         Some(stop_time) => stop_time.shape_dist_traveled != data.shape_dist_traveled,
+        //         None => true,
+        //     },
+        // ))
         .with_child(field_row(
             "shape_dist_traveled",
-            option_f32().lens(MyStopTime::shape_dist_traveled),
-            |data: &MyStopTime, _: &_| match &data.stop_time {
-                Some(stop_time) => stop_time.shape_dist_traveled != data.shape_dist_traveled,
-                None => true,
-            },
+            Label::new(|data: &MyStopTime, _: &_| match data.shape_dist_traveled {
+                Some(stop_head_sign) => stop_head_sign.to_string(),
+                None => "empty".to_string(),
+            }),
+            |data: &MyStopTime, _: &_| false,
         ))
         .with_default_spacer()
         .with_child(field_row(
@@ -1142,26 +1149,24 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
 }
 
 pub fn route_ui() -> impl Widget<MyRoute> {
-    let title = Flex::row()
-        .with_child(
-            Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
-                .with_font(HEADING_2),
-        );
-        // .with_child(Checkbox::new("").lens(MyRoute::selected))
-        // .with_default_spacer()
-        // .with_child(Either::new(
-        //     |data: &MyRoute, _env: &Env| data.live,
-        //     Label::new(""),
-        //     Label::new("deleted").with_text_color(Color::RED),
-        // ))
-        // .with_default_spacer()
-        // .with_child(Either::new(
-        //     |data: &MyRoute, _env: &Env| data.new,
-        //     Label::new("new item").with_text_color(Color::RED),
-        //     Label::new(""),
-        // ))
-        // .with_default_spacer()
-        // .with_child(delete_item_button());
+    let title = Flex::row().with_child(
+        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name)).with_font(HEADING_2),
+    );
+    // .with_child(Checkbox::new("").lens(MyRoute::selected))
+    // .with_default_spacer()
+    // .with_child(Either::new(
+    //     |data: &MyRoute, _env: &Env| data.live,
+    //     Label::new(""),
+    //     Label::new("deleted").with_text_color(Color::RED),
+    // ))
+    // .with_default_spacer()
+    // .with_child(Either::new(
+    //     |data: &MyRoute, _env: &Env| data.new,
+    //     Label::new("new item").with_text_color(Color::RED),
+    //     Label::new(""),
+    // ))
+    // .with_default_spacer()
+    // .with_child(delete_item_button());
 
     let fields = Flex::column()
         .with_child(field_row(
