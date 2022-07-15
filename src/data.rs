@@ -612,6 +612,17 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                                 stop1.stop_sequence.cmp(&stop2.stop_sequence)
                             });
 
+                            let stops = if limited {
+                                stops
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(i, _)| *i < 8)
+                                    .map(|(_, x)| x.clone())
+                                    .collect::<Vector<_>>()
+                            } else {
+                                stops
+                            };
+
                             // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
                             MyTrip {
                                 live: true,

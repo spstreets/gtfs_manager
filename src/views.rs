@@ -1671,7 +1671,7 @@ pub fn main_widget() -> impl Widget<AppData> {
             .fix_width(600.),
         )
         .with_spacer(20.)
-        // .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
+        .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .padding(20.)
