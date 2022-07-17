@@ -31,7 +31,8 @@ impl MapWidget {
             speed,
             drag_start: None,
             focal_point: offset,
-            limit: Some(50),
+            // limit: Some(50),
+            limit: None,
         }
     }
 }
