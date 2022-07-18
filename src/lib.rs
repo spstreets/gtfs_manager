@@ -12,3 +12,6 @@ pub use data::*;
 
 mod views;
 pub use views::*;
+
+mod app_delegate;
+pub use app_delegate::*;

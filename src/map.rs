@@ -14,6 +14,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::rc::Rc;
 
+use crate::app_delegate::*;
 use crate::data::*;
 
 #[derive(Copy, Clone)]
@@ -49,6 +50,8 @@ pub struct MapWidget {
     mouse_position: Option<Point>,
     trip_paths: Vec<BezPath>,
     highlighted_trip_paths: Vec<BezPath>,
+    stop_circles: Vec<Circle>,
+    highlighted_stop_circle: Option<Circle>,
     zoom_level: f64,
     speed: f64,
     drag_start: Option<Point>,
@@ -62,6 +65,8 @@ impl MapWidget {
             mouse_position: None,
             trip_paths: Vec::new(),
             highlighted_trip_paths: Vec::new(),
+            stop_circles: Vec::new(),
+            highlighted_stop_circle: None,
             zoom_level,
             speed,
             drag_start: None,
@@ -127,7 +132,6 @@ impl Widget<AppData> for MapWidget {
                     // zoom in
                     self.zoom_level *= (change.abs() + multiplier) / multiplier;
                 }
-                println!("scrolling");
                 ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {
@@ -158,14 +162,31 @@ impl Widget<AppData> for MapWidget {
                         }
                     }
                     self.highlighted_trip_paths = highlighted_trip_paths;
+
+                    self.highlighted_stop_circle = None;
+                    for circle in &self.stop_circles {
+                        if circle.contains(mouse_event.pos) {
+                            self.highlighted_stop_circle = Some(circle.clone());
+                        }
+                    }
                     ctx.request_paint();
                 }
             }
-            Event::MouseUp(_) => {
-                if self.drag_start.is_some() {
-                    // todo understand why .clear_cursor() doesn't work here
-                    ctx.override_cursor(&Cursor::Arrow);
-                    self.drag_start = None;
+            Event::MouseUp(me) => {
+                if let Some(drag_start) = self.drag_start {
+                    if me.pos == drag_start {
+                        for (stop_circle, stop) in
+                            self.stop_circles.iter().zip(data.stops.iter_mut())
+                        {
+                            if stop_circle.contains(me.pos) {
+                                ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
+                            }
+                        }
+                    } else {
+                        // todo understand why .clear_cursor() doesn't work here
+                        ctx.override_cursor(&Cursor::Arrow);
+                        self.drag_start = None;
+                    }
                 }
             }
             _ => {}
@@ -320,36 +341,63 @@ impl Widget<AppData> for MapWidget {
             let stroke_color = Color::GREEN;
             ctx.stroke(path, &stroke_color, 1.0);
         }
-
         for path in &self.highlighted_trip_paths {
             let stroke_color = Color::GREEN;
             ctx.stroke(path, &Color::NAVY, 3.);
         }
 
-        if let Some(mouse_position) = self.mouse_position {
-            let circle = Circle::new(mouse_position, 10.);
-            ctx.fill(circle, &Color::OLIVE);
-        }
+        // if let Some(mouse_position) = self.mouse_position {
+        //     let circle = Circle::new(mouse_position, 10.);
+        //     ctx.fill(circle, &Color::OLIVE);
+        // }
 
-        for stop in &data.stops {
-            let circle = Circle::new(
-                MapWidget::long_lat_to_canvas(
-                    &(stop.coord.0, stop.coord.1),
-                    ranges,
-                    width,
-                    height,
-                    zoomed_paint_width,
-                    zoomed_paint_height,
-                    x_padding,
-                    y_padding,
-                    self.focal_point,
-                    zoom,
-                ),
-                2.,
-            );
-            ctx.fill(circle, &Color::FUCHSIA);
+        self.stop_circles = data
+            .stops
+            .iter()
+            .map(|stop| {
+                Circle::new(
+                    MapWidget::long_lat_to_canvas(
+                        &(stop.coord.0, stop.coord.1),
+                        ranges,
+                        width,
+                        height,
+                        zoomed_paint_width,
+                        zoomed_paint_height,
+                        x_padding,
+                        y_padding,
+                        self.focal_point,
+                        zoom,
+                    ),
+                    if zoom > 6. { 6. } else { zoom },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let mut selected_circle = None;
+        for (circle, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+            if stop.selected {
+                selected_circle = Some(Circle::new(
+                    circle.center,
+                    if circle.radius < 2. {
+                        2. * 1.4
+                    } else {
+                        circle.radius * 1.4
+                    },
+                ));
+            } else {
+                ctx.fill(circle, &Color::BLUE);
+            }
+        }
+        if let Some(selected_circle) = selected_circle {
+            ctx.fill(selected_circle, &Color::FUCHSIA);
+        }
+        
+        if let Some(circle) = self.highlighted_stop_circle {
+            let circle = Circle::new(circle.center, if zoom > 6. { 6. * 1.4 } else { zoom * 1.4 });
+            ctx.fill(circle, &Color::PURPLE);
         }
     }
+
     fn lifecycle(
         &mut self,
         ctx: &mut druid::LifeCycleCtx,
