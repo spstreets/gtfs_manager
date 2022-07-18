@@ -1,5 +1,5 @@
 use druid::im::Vector;
-use druid::kurbo::BezPath;
+use druid::kurbo::{BezPath, Circle};
 use druid::piet::{FontFamily, ImageFormat, InterpolationMode, Text, TextLayoutBuilder};
 use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
 use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
@@ -258,6 +258,11 @@ impl Widget<AppData> for MapWidget {
             }
             let stroke_color = Color::GREEN;
             ctx.stroke(path, &stroke_color, 1.0);
+        }
+
+        for stop in &data.stops {
+            let circle = Circle::new(long_lat_to_canvas(&(stop.coord.0, stop.coord.1)), 2.);
+            ctx.fill(circle, &Color::FUCHSIA);
         }
     }
     fn lifecycle(
