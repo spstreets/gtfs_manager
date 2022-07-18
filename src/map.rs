@@ -1,5 +1,5 @@
 use druid::im::Vector;
-use druid::kurbo::{BezPath, Circle};
+use druid::kurbo::{BezPath, Circle, Shape};
 use druid::piet::{FontFamily, ImageFormat, InterpolationMode, Text, TextLayoutBuilder};
 use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
 use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
@@ -16,7 +16,39 @@ use std::rc::Rc;
 
 use crate::data::*;
 
+#[derive(Copy, Clone)]
+struct PathsRanges {
+    longmin: f64,
+    latmin: f64,
+    longmax: f64,
+    latmax: f64,
+}
+// -> (xmin, ymin, xmax, ymax)
+fn min_max_trips_coords(trips: &Vec<Vec<(f64, f64)>>) -> PathsRanges {
+    let x_iter = trips
+        .iter()
+        .map(|trip| trip.iter().map(|point| point.0))
+        .flatten();
+    let longmin = x_iter.clone().fold(0. / 0., f64::min);
+    let longmax = x_iter.clone().fold(0. / 0., f64::max);
+    let y_iter = trips
+        .iter()
+        .map(|trip| trip.iter().map(|point| point.1))
+        .flatten();
+    let latmin = y_iter.clone().fold(0. / 0., f64::min);
+    let latmax = y_iter.clone().fold(0. / 0., f64::max);
+    PathsRanges {
+        longmin,
+        latmin,
+        longmax,
+        latmax,
+    }
+}
+
 pub struct MapWidget {
+    mouse_position: Option<Point>,
+    trip_paths: Vec<BezPath>,
+    highlighted_trip_paths: Vec<BezPath>,
     zoom_level: f64,
     speed: f64,
     drag_start: Option<Point>,
@@ -27,12 +59,59 @@ impl MapWidget {
     pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
         println!("new widget");
         MapWidget {
+            mouse_position: None,
+            trip_paths: Vec::new(),
+            highlighted_trip_paths: Vec::new(),
             zoom_level,
             speed,
             drag_start: None,
             focal_point: offset,
             limit: Some(50),
         }
+    }
+
+    fn calculate_padding(
+        width: f64,
+        height: f64,
+        size: Size,
+        zoom: f64,
+        zoomed_paint_width: f64,
+        zoomed_paint_height: f64,
+        paint_width: f64,
+        paint_height: f64,
+    ) -> (f64, f64) {
+        if width > height {
+            (
+                (size.width - zoomed_paint_width) / 2.,
+                (size.height - zoomed_paint_height) / 2.
+                    + (zoomed_paint_width - zoomed_paint_height) / 2.,
+            )
+        } else {
+            (
+                (size.width - zoomed_paint_width) / 2. + (paint_height - paint_width) / 2. / zoom,
+                (size.height - zoomed_paint_height) / 2.,
+            )
+        }
+    }
+
+    fn long_lat_to_canvas(
+        point: &(f64, f64),
+        ranges: PathsRanges,
+        width: f64,
+        height: f64,
+        zoomed_paint_width: f64,
+        zoomed_paint_height: f64,
+        x_padding: f64,
+        y_padding: f64,
+        focal_point: Point,
+        zoom: f64,
+    ) -> Point {
+        let (long, lat) = point;
+        let x2 = (*long - ranges.longmin) * (zoomed_paint_width / width) + x_padding
+            - focal_point.x * zoom;
+        let y2 = (*lat - ranges.latmin) * (zoomed_paint_height / height) + y_padding
+            - focal_point.y * zoom;
+        Point::new(x2, y2)
     }
 }
 impl Widget<AppData> for MapWidget {
@@ -68,6 +147,17 @@ impl Widget<AppData> for MapWidget {
                         self.drag_start = None;
                         ctx.clear_cursor();
                     }
+                    ctx.request_paint();
+                } else {
+                    self.mouse_position = Some(mouse_event.pos);
+                    let mut highlighted_trip_paths = Vec::new();
+                    for trip_path in &self.trip_paths {
+                        // if trip_path.
+                        if trip_path.contains(mouse_event.pos) {
+                            highlighted_trip_paths.push(trip_path.clone());
+                        }
+                    }
+                    self.highlighted_trip_paths = highlighted_trip_paths;
                     ctx.request_paint();
                 }
             }
@@ -116,6 +206,7 @@ impl Widget<AppData> for MapWidget {
                 }
             }
         }
+
         // if !old_data.same(data) {
         //     println!("data has changed?!?!");
         //     ctx.request_layout();
@@ -155,66 +246,16 @@ impl Widget<AppData> for MapWidget {
         let rect = size.to_rect();
         ctx.fill(rect, &Color::grey(0.1));
 
-        let mut trips = data
-            .agencies
-            .iter()
-            .filter(|agency| agency.selected)
-            .map(|agency| {
-                agency
-                    .routes
-                    .iter()
-                    .filter(|route| route.selected && route.trips.len() > 0)
-                    .map(|route| {
-                        route
-                            .trips
-                            .iter()
-                            .filter(|trip| trip.selected)
-                            .map(|trip| {
-                                trip.stops
-                                    .iter()
-                                    .filter(|stop| stop.selected)
-                                    .map(|stop| stop.coord)
-                                    .collect::<Vec<_>>()
-                            })
-                            .flatten()
-                            .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect::<Vec<_>>();
+        let mut trips = data.trips_coords();
 
         if let Some(limit) = self.limit {
             trips = trips.iter().cloned().take(limit).collect::<Vec<_>>();
         }
 
         // find size of path data
-        let x = trips
-            .iter()
-            .map(|trip| trip.iter().map(|point| point.0))
-            .flatten()
-            .collect::<Vec<_>>();
-        let y = trips
-            .iter()
-            .map(|trip| trip.iter().map(|point| point.1))
-            .flatten()
-            .collect::<Vec<_>>();
-        let longmin = x.iter().cloned().fold(0. / 0., f64::min);
-        let latmin = y.iter().cloned().fold(0. / 0., f64::min);
-        let x = trips
-            .iter()
-            .map(|trip| trip.iter().map(|point| point.0))
-            .flatten()
-            .collect::<Vec<_>>();
-        let y = trips
-            .iter()
-            .map(|trip| trip.iter().map(|point| point.1))
-            .flatten()
-            .collect::<Vec<_>>();
-        let longmax = x.iter().cloned().fold(0. / 0., f64::max);
-        let latmax = y.iter().cloned().fold(0. / 0., f64::max);
-        let width = longmax - longmin;
-        let height = latmax - latmin;
+        let ranges = min_max_trips_coords(&trips);
+        let width = ranges.longmax - ranges.longmin;
+        let height = ranges.latmax - ranges.latmin;
 
         // calculate size of maximum properly propotioned box we can paint in
         let (mut paint_width, mut paint_height) = if width > height {
@@ -226,42 +267,86 @@ impl Widget<AppData> for MapWidget {
         let zoom = self.zoom_level;
         let (zoomed_paint_width, zoomed_paint_height) = (paint_width * zoom, paint_height * zoom);
 
-        let (x_padding, y_padding) = if width > height {
-            (
-                (size.width - zoomed_paint_width) / 2.,
-                (size.height - zoomed_paint_height) / 2.
-                    + (zoomed_paint_width - zoomed_paint_height) / 2.,
-            )
-        } else {
-            (
-                (size.width - zoomed_paint_width) / 2. + (paint_height - paint_width) / 2. / zoom,
-                (size.height - zoomed_paint_height) / 2.,
-            )
-        };
+        let (x_padding, y_padding) = MapWidget::calculate_padding(
+            width,
+            height,
+            size,
+            zoom,
+            zoomed_paint_width,
+            zoomed_paint_height,
+            paint_width,
+            paint_height,
+        );
 
-        let long_lat_to_canvas = |point: &(f64, f64)| {
-            let (long, lat) = point;
-            let x2 = (*long - longmin) * (zoomed_paint_width / width) + x_padding
-                - self.focal_point.x * self.zoom_level;
-            let y2 = (*lat - latmin) * (zoomed_paint_height / height) + y_padding
-                - self.focal_point.y * self.zoom_level;
-            Point::new(x2, y2)
-        };
-        for trip in trips {
-            let mut path = BezPath::new();
-            for (i, coord) in trip.iter().enumerate() {
-                if i == 0 {
-                    path.move_to(long_lat_to_canvas(coord));
-                } else {
-                    path.line_to(long_lat_to_canvas(coord));
+        // make trips paths
+        self.trip_paths = trips
+            .iter()
+            .map(|trip| {
+                let mut path = BezPath::new();
+                for (i, coord) in trip.iter().enumerate() {
+                    if i == 0 {
+                        path.move_to(MapWidget::long_lat_to_canvas(
+                            coord,
+                            ranges,
+                            width,
+                            height,
+                            zoomed_paint_width,
+                            zoomed_paint_height,
+                            x_padding,
+                            y_padding,
+                            self.focal_point,
+                            zoom,
+                        ));
+                    } else {
+                        path.line_to(MapWidget::long_lat_to_canvas(
+                            coord,
+                            ranges,
+                            width,
+                            height,
+                            zoomed_paint_width,
+                            zoomed_paint_height,
+                            x_padding,
+                            y_padding,
+                            self.focal_point,
+                            zoom,
+                        ));
+                    }
                 }
-            }
+                path
+            })
+            .collect::<Vec<_>>();
+
+        for path in &self.trip_paths {
             let stroke_color = Color::GREEN;
             ctx.stroke(path, &stroke_color, 1.0);
         }
 
+        for path in &self.highlighted_trip_paths {
+            let stroke_color = Color::GREEN;
+            ctx.stroke(path, &Color::NAVY, 3.);
+        }
+
+        if let Some(mouse_position) = self.mouse_position {
+            let circle = Circle::new(mouse_position, 10.);
+            ctx.fill(circle, &Color::OLIVE);
+        }
+
         for stop in &data.stops {
-            let circle = Circle::new(long_lat_to_canvas(&(stop.coord.0, stop.coord.1)), 2.);
+            let circle = Circle::new(
+                MapWidget::long_lat_to_canvas(
+                    &(stop.coord.0, stop.coord.1),
+                    ranges,
+                    width,
+                    height,
+                    zoomed_paint_width,
+                    zoomed_paint_height,
+                    x_padding,
+                    y_padding,
+                    self.focal_point,
+                    zoom,
+                ),
+                2.,
+            );
             ctx.fill(circle, &Color::FUCHSIA);
         }
     }

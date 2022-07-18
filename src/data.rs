@@ -95,6 +95,7 @@ pub struct MyStopTime {
     pub stop_time: Option<Rc<RawStopTime>>,
     // stop_time: RawStopTime,
     pub name: String,
+    // (lon, lat)
     pub coord: (f64, f64),
 }
 impl ListItem for MyStopTime {
@@ -457,6 +458,37 @@ impl ListItem for AppData {
     }
     fn item_type(&self) -> String {
         "null".to_string()
+    }
+}
+impl AppData {
+    pub fn trips_coords(&self) -> Vec<Vec<(f64, f64)>> {
+        self.agencies
+            .iter()
+            .filter(|agency| agency.selected)
+            .map(|agency| {
+                agency
+                    .routes
+                    .iter()
+                    .filter(|route| route.selected && route.trips.len() > 0)
+                    .map(|route| {
+                        route
+                            .trips
+                            .iter()
+                            .filter(|trip| trip.selected)
+                            .map(|trip| {
+                                trip.stops
+                                    .iter()
+                                    .filter(|stop| stop.selected)
+                                    .map(|stop| stop.coord)
+                                    .collect::<Vec<_>>()
+                            })
+                            .flatten()
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect::<Vec<_>>()
     }
 }
 
