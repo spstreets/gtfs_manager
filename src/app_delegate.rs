@@ -29,6 +29,9 @@ pub const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.c
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
 pub const SHOW_STOP: Selector<String> = Selector::new("show.stop");
 pub const SELECT_AGENCY: Selector<String> = Selector::new("select.agency");
+pub const SELECT_ROUTE: Selector<String> = Selector::new("select.route");
+pub const SELECT_TRIP: Selector<String> = Selector::new("select.trip");
+pub const SELECT_STOP_TIME: Selector<String> = Selector::new("select.stop_time");
 
 pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
@@ -293,17 +296,34 @@ impl AppDelegate<AppData> for Delegate {
             }
             druid::Handled::Yes
         } else if let Some(agency_id) = cmd.get(SELECT_AGENCY) {
-            dbg!(agency_id);
-            data.selected_agency = Some(agency_id.clone());
-            // data.routes.pop_back();
-            // for route in data.routes.iter_mut() {
-            //     if &route.agency_id == agency_id {
-            //         // stop.scroll_to_me += 1;
-            //         route.selected = true;
-            //     } else {
-            //         route.selected = false;
-            //     }
-            // }
+            if data.selected_agency != Some(agency_id.clone()) {
+                dbg!("update agency");
+                data.selected_agency = Some(agency_id.clone());
+            }
+            
+            // TODO below is unwantedly clearing child selections even when clicking the current selection which the above if statement's purpose is to avoid
+            // clear child selections when a new selection is made
+            data.selected_route = None;
+            data.selected_trip = None;
+            data.selected_stop_time = None;
+            druid::Handled::Yes
+        } else if let Some(route_id) = cmd.get(SELECT_ROUTE) {
+            if data.selected_route != Some(route_id.clone()) {
+                data.selected_route = Some(route_id.clone());
+            }
+            data.selected_trip = None;
+            data.selected_stop_time = None;
+            druid::Handled::Yes
+        } else if let Some(trip_id) = cmd.get(SELECT_TRIP) {
+            if data.selected_trip != Some(trip_id.clone()) {
+                data.selected_trip = Some(trip_id.clone());
+            }
+            data.selected_stop_time = None;
+            druid::Handled::Yes
+        } else if let Some(stop_time_id) = cmd.get(SELECT_STOP_TIME) {
+            if data.selected_stop_time != Some(stop_time_id.clone()) {
+                data.selected_stop_time = Some(stop_time_id.clone());
+            }
             druid::Handled::Yes
         } else {
             druid::Handled::No

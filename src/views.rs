@@ -1,17 +1,17 @@
 use std::rc::Rc;
 
 use druid::im::{ordmap, vector, OrdMap, Vector};
-use druid::keyboard_types::Key;
 use druid::lens::{self, LensExt};
 use druid::text::{EditableText, TextStorage};
 use druid::widget::{
     Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, FlexParams, Label,
-    LabelText, List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper, TextBox,
+    LabelText, LineBreaking, List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper,
+    TextBox,
 };
 use druid::{
     AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    FontWeight, Insets, Lens, LocalizedString, PaintCtx, Point, RenderContext, Selector, UnitPoint,
-    UpdateCtx, Widget, WidgetExt, WindowDesc,
+    FontWeight, Insets, Key, Lens, LocalizedString, PaintCtx, Point, RenderContext, Selector,
+    UnitPoint, UpdateCtx, Widget, WidgetExt, WindowDesc,
 };
 use gtfs_structures::ContinuousPickupDropOff;
 use rgb::RGB8;
@@ -37,6 +37,9 @@ const HEADING_1: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
 const HEADING_2: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::BOLD)
     .with_size(20.0);
+
+const BG_COLOR: Key<Color> = Key::new("druid-help.list-item.background-color");
+const SELECTED_STOP_TIME_BORDER: Key<f64> = Key::new("selected.stop_time.border");
 
 struct TextBoxOnChange;
 impl<W: Widget<MyTrip>> Controller<MyTrip, W> for TextBoxOnChange {
@@ -412,7 +415,21 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
     )
     .rounded(CORNER_RADIUS)
     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    // .border(Color::RED, 0.)
+    .border(Color::RED, SELECTED_STOP_TIME_BORDER)
+    // .background(BG_COLOR)
+    // .env_scope(|env, item| env.set(BG_COLOR, Color::RED))
+    // .env_scope(|env, item| env.set(BG_COLOR,  Color::BLUE.into()))
+    .env_scope(|env, item| {
+        env.set(
+            SELECTED_STOP_TIME_BORDER,
+            if item.stop_sequence == 1 { 10. } else { 0. },
+        )
+    })
     .fix_width(NARROW_LIST_WIDTH)
+    .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+        ctx.submit_command(SELECT_STOP_TIME.with(data.stop_id.clone()))
+    })
 }
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
 pub fn stop_time_ui() -> impl Widget<MyStopTime> {
@@ -662,12 +679,14 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
 pub fn trip_ui_small() -> impl Widget<MyTrip> {
     Container::new(
         Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id()))
-            .with_font(HEADING_2)
             .padding((10., 10., 10., 10.)),
     )
     .rounded(CORNER_RADIUS)
     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
     .fix_width(NARROW_LIST_WIDTH)
+    .on_click(|ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
+        ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
+    })
 }
 pub fn trip_ui() -> impl Widget<MyTrip> {
     let title = Flex::row()
@@ -884,12 +903,22 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
 
 pub fn route_ui_small() -> impl Widget<MyRoute> {
     Container::new(
-        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
+        Flex::column()
+            .with_child(Label::new(|data: &MyRoute, _env: &_| {
+                format!("{}", data.short_name)
+            }))
+            .with_child(
+                Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
+                    .with_line_break_mode(LineBreaking::Clip),
+            )
             .padding((10., 10., 10., 10.)),
     )
     .rounded(CORNER_RADIUS)
     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
     .fix_width(NARROW_LIST_WIDTH)
+    .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+        ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
+    })
 }
 pub fn route_ui() -> impl Widget<MyRoute> {
     let title = Flex::row()
@@ -1153,15 +1182,18 @@ pub fn route_ui() -> impl Widget<MyRoute> {
 
 pub fn agency_ui_small() -> impl Widget<MyAgency> {
     Container::new(
-        Button::new(|data: &MyAgency, _env: &_| format!("{}", data.name))
-            .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
-                ctx.submit_command(SELECT_AGENCY.with(data.id.clone().unwrap()))
-            })
+        // Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name))
+        TextBox::new()
+            .with_placeholder("empty")
+            .lens(MyAgency::name)
             .padding((10., 10., 10., 10.)),
     )
     .rounded(CORNER_RADIUS)
     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
     .fix_width(NARROW_LIST_WIDTH)
+    .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+        ctx.submit_command(SELECT_AGENCY.with(data.id.clone().unwrap()))
+    })
 }
 pub fn agency_ui() -> impl Widget<MyAgency> {
     let title = Flex::row()
@@ -1400,18 +1432,40 @@ pub fn main_widget() -> impl Widget<AppData> {
 
     let trips = Scroll::new(
         Flex::column().with_child(
-            List::new(trip_ui_small)
-                .with_spacing(10.)
-                .lens(AppData::trips),
+            FilteredList::new(
+                List::new(trip_ui_small).with_spacing(10.),
+                |trip: &MyTrip, filtered: &Option<String>| {
+                    filtered.as_ref().map_or(false, |id| &trip.route_id == id)
+                },
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.trips.clone(), data.selected_route.clone()),
+                |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+                    data.trips = inner.0;
+                    data.selected_route = inner.1;
+                },
+            )),
         ),
     )
     .fix_width(NARROW_LIST_WIDTH);
 
     let stop_times = Scroll::new(
         Flex::column().with_child(
-            List::new(stop_time_ui_small)
-                .with_spacing(10.)
-                .lens(AppData::stop_times),
+            FilteredList::new(
+                List::new(stop_time_ui_small).with_spacing(10.),
+                |stop_time: &MyStopTime, filtered: &Option<String>| {
+                    filtered
+                        .as_ref()
+                        .map_or(false, |id| &stop_time.trip_id == id)
+                },
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.stop_times.clone(), data.selected_trip.clone()),
+                |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
+                    data.stop_times = inner.0;
+                    data.selected_trip = inner.1;
+                },
+            )),
         ),
     )
     .fix_width(NARROW_LIST_WIDTH);
