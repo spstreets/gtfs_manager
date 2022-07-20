@@ -1,17 +1,17 @@
 use std::rc::Rc;
 
 use druid::im::{ordmap, vector, OrdMap, Vector};
-use druid::keyboard_types::Key;
 use druid::lens::{self, LensExt};
 use druid::text::{EditableText, TextStorage};
 use druid::widget::{
     Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, FlexParams, Label,
-    LabelText, List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper, TextBox,
+    LabelText, LineBreaking, List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper,
+    TextBox,
 };
 use druid::{
     AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    FontWeight, Insets, Lens, LocalizedString, PaintCtx, Point, RenderContext, Selector, UnitPoint,
-    UpdateCtx, Widget, WidgetExt, WindowDesc,
+    FontWeight, Insets, Key, Lens, LocalizedString, PaintCtx, Point, RenderContext, Selector,
+    UnitPoint, UpdateCtx, Widget, WidgetExt, WindowDesc,
 };
 use gtfs_structures::ContinuousPickupDropOff;
 use rgb::RGB8;
@@ -37,6 +37,19 @@ const HEADING_1: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
 const HEADING_2: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::BOLD)
     .with_size(20.0);
+const ANNOTATION: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
+    .with_weight(FontWeight::THIN)
+    .with_size(10.0);
+
+const VARIABLE_SELECTED_ITEM_BORDER_COLOR: Key<Color> =
+    Key::new("druid-help.list-item.background-color");
+const SELECTED_ITEM_BORDER_COLOR: Color = Color::RED;
+const VARIABLE_ITEM_BORDER_WIDTH: Key<f64> = Key::new("selected.stop_time.border");
+const SELECTED_ITEM_BORDER_WIDTH: f64 = 1.;
+const FIELD_SPACER_SIZE: f64 = 5.;
+
+// const DARK_BLUE: Color = Color::rgb(54. / 255., 58. / 255., 74. / 255.);
+// const DARK_GREEN: Color = Color::rgb(54. / 255., 74. / 255., 63. / 255.);
 
 struct TextBoxOnChange;
 impl<W: Widget<MyTrip>> Controller<MyTrip, W> for TextBoxOnChange {
@@ -197,22 +210,19 @@ fn field_row<T: Data>(
     update: impl Widget<T> + 'static,
     updated_flag: impl Fn(&T, &Env) -> bool + 'static,
 ) -> impl Widget<T> {
-    Flex::row()
-        .with_child(Label::new(name).fix_width(200.))
+    Flex::column()
+        .with_child(Label::new(name).with_font(ANNOTATION).fix_width(300.))
         .with_child(update.fix_width(300.))
-        .with_child(Either::new(
-            updated_flag,
-            Label::new("udpated").fix_width(100.),
-            Label::new("").fix_width(100.),
-        ))
+        // .with_child(Either::new(
+        //     updated_flag,
+        //     Label::new("udpated").fix_width(100.),
+        //     Label::new("").fix_width(100.),
+        // ))
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
 pub fn stop_ui() -> impl Widget<MyStop> {
     let title = Flex::row()
-        .with_child(
-            Label::new(|data: &MyStop, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
-        )
         .with_child(Checkbox::new("").lens(MyStop::selected))
         .with_default_spacer()
         .with_child(Either::new(
@@ -389,37 +399,114 @@ pub fn stop_ui() -> impl Widget<MyStop> {
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
-    Container::new(
+    item_container(
         Flex::column()
             .with_child(title)
             .with_spacer(SPACING_1)
             .with_child(fields)
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
+            .cross_axis_alignment(CrossAxisAlignment::Start),
     )
-    .rounded(CORNER_RADIUS)
-    // .background(Color::grey(0.16))
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    // .expand_width()
-    .controller(ScrollToMeController {})
-    .fix_width(600.)
+
+    // Container::new(
+    //     Flex::column()
+    //         .with_child(title)
+    //         .with_spacer(SPACING_1)
+    //         .with_child(fields)
+    //         .cross_axis_alignment(CrossAxisAlignment::Start)
+    //         .padding((10., 10., 10., 10.)),
+    // )
+    // .rounded(CORNER_RADIUS)
+    // // .background(Color::grey(0.16))
+    // .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    // // .expand_width()
+    // .controller(ScrollToMeController {})
+    // .fix_width(600.)
 }
 
+// pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
+//     Container::new(
+//         Label::new(|data: &MyStopTime, _env: &_| {
+//             format!(
+//                 "{}: {}",
+//                 data.stop_sequence,
+//                 data.stop.as_ref().unwrap().name
+//             )
+//         })
+//         .padding((10., 10., 10., 10.)),
+//     )
+//     .rounded(CORNER_RADIUS)
+//     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+//     // .border(Color::RED, 0.)
+//     // .background(BG_COLOR)
+//     // .env_scope(|env, item| env.set(BG_COLOR, Color::RED))
+//     // .env_scope(|env, item| env.set(BG_COLOR,  Color::BLUE.into()))
+//     .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+//     // EnvScope must wrap the border, else Missing Key panic
+//     .env_scope(|env, stop_time| {
+//         // dbg!("set env");
+//         env.set(
+//             VARIABLE_ITEM_BORDER_WIDTH,
+//             if stop_time.selected {
+//                 SELECTED_ITEM_BORDER_WIDTH
+//             } else {
+//                 0.
+//             },
+//         )
+//     })
+//     .fix_width(NARROW_LIST_WIDTH)
+//     // can't determine why there is a big delay before click closure starts
+//     .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+//         dbg!("got click");
+//         ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
+//     })
+// }
 pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
-    Container::new(
-        Label::new(|data: &MyStopTime, _env: &_| format!("{}", data.id()))
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .fix_width(NARROW_LIST_WIDTH)
+    Label::new(|data: &MyStopTime, _env: &_| {
+        format!(
+            "{}: {}",
+            data.stop_sequence,
+            data.stop.as_ref().unwrap().name
+        )
+    })
+    .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+        dbg!("got click");
+        ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
+    })
 }
+
+pub fn item_container<T: ListItem + Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
+    Container::new(child.padding((10., 10., 10., 10.)))
+        .rounded(CORNER_RADIUS)
+        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+        // .border(Color::RED, 0.)
+        // .background(BG_COLOR)
+        // .env_scope(|env, item| env.set(BG_COLOR, Color::RED))
+        // .env_scope(|env, item| env.set(BG_COLOR,  Color::BLUE.into()))
+        .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+        // EnvScope must wrap the border, else Missing Key panic
+        .env_scope(|env, stop_time| {
+            // dbg!("set env");
+            env.set(
+                VARIABLE_ITEM_BORDER_WIDTH,
+                if stop_time.selected() {
+                    SELECTED_ITEM_BORDER_WIDTH
+                } else {
+                    0.
+                },
+            )
+        })
+        .fix_width(NARROW_LIST_WIDTH)
+}
+pub fn either_ui<T: ListItem + Data>(
+    ui: impl Widget<T> + 'static,
+    small_ui: impl Widget<T> + 'static,
+) -> impl Widget<T> {
+    item_container(Either::new(|data: &T, _: &_| data.selected(), ui, small_ui))
+}
+
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
 pub fn stop_time_ui() -> impl Widget<MyStopTime> {
     let title = Flex::row()
-        .with_child(
-            Label::new(|data: &MyStopTime, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
-        )
         .with_child(Checkbox::new("").lens(MyStopTime::selected))
         .with_default_spacer()
         .with_child(Either::new(
@@ -445,7 +532,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "arrival_time",
             option_u32().lens(MyStopTime::arrival_time),
@@ -454,7 +541,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "departure_time",
             option_u32().lens(MyStopTime::departure_time),
@@ -463,7 +550,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         // .with_child(field_row(
         //     "stop_id",
         //     TextBox::new()
@@ -478,7 +565,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
             "stop_id",
             Button::new(|data: &MyStopTime, _: &_| data.stop_id.clone()).on_click(
                 |ctx: &mut EventCtx, data: &mut MyStopTime, _| {
-                    ctx.submit_command(SHOW_STOP.with(data.stop_id.clone()));
+                    ctx.submit_command(SELECT_STOP.with(data.stop_id.clone()));
                 },
             ),
             |data: &MyStopTime, _: &_| match &data.stop_time {
@@ -486,7 +573,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "stop_sequence",
             Stepper::new().lens(druid::lens::Map::new(
@@ -498,7 +585,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "stop_headsign",
             option_string().lens(MyStopTime::stop_headsign),
@@ -507,7 +594,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "pickup_type",
             Dropdown::new(
@@ -530,7 +617,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "drop_off_type",
             Dropdown::new(
@@ -553,7 +640,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "continuous_pickup",
             Dropdown::new(
@@ -576,7 +663,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "continuous_drop_off",
             Dropdown::new(
@@ -601,7 +688,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "shape_dist_traveled",
             option_f32().lens(MyStopTime::shape_dist_traveled),
@@ -610,7 +697,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
                 None => true,
             },
         ))
-        .with_default_spacer()
+        .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "timepoint",
             Dropdown::new(
@@ -633,47 +720,35 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
-    Container::new(
-        Flex::column()
-            .with_child(title)
-            .with_spacer(SPACING_1)
-            .with_child(fields)
-            // .with_child(
-            //     FilteredList::new(
-            //         List::new(stop_ui).with_spacing(10.),
-            //         |item_data: &MyStopTime, filtered: &()| item_data.live,
-            //     )
-            //     .lens(druid::lens::Map::new(
-            //         |data: &MyStopTime| (data.stops.clone(), ()),
-            //         |data: &mut MyStopTime, inner: (Vector<MyStop>, ())| {
-            //             data.stops = inner.0;
-            //             // data.filter = inner.1;
-            //         },
-            //     )),
-            // )
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::grey(0.16))
-    .expand_width()
+    Flex::column()
+        .with_child(title)
+        .with_spacer(SPACING_1)
+        .with_child(fields)
+        // .with_child(
+        //     FilteredList::new(
+        //         List::new(stop_ui).with_spacing(10.),
+        //         |item_data: &MyStopTime, filtered: &()| item_data.live,
+        //     )
+        //     .lens(druid::lens::Map::new(
+        //         |data: &MyStopTime| (data.stops.clone(), ()),
+        //         |data: &mut MyStopTime, inner: (Vector<MyStop>, ())| {
+        //             data.stops = inner.0;
+        //             // data.filter = inner.1;
+        //         },
+        //     )),
+        // )
+        .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
 pub fn trip_ui_small() -> impl Widget<MyTrip> {
-    Container::new(
-        Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id()))
-            .with_font(HEADING_2)
-            .padding((10., 10., 10., 10.)),
+    Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id())).on_click(
+        |ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
+            ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
+        },
     )
-    .rounded(CORNER_RADIUS)
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .fix_width(NARROW_LIST_WIDTH)
 }
 pub fn trip_ui() -> impl Widget<MyTrip> {
     let title = Flex::row()
-        .with_child(
-            Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
-        )
         .with_child(Checkbox::new("").lens(MyTrip::visible))
         .with_default_spacer()
         .with_child(Checkbox::new("select").lens(MyTrip::selected))
@@ -865,38 +940,32 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
         Flex::row(),
     );
 
-    Container::new(
-        Flex::column()
-            .with_child(title)
-            .with_spacer(SPACING_1)
-            .with_child(fields)
-            .with_spacer(SPACING_1)
-            .with_child(children_header)
-            .with_default_spacer()
-            .with_child(children)
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::rgb(54. / 255., 74. / 255., 63. / 255.))
-    .expand_width()
+    Flex::column()
+        .with_child(title)
+        .with_spacer(SPACING_1)
+        .with_child(fields)
+        .with_spacer(SPACING_1)
+        .with_child(children_header)
+        .with_default_spacer()
+        .with_child(children)
+        .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
 pub fn route_ui_small() -> impl Widget<MyRoute> {
-    Container::new(
-        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .fix_width(NARROW_LIST_WIDTH)
+    Flex::column()
+        .with_child(Label::new(|data: &MyRoute, _env: &_| {
+            format!("{}", data.short_name)
+        }))
+        .with_child(
+            Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
+                .with_line_break_mode(LineBreaking::Clip),
+        )
+        .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+            ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
+        })
 }
 pub fn route_ui() -> impl Widget<MyRoute> {
     let title = Flex::row()
-        .with_child(
-            Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
-                .with_font(HEADING_2),
-        )
         .with_child(Checkbox::new("").lens(MyRoute::visible))
         .with_default_spacer()
         .with_child(Either::new(
@@ -911,7 +980,13 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             Label::new(""),
         ))
         .with_default_spacer()
-        .with_child(delete_item_button());
+        .with_child(delete_item_button())
+        .with_default_spacer()
+        .with_child(
+            Button::new("Add Trip").on_click(|ctx, data: &mut MyRoute, _| {
+                ctx.submit_command(NEW_TRIP.with(data.id.clone()));
+            }),
+        );
 
     let fieldsdfa = Flex::column()
         .with_child(field_row(
@@ -1134,42 +1209,26 @@ pub fn route_ui() -> impl Widget<MyRoute> {
     //     Flex::row(),
     // );
 
-    Container::new(
-        Flex::column()
-            .with_child(title)
-            .with_spacer(SPACING_1)
-            .with_child(fields)
-            // .with_spacer(SPACING_1)
-            // .with_child(children_header)
-            // .with_default_spacer()
-            // .with_child(children)
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::grey(0.16))
-    .fix_width(600.)
+    Flex::column()
+        .with_child(title)
+        .with_spacer(SPACING_1)
+        .with_child(fields)
+        // .with_spacer(SPACING_1)
+        // .with_child(children_header)
+        // .with_default_spacer()
+        // .with_child(children)
+        .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
 pub fn agency_ui_small() -> impl Widget<MyAgency> {
-    Container::new(
-        Button::new(|data: &MyAgency, _env: &_| format!("{}", data.name))
-            .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
-                ctx.submit_command(SELECT_AGENCY.with(data.id.clone().unwrap()))
-            })
-            .padding((10., 10., 10., 10.)),
+    Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name)).on_click(
+        |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+            ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
+        },
     )
-    .rounded(CORNER_RADIUS)
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .fix_width(NARROW_LIST_WIDTH)
 }
 pub fn agency_ui() -> impl Widget<MyAgency> {
     let title = Flex::row()
-        .with_child(
-            Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name)).with_font(HEADING_2),
-        )
-        .with_child(Checkbox::new("").lens(MyAgency::visible))
-        .with_default_spacer()
         .with_child(Either::new(
             |data: &MyAgency, _env: &Env| data.live,
             Label::new(""),
@@ -1290,21 +1349,15 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
     //     Flex::row(),
     // );
 
-    Container::new(
-        Flex::column()
-            .with_child(title)
-            .with_spacer(SPACING_1)
-            .with_child(fields)
-            // .with_spacer(SPACING_1)
-            // .with_child(children_header)
-            // .with_default_spacer()
-            // .with_child(children)
-            .cross_axis_alignment(CrossAxisAlignment::Start)
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .fix_width(600.)
+    Flex::column()
+        .with_child(title)
+        .with_spacer(SPACING_1)
+        .with_child(fields)
+        // .with_spacer(SPACING_1)
+        // .with_child(children_header)
+        // .with_default_spacer()
+        // .with_child(children)
+        .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
 fn edit() -> impl Widget<Edit> {
@@ -1366,7 +1419,7 @@ pub fn main_widget() -> impl Widget<AppData> {
 
     let agencies = Scroll::new(
         Flex::column().with_child(
-            List::new(agency_ui_small)
+            List::new(|| either_ui(agency_ui(), agency_ui_small()))
                 .with_spacing(10.)
                 .lens(AppData::agencies),
         ),
@@ -1376,20 +1429,14 @@ pub fn main_widget() -> impl Widget<AppData> {
     let routes = Scroll::new(
         Flex::column().with_child(
             FilteredList::new(
-                List::new(route_ui_small).with_spacing(10.),
-                |route: &MyRoute, filtered: &Option<String>| {
-                    // TODO properly handle cases with no agency id so is None
-                    filtered.as_ref().map_or(false, |id| {
-                        route
-                            .agency_id
-                            .as_ref()
-                            .map_or(true, |agency_id| agency_id == id)
-                    })
+                List::new(|| either_ui(route_ui(), route_ui_small())).with_spacing(10.),
+                |route: &MyRoute, filtered: &Option<Option<String>>| {
+                    filtered.as_ref().map_or(false, |id| &route.agency_id == id)
                 },
             )
             .lens(druid::lens::Map::new(
                 |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
-                |data: &mut AppData, inner: (Vector<MyRoute>, Option<String>)| {
+                |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
                     data.routes = inner.0;
                     data.selected_agency = inner.1;
                 },
@@ -1400,16 +1447,46 @@ pub fn main_widget() -> impl Widget<AppData> {
 
     let trips = Scroll::new(
         Flex::column().with_child(
-            List::new(trip_ui_small)
-                .with_spacing(10.)
-                .lens(AppData::trips),
+            FilteredList::new(
+                List::new(|| either_ui(trip_ui(), trip_ui_small())).with_spacing(10.),
+                |trip: &MyTrip, filtered: &Option<String>| {
+                    filtered.as_ref().map_or(false, |id| &trip.route_id == id)
+                },
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.trips.clone(), data.selected_route.clone()),
+                |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+                    data.trips = inner.0;
+                    data.selected_route = inner.1;
+                },
+            )),
         ),
     )
     .fix_width(NARROW_LIST_WIDTH);
 
+    // let stop_times = Scroll::new(
+    //     Flex::column().with_child(
+    //         FilteredList::new(
+    //             List::new(either_stop_time_ui).with_spacing(10.),
+    //             |stop_time: &MyStopTime, filtered: &Option<String>| {
+    //                 filtered
+    //                     .as_ref()
+    //                     .map_or(false, |id| &stop_time.trip_id == id)
+    //             },
+    //         )
+    //         .lens(druid::lens::Map::new(
+    //             |data: &AppData| (data.stop_times.clone(), data.selected_trip.clone()),
+    //             |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
+    //                 data.stop_times = inner.0;
+    //                 data.selected_trip = inner.1;
+    //             },
+    //         )),
+    //     ),
+    // )
+    // .fix_width(NARROW_LIST_WIDTH);
     let stop_times = Scroll::new(
         Flex::column().with_child(
-            List::new(stop_time_ui_small)
+            List::new(|| either_ui(stop_time_ui(), stop_time_ui_small()))
                 .with_spacing(10.)
                 .lens(AppData::stop_times),
         ),
@@ -1419,13 +1496,33 @@ pub fn main_widget() -> impl Widget<AppData> {
     Flex::row()
         .with_child(
             Flex::row()
-                .with_child(agencies)
+                .with_child(
+                    Flex::column()
+                        .with_child(Label::new("Agencies"))
+                        .with_child(agencies)
+                        .cross_axis_alignment(CrossAxisAlignment::Start),
+                )
                 .with_default_spacer()
-                .with_child(routes)
+                .with_child(
+                    Flex::column()
+                        .with_child(Label::new("Routes"))
+                        .with_child(routes)
+                        .cross_axis_alignment(CrossAxisAlignment::Start),
+                )
                 .with_default_spacer()
-                .with_child(trips)
+                .with_child(
+                    Flex::column()
+                        .with_child(Label::new("Trips"))
+                        .with_child(trips)
+                        .cross_axis_alignment(CrossAxisAlignment::Start),
+                )
                 .with_default_spacer()
-                .with_child(stop_times)
+                .with_child(
+                    Flex::column()
+                        .with_child(Label::new("Stop times"))
+                        .with_child(stop_times)
+                        .cross_axis_alignment(CrossAxisAlignment::Start),
+                )
                 .cross_axis_alignment(CrossAxisAlignment::Start),
         )
         // .with_default_spacer()
@@ -1446,21 +1543,21 @@ pub fn main_widget() -> impl Widget<AppData> {
         //     )
         //     .fix_width(600.),
         // )
-        // .with_default_spacer()
-        // .with_child(
-        //     FilteredList::new(
-        //         List::new(stop_ui).with_spacing(10.),
-        //         |stop: &MyStop, filtered: &()| stop.selected,
-        //     )
-        //     .lens(druid::lens::Map::new(
-        //         |data: &AppData| (data.stops.clone(), ()),
-        //         |data: &mut AppData, inner: (Vector<MyStop>, ())| {
-        //             data.stops = inner.0;
-        //             // data.filter = inner.1;
-        //         },
-        //     ))
-        //     .fix_width(600.),
-        // )
+        .with_default_spacer()
+        .with_child(
+            FilteredList::new(
+                List::new(stop_ui).with_spacing(10.),
+                |stop: &MyStop, filtered: &()| stop.selected,
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.stops.clone(), ()),
+                |data: &mut AppData, inner: (Vector<MyStop>, ())| {
+                    data.stops = inner.0;
+                    // data.filter = inner.1;
+                },
+            ))
+            .fix_width(NARROW_LIST_WIDTH),
+        )
         .with_spacer(20.)
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
         .cross_axis_alignment(CrossAxisAlignment::Start)

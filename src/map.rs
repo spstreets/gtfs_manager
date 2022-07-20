@@ -182,7 +182,7 @@ impl Widget<AppData> for MapWidget {
                             self.stop_circles.iter().zip(data.stops.iter_mut())
                         {
                             if stop_circle.contains(me.pos) {
-                                ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
+                                ctx.submit_command(SELECT_STOP.with(stop.id.clone()));
                             }
                         }
                         // for (path, trip) in
@@ -264,7 +264,7 @@ impl Widget<AppData> for MapWidget {
         Size::new(max, max)
     }
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
-        // println!("map paint");
+        // dbg!("map paint");
 
         // Clear the whole widget with the color of your choice
         // (ctx.size() returns the size of the layout rect we're painting in)
@@ -278,7 +278,7 @@ impl Widget<AppData> for MapWidget {
         ctx.fill(rect, &Color::grey(0.1));
 
         let mut trips_coords = data.trips_coords();
-        // dbg!(trips_coords.len());
+        dbg!(trips_coords.len());
 
         if let Some(limit) = self.limit {
             trips_coords = trips_coords.iter().cloned().take(limit).collect::<Vec<_>>();
@@ -354,6 +354,7 @@ impl Widget<AppData> for MapWidget {
                 path
             })
             .collect::<Vec<_>>();
+        dbg!(self.all_trip_paths.len());
 
         self.selected_trip_paths = trips_coords
             .iter()
@@ -392,8 +393,10 @@ impl Widget<AppData> for MapWidget {
                 path
             })
             .collect::<Vec<_>>();
+        dbg!(self.selected_trip_paths.len());
 
         for path in &self.all_trip_paths {
+            dbg!(path);
             ctx.stroke(path, &Color::GREEN, 1.0);
         }
         for path in &self.highlighted_trip_paths {

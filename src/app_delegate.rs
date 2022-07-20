@@ -18,6 +18,7 @@ use rgb::RGB8;
 
 use crate::data::*;
 use crate::map::MapWidget;
+// use crate::my_trip_derived_lenses::route_id;
 
 // command selectors
 // (<item type>, <id>)
@@ -26,9 +27,13 @@ pub const ITEM_DELETE: Selector<(String, String)> = Selector::new("item.delete")
 pub const ITEM_UPDATE: Selector<(String, String)> = Selector::new("item.update");
 // (<item type>, <parent id>)
 pub const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.child");
+pub const NEW_TRIP: Selector<String> = Selector::new("new.trip");
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
-pub const SHOW_STOP: Selector<String> = Selector::new("show.stop");
-pub const SELECT_AGENCY: Selector<String> = Selector::new("select.agency");
+pub const SELECT_STOP: Selector<String> = Selector::new("show.stop");
+pub const SELECT_AGENCY: Selector<Option<String>> = Selector::new("select.agency");
+pub const SELECT_ROUTE: Selector<String> = Selector::new("select.route");
+pub const SELECT_TRIP: Selector<String> = Selector::new("select.trip");
+pub const SELECT_STOP_TIME: Selector<(String, u16)> = Selector::new("select.stop_time");
 
 pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
@@ -282,7 +287,12 @@ impl AppDelegate<AppData> for Delegate {
             }
             data.actions.retain(|edit| edit.id != *edit_id);
             druid::Handled::Yes
-        } else if let Some(stop_id) = cmd.get(SHOW_STOP) {
+        } else if let Some(route_id) = cmd.get(NEW_TRIP) {
+            let new_trip = MyTrip::new(route_id.clone());
+            data.trips.push_front(new_trip);
+
+            druid::Handled::Yes
+        } else if let Some(stop_id) = cmd.get(SELECT_STOP) {
             for stop in data.stops.iter_mut() {
                 if &stop.id == stop_id {
                     // stop.scroll_to_me += 1;
@@ -291,19 +301,83 @@ impl AppDelegate<AppData> for Delegate {
                     stop.selected = false;
                 }
             }
+
+            // data.selected_agency = None;
+            // data.selected_route = None;
+            // data.selected_trip = None;
+            // data.selected_stop_time = None;
             druid::Handled::Yes
         } else if let Some(agency_id) = cmd.get(SELECT_AGENCY) {
-            dbg!(agency_id);
-            data.selected_agency = Some(agency_id.clone());
-            // data.routes.pop_back();
-            // for route in data.routes.iter_mut() {
-            //     if &route.agency_id == agency_id {
-            //         // stop.scroll_to_me += 1;
-            //         route.selected = true;
-            //     } else {
-            //         route.selected = false;
-            //     }
-            // }
+            if data.selected_agency != Some(agency_id.clone()) {
+                dbg!("update agency");
+                data.selected_agency = Some(agency_id.clone());
+            }
+
+            // TODO below is unwantedly clearing child selections even when clicking the current selection which the above if statement's purpose is to avoid
+            // clear child selections when a new selection is made
+            data.selected_route = None;
+            data.selected_trip = None;
+            data.selected_stop_time = None;
+
+            for agency in data.agencies.iter_mut() {
+                if &agency.id == agency_id {
+                    agency.selected = true;
+                } else {
+                    agency.selected = false;
+                }
+            }
+            druid::Handled::Yes
+        } else if let Some(route_id) = cmd.get(SELECT_ROUTE) {
+            if data.selected_route != Some(route_id.clone()) {
+                data.selected_route = Some(route_id.clone());
+            }
+            data.selected_trip = None;
+            data.selected_stop_time = None;
+            // TODO need to set data.stop_times = Vector::new();
+
+            for route in data.routes.iter_mut() {
+                if &route.id == route_id {
+                    route.selected = true;
+                } else {
+                    route.selected = false;
+                }
+            }
+            druid::Handled::Yes
+        } else if let Some(trip_id) = cmd.get(SELECT_TRIP) {
+            if data.selected_trip != Some(trip_id.clone()) {
+                data.selected_trip = Some(trip_id.clone());
+            }
+            data.selected_stop_time = None;
+
+            for trip in data.trips.iter_mut() {
+                if &trip.id == trip_id {
+                    trip.selected = true;
+                } else {
+                    trip.selected = false;
+                }
+            }
+
+            data.stop_times = data
+                .stop_times_other
+                .iter()
+                .filter(|stop_time| &stop_time.trip_id == trip_id)
+                .cloned()
+                .collect::<Vector<_>>();
+
+            druid::Handled::Yes
+        } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {
+            if data.selected_stop_time != Some(stop_time_pk.clone()) {
+                data.selected_stop_time = Some(stop_time_pk.clone());
+            }
+
+            let (trip_id, stop_sequence) = stop_time_pk;
+            for stop_time in data.stop_times.iter_mut() {
+                if &stop_time.trip_id == trip_id && &stop_time.stop_sequence == stop_sequence {
+                    stop_time.selected = true;
+                } else {
+                    stop_time.selected = false;
+                }
+            }
             druid::Handled::Yes
         } else {
             druid::Handled::No

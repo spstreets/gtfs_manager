@@ -23,6 +23,7 @@ pub trait ListItem {
     fn data_info(&self) -> String {
         "not implemented".to_string()
     }
+    fn selected(&self) -> bool;
     // fn name(&self) -> String;
 }
 
@@ -70,6 +71,10 @@ impl ListItem for MyStop {
     fn item_type(&self) -> String {
         "stop".to_string()
     }
+
+    fn selected(&self) -> bool {
+        self.selected
+    }
 }
 
 #[derive(Clone, Data, Debug, Lens)]
@@ -93,6 +98,9 @@ pub struct MyStopTime {
     #[data(ignore)]
     #[lens(ignore)]
     pub stop_time: Option<Rc<RawStopTime>>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stop: Option<Rc<Stop>>,
     // stop_time: RawStopTime,
     pub name: String,
     // (lon, lat)
@@ -110,6 +118,9 @@ impl ListItem for MyStopTime {
     }
     fn item_type(&self) -> String {
         "stop_time".to_string()
+    }
+    fn selected(&self) -> bool {
+        self.selected
     }
 }
 
@@ -138,6 +149,31 @@ pub struct MyTrip {
     pub name: String,
     pub stops: Vector<MyStopTime>,
 }
+impl MyTrip {
+    pub fn new(route_id: String) -> Self {
+        MyTrip {
+            live: true,
+            visible: true,
+            selected: false,
+            expanded: false,
+
+            id: Uuid::new_v4().to_string(),
+            service_id: "needtogetcalendar.serviceid".to_string(),
+            route_id,
+            shape_id: None,
+            trip_headsign: None,
+            trip_short_name: None,
+            direction_id: None,
+            block_id: None,
+            wheelchair_accessible: MyAvailability(Availability::InformationNotAvailable),
+            bikes_allowed: MyBikesAllowedType(BikesAllowedType::NoBikeInfo),
+
+            trip: None,
+            name: "new trip name".to_string(),
+            stops: Vector::new(),
+        }
+    }
+}
 impl ListItem for MyTrip {
     fn new_child(&mut self) -> String {
         todo!()
@@ -154,6 +190,9 @@ impl ListItem for MyTrip {
     }
     fn item_type(&self) -> String {
         "trip".to_string()
+    }
+    fn selected(&self) -> bool {
+        self.selected
     }
     // fn data_info(&self) -> String {
     //     format!(
@@ -199,6 +238,7 @@ pub struct MyRoute {
     pub live: bool,
     pub visible: bool,
     pub expanded: bool,
+    pub selected: bool,
 
     pub id: String,
     pub short_name: String,
@@ -266,6 +306,9 @@ impl ListItem for MyRoute {
             self.short_name
         )
     }
+    fn selected(&self) -> bool {
+        self.selected
+    }
 }
 
 #[derive(Clone, Data, Default, Lens)]
@@ -274,6 +317,7 @@ pub struct MyAgency {
     pub live: bool,
     pub visible: bool,
     pub expanded: bool,
+    pub selected: bool,
 
     pub id: Option<String>,
     pub name: String,
@@ -296,6 +340,7 @@ impl ListItem for MyAgency {
             live: true,
             visible: true,
             expanded: false,
+            selected: false,
             id: Uuid::new_v4().to_string(),
 
             short_name: "new route short name".to_string(),
@@ -330,6 +375,9 @@ impl ListItem for MyAgency {
     }
     fn item_type(&self) -> String {
         "agency".to_string()
+    }
+    fn selected(&self) -> bool {
+        self.selected
     }
 }
 
@@ -382,11 +430,23 @@ pub struct AppData {
     #[data(ignore)]
     #[lens(ignore)]
     pub gtfs: Rc<MyGtfs>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub trips_other2: Vec<RawTrip>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stop_times_other2: Vec<RawStopTime>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stops_other2: Vec<Stop>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stop_times_other: Vec<MyStopTime>,
 
-    pub selected_agency: Option<String>,
+    pub selected_agency: Option<Option<String>>,
     pub selected_route: Option<String>,
     pub selected_trip: Option<String>,
-    pub selected_stop_time: Option<String>,
+    pub selected_stop_time: Option<(String, u16)>,
 
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
@@ -412,39 +472,126 @@ impl ListItem for AppData {
     fn item_type(&self) -> String {
         "null".to_string()
     }
+    fn selected(&self) -> bool {
+        false
+    }
 }
 // vector of trips (selected, vector of stop coords)
 impl AppData {
     pub fn trips_coords(&self) -> Vec<(bool, Vec<(f64, f64)>)> {
-        self.agencies
+        // self.agencies
+        //     .iter()
+        //     .filter(|agency| agency.visible)
+        //     .map(|agency| {
+        //         agency
+        //             .routes
+        //             .iter()
+        //             .filter(|route| route.visible && route.trips.len() > 0)
+        //             .map(|route| {
+        //                 route
+        //                     .trips
+        //                     .iter()
+        //                     .filter(|trip| trip.visible)
+        //                     .map(|trip| {
+        //                         (
+        //                             trip.selected,
+        //                             trip.stops
+        //                                 .iter()
+        //                                 .filter(|stop| stop.selected)
+        //                                 .map(|stop| stop.coord)
+        //                                 .collect::<Vec<_>>(),
+        //                         )
+        //                     })
+        //                     .collect::<Vec<_>>()
+        //             })
+        //             .flatten()
+        //             .collect::<Vec<_>>()
+        //     })
+        //     .flatten()
+        //     .collect::<Vec<_>>()
+
+        // trips.sort_by(|x1, x2| x1.id.cmp(&x2.id));
+        // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
+        let mut stop_time_range_from_trip_id = HashMap::new();
+        let mut trip_start_index = 0;
+        let mut trip_end_index = 0;
+        let mut current_trip = self.stop_times_other2[0].trip_id.clone();
+        let stop_times2 = self.stop_times_other2.clone();
+        for stop_time in stop_times2 {
+            // when we arrive at a new section of trip_id's insert the index range into to map, update the current trip, and reset the range start index
+            if current_trip != stop_time.trip_id {
+                stop_time_range_from_trip_id
+                    .insert(current_trip.clone(), (trip_start_index, trip_end_index));
+                current_trip = stop_time.trip_id.clone();
+                trip_start_index = trip_end_index;
+            }
+            trip_end_index += 1;
+        }
+        // insert final trip id
+        stop_time_range_from_trip_id
+            .insert(current_trip.clone(), (trip_start_index, trip_end_index));
+
+        // hash map for getting a stop by stop_id
+        let mut stop_map = HashMap::new();
+        let stops2 = self.stops_other2.clone();
+        stops2.iter().for_each(|stop| {
+            stop_map.insert(stop.id.clone(), stop.clone());
+        });
+
+        let mut filtered_stop_ids = Vec::new();
+
+        self.trips
             .iter()
-            .filter(|agency| agency.visible)
-            .map(|agency| {
-                agency
-                    .routes
+            .filter(|trip| trip.visible)
+            .map(|trip| {
+                let (start_index, end_index) =
+                    stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
+                let mut stops = self.stop_times_other2[start_index..end_index]
                     .iter()
-                    .filter(|route| route.visible && route.trips.len() > 0)
-                    .map(|route| {
-                        route
-                            .trips
-                            .iter()
-                            .filter(|trip| trip.visible)
-                            .map(|trip| {
-                                (
-                                    trip.selected,
-                                    trip.stops
-                                        .iter()
-                                        .filter(|stop| stop.selected)
-                                        .map(|stop| stop.coord)
-                                        .collect::<Vec<_>>(),
-                                )
-                            })
-                            .collect::<Vec<_>>()
+                    // .filter(|stop_time| stop_time.trip_id == trip.id)
+                    .map(|stop_time| {
+                        let stop = stop_map.get(&stop_time.stop_id).unwrap();
+                        filtered_stop_ids.push(stop.id.clone());
+                        MyStopTime {
+                            live: true,
+                            selected: true,
+
+                            trip_id: stop_time.trip_id.clone(),
+                            arrival_time: stop_time.arrival_time.clone(),
+                            departure_time: stop_time.departure_time.clone(),
+                            stop_id: stop_time.stop_id.clone(),
+                            stop_sequence: stop_time.stop_sequence.clone(),
+                            stop_headsign: stop_time.stop_headsign.clone(),
+                            pickup_type: MyPickupDropOffType(stop_time.pickup_type.clone()),
+                            drop_off_type: MyPickupDropOffType(stop_time.drop_off_type.clone()),
+                            continuous_pickup: MyContinuousPickupDropOff(
+                                stop_time.continuous_pickup.clone(),
+                            ),
+                            continuous_drop_off: MyContinuousPickupDropOff(
+                                stop_time.continuous_drop_off.clone(),
+                            ),
+                            shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
+                            timepoint: MyTimepointType(stop_time.timepoint.clone()),
+
+                            stop_time: Some(Rc::new(stop_time.clone())),
+                            // stop_time: stop_time.clone(),
+                            name: stop.name.clone(),
+                            stop: None,
+                            coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                        }
                     })
-                    .flatten()
-                    .collect::<Vec<_>>()
+                    .collect::<Vector<_>>();
+                stops.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
+
+                (
+                    trip.selected,
+                    stops
+                        .iter()
+                        .filter(|stop| stop.selected)
+                        .map(|stop| stop.coord)
+                        .collect::<Vec<_>>(),
+                )
             })
-            .flatten()
             .collect::<Vec<_>>()
     }
     // TODO shouldn't do filtering here, should include flags with coords so can do filtering later
@@ -521,6 +668,10 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
     let mut filtered_stop_ids = Vec::new();
 
+    let stop_times_other2 = stop_times.clone();
+    let trips_other2 = trips.clone();
+    let stops_other2 = stops.clone();
+
     let limited = true;
     let agencies = agencies
         .iter()
@@ -529,143 +680,24 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         .filter(|(i, _)| if limited { *i < 5 } else { true })
         .map(|(_, x)| x)
         // limiting>
-        .map(|agency| {
-            let mut routes = routes
-                .iter()
-                .filter(|route| route.agency_id == agency.id)
-                // <limiting
-                .enumerate()
-                .filter(|(i, _)| if limited { *i < 40 } else { true })
-                .map(|(_, x)| x)
-                // limiting>
-                .map(|route| MyRoute {
-                    new: false,
-                    live: true,
-                    visible: true,
-                    expanded: false,
+        .map(|agency| MyAgency {
+            show_deleted: true,
+            live: true,
+            visible: true,
+            expanded: false,
+            selected: false,
 
-                    id: route.id.clone(),
-                    short_name: route.short_name.clone(),
-                    long_name: route.long_name.clone(),
-                    desc: route.desc.clone(),
-                    route_type: MyRouteType(route.route_type.clone()),
-                    url: route.url.clone(),
-                    agency_id: route.agency_id.clone(),
-                    order: route.order.clone(),
-                    color: MyRGB8(route.color.clone()),
-                    text_color: MyRGB8(route.text_color.clone()),
-                    continuous_pickup: MyContinuousPickupDropOff(route.continuous_pickup.clone()),
-                    continuous_drop_off: MyContinuousPickupDropOff(
-                        route.continuous_drop_off.clone(),
-                    ),
+            id: agency.id.clone(),
+            name: agency.name.clone(),
+            url: agency.url.clone(),
+            timezone: agency.timezone.clone(),
+            lang: agency.lang.clone(),
+            phone: agency.phone.clone(),
+            fare_url: agency.fare_url.clone(),
+            email: agency.email.clone(),
 
-                    route: Some(Rc::new(route.clone())),
-                    trips: trips
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, trip)| trip.route_id == route.id)
-                        // <limiting
-                        // .enumerate()
-                        // .filter(|(i, _)| if limited { *i < 5 } else { true })
-                        // .map(|(_, x)| x)
-                        // limiting>
-                        .map(|(i, trip)| {
-                            let (start_index, end_index) =
-                                stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
-                            let mut stops = stop_times[start_index..end_index]
-                                .iter()
-                                // .filter(|stop_time| stop_time.trip_id == trip.id)
-                                .map(|stop_time| {
-                                    let stop = stop_map.get(&stop_time.stop_id).unwrap();
-                                    filtered_stop_ids.push(stop.id.clone());
-                                    MyStopTime {
-                                        live: true,
-                                        selected: true,
-
-                                        trip_id: stop_time.trip_id.clone(),
-                                        arrival_time: stop_time.arrival_time.clone(),
-                                        departure_time: stop_time.departure_time.clone(),
-                                        stop_id: stop_time.stop_id.clone(),
-                                        stop_sequence: stop_time.stop_sequence.clone(),
-                                        stop_headsign: stop_time.stop_headsign.clone(),
-                                        pickup_type: MyPickupDropOffType(
-                                            stop_time.pickup_type.clone(),
-                                        ),
-                                        drop_off_type: MyPickupDropOffType(
-                                            stop_time.drop_off_type.clone(),
-                                        ),
-                                        continuous_pickup: MyContinuousPickupDropOff(
-                                            stop_time.continuous_pickup.clone(),
-                                        ),
-                                        continuous_drop_off: MyContinuousPickupDropOff(
-                                            stop_time.continuous_drop_off.clone(),
-                                        ),
-                                        shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
-                                        timepoint: MyTimepointType(stop_time.timepoint.clone()),
-
-                                        stop_time: Some(Rc::new(stop_time.clone())),
-                                        // stop_time: stop_time.clone(),
-                                        name: stop.name.clone(),
-                                        coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
-                                    }
-                                })
-                                .collect::<Vector<_>>();
-                            stops.sort_by(|stop1, stop2| {
-                                stop1.stop_sequence.cmp(&stop2.stop_sequence)
-                            });
-
-                            // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
-                            MyTrip {
-                                live: true,
-                                visible: true,
-                                selected: false,
-                                expanded: false,
-
-                                id: trip.id.clone(),
-                                service_id: trip.service_id.clone(),
-                                route_id: trip.route_id.clone(),
-                                shape_id: trip.shape_id.clone(),
-                                trip_headsign: trip.trip_headsign.clone(),
-                                trip_short_name: trip.trip_short_name.clone(),
-                                direction_id: trip.direction_id.map(|x| MyDirectionType(x)),
-                                block_id: trip.block_id.clone(),
-                                wheelchair_accessible: MyAvailability(trip.wheelchair_accessible),
-                                bikes_allowed: MyBikesAllowedType(trip.bikes_allowed),
-
-                                trip: Some(Rc::new(trip.clone())),
-                                name: trip.id.clone(),
-                                stops,
-                            }
-                        })
-                        .collect::<Vector<_>>(),
-                })
-                .collect::<Vector<_>>();
-            routes.sort_by(|route1, route2| {
-                route1
-                    .route
-                    .as_ref()
-                    .unwrap()
-                    .short_name
-                    .cmp(&route2.route.as_ref().unwrap().short_name)
-            });
-            MyAgency {
-                show_deleted: true,
-                live: true,
-                visible: true,
-                expanded: false,
-
-                id: agency.id.clone(),
-                name: agency.name.clone(),
-                url: agency.url.clone(),
-                timezone: agency.timezone.clone(),
-                lang: agency.lang.clone(),
-                phone: agency.phone.clone(),
-                fare_url: agency.fare_url.clone(),
-                email: agency.email.clone(),
-
-                agency: Some(Rc::new(agency.clone())),
-                routes,
-            }
+            agency: Some(Rc::new(agency.clone())),
+            routes: Vector::new(),
         })
         .collect::<Vector<_>>();
 
@@ -684,7 +716,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
             filtered_stop_ids.push(stop.id.clone());
             MyStopTime {
                 live: true,
-                selected: true,
+                selected: false,
 
                 trip_id: stop_time.trip_id.clone(),
                 arrival_time: stop_time.arrival_time.clone(),
@@ -702,12 +734,19 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 timepoint: MyTimepointType(stop_time.timepoint.clone()),
 
                 stop_time: Some(Rc::new(stop_time.clone())),
+                stop: Some(Rc::new(
+                    stops
+                        .iter()
+                        .find(|stop| stop.id == stop_time.stop_id)
+                        .unwrap()
+                        .clone(),
+                )),
                 // stop_time: stop_time.clone(),
                 name: stop.name.clone(),
                 coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
             }
         })
-        .collect::<Vector<_>>();
+        .collect::<Vec<_>>();
     stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
 
     let trips = trips
@@ -756,6 +795,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
             live: true,
             visible: true,
             expanded: false,
+            selected: false,
 
             id: route.id.clone(),
             short_name: route.short_name.clone(),
@@ -788,6 +828,11 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         show_edits: false,
         show_actions: false,
         gtfs: Rc::new(my_gtfs),
+        trips_other2,
+        stop_times_other2,
+        stops_other2,
+        stop_times_other: stop_times,
+
         selected_agency: None,
         selected_route: None,
         selected_trip: None,
@@ -796,7 +841,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         agencies,
         routes,
         trips,
-        stop_times,
+        stop_times: Vector::new(),
         stops: stops
             .iter()
             // .enumerate()
@@ -835,6 +880,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
             })
             .collect::<Vector<_>>(),
+        // stops: Vector::new(),
         actions: Vector::new(),
         edits: Vector::new(),
     };
