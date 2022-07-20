@@ -4,6 +4,7 @@ use gtfs_structures::{
     LocationType, PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Stop,
     StopTime, TimepointType, Trip,
 };
+use rgb::RGB8;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MyLocationType(pub LocationType);
@@ -173,6 +174,48 @@ impl MyBikesAllowedType {
     }
 }
 impl Data for MyBikesAllowedType {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyRGB8(pub RGB8);
+impl Data for MyRGB8 {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct MyContinuousPickupDropOff(pub ContinuousPickupDropOff);
+impl MyContinuousPickupDropOff {
+    pub fn radio_vec() -> Vec<(String, MyContinuousPickupDropOff)> {
+        vec![
+            (
+                "Continuous".to_string(),
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::Continuous),
+            ),
+            (
+                "NotAvailable".to_string(),
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
+            ),
+            (
+                "ArrangeByPhone".to_string(),
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::ArrangeByPhone),
+            ),
+            (
+                "CoordinateWithDriver".to_string(),
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::CoordinateWithDriver),
+            ),
+            (
+                "Unknown(99)".to_string(),
+                MyContinuousPickupDropOff(ContinuousPickupDropOff::Unknown(99)),
+            ),
+        ]
+    }
+}
+impl Data for MyContinuousPickupDropOff {
     fn same(&self, other: &Self) -> bool {
         self.0 == other.0
     }

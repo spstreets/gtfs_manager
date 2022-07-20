@@ -654,7 +654,9 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
         .with_child(
             Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id())).with_font(HEADING_2),
         )
-        .with_child(Checkbox::new("").lens(MyTrip::selected))
+        .with_child(Checkbox::new("").lens(MyTrip::visible))
+        .with_default_spacer()
+        .with_child(Checkbox::new("select").lens(MyTrip::selected))
         .with_default_spacer()
         .with_child(Either::new(
             |data: &MyTrip, _env: &Env| data.live,
@@ -866,7 +868,7 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
                 .with_font(HEADING_2),
         )
-        .with_child(Checkbox::new("").lens(MyRoute::selected))
+        .with_child(Checkbox::new("").lens(MyRoute::visible))
         .with_default_spacer()
         .with_child(Either::new(
             |data: &MyRoute, _env: &Env| data.live,
@@ -1125,7 +1127,7 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
         .with_child(
             Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name)).with_font(HEADING_2),
         )
-        .with_child(Checkbox::new("").lens(MyAgency::selected))
+        .with_child(Checkbox::new("").lens(MyAgency::visible))
         .with_default_spacer()
         .with_child(Either::new(
             |data: &MyAgency, _env: &Env| data.live,

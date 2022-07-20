@@ -48,8 +48,9 @@ fn min_max_trips_coords(trips: &Vec<Vec<(f64, f64)>>) -> PathsRanges {
 
 pub struct MapWidget {
     mouse_position: Option<Point>,
-    trip_paths: Vec<BezPath>,
+    all_trip_paths: Vec<BezPath>,
     highlighted_trip_paths: Vec<BezPath>,
+    selected_trip_paths: Vec<BezPath>,
     stop_circles: Vec<Circle>,
     highlighted_stop_circle: Option<Circle>,
     zoom_level: f64,
@@ -63,8 +64,9 @@ impl MapWidget {
         println!("new widget");
         MapWidget {
             mouse_position: None,
-            trip_paths: Vec::new(),
+            all_trip_paths: Vec::new(),
             highlighted_trip_paths: Vec::new(),
+            selected_trip_paths: Vec::new(),
             stop_circles: Vec::new(),
             highlighted_stop_circle: None,
             zoom_level,
@@ -155,7 +157,7 @@ impl Widget<AppData> for MapWidget {
                 } else {
                     self.mouse_position = Some(mouse_event.pos);
                     let mut highlighted_trip_paths = Vec::new();
-                    for trip_path in &self.trip_paths {
+                    for trip_path in &self.all_trip_paths {
                         // if trip_path.
                         if trip_path.contains(mouse_event.pos) {
                             highlighted_trip_paths.push(trip_path.clone());
@@ -175,6 +177,7 @@ impl Widget<AppData> for MapWidget {
             Event::MouseUp(me) => {
                 if let Some(drag_start) = self.drag_start {
                     if me.pos == drag_start {
+                        // TODO differentiate between stop click and path click
                         for (stop_circle, stop) in
                             self.stop_circles.iter().zip(data.stops.iter_mut())
                         {
@@ -182,6 +185,13 @@ impl Widget<AppData> for MapWidget {
                                 ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
                             }
                         }
+                        // for (path, trip) in
+                        //     self.all_trip_paths.iter().zip(data.stops.iter_mut())
+                        // {
+                        //     if stop_circle.contains(me.pos) {
+                        //         ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
+                        //     }
+                        // }
                     } else {
                         // todo understand why .clear_cursor() doesn't work here
                         ctx.override_cursor(&Cursor::Arrow);
@@ -200,17 +210,17 @@ impl Widget<AppData> for MapWidget {
         env: &Env,
     ) {
         'outer: for (agency, old_agency) in data.agencies.iter().zip(old_data.agencies.iter()) {
-            if !agency.selected.same(&old_agency.selected) {
+            if !agency.visible.same(&old_agency.visible) {
                 ctx.request_paint();
                 break 'outer;
             } else {
                 for (route, old_route) in agency.routes.iter().zip(old_agency.routes.iter()) {
-                    if !route.selected.same(&old_route.selected) {
+                    if !route.visible.same(&old_route.visible) {
                         ctx.request_paint();
                         break 'outer;
                     } else {
                         for (trip, old_trip) in route.trips.iter().zip(old_route.trips.iter()) {
-                            if !trip.selected.same(&old_trip.selected) {
+                            if !trip.visible.same(&old_trip.visible) {
                                 ctx.request_paint();
                                 break 'outer;
                             } else {
@@ -267,14 +277,21 @@ impl Widget<AppData> for MapWidget {
         let rect = size.to_rect();
         ctx.fill(rect, &Color::grey(0.1));
 
-        let mut trips = data.trips_coords();
+        let mut trips_coords = data.trips_coords();
+        // dbg!(trips_coords.len());
 
         if let Some(limit) = self.limit {
-            trips = trips.iter().cloned().take(limit).collect::<Vec<_>>();
+            trips_coords = trips_coords.iter().cloned().take(limit).collect::<Vec<_>>();
         }
 
         // find size of path data
-        let ranges = min_max_trips_coords(&trips);
+        // TODO don't clone coord vecs
+        let ranges = min_max_trips_coords(
+            &trips_coords
+                .iter()
+                .map(|trip| trip.1.clone())
+                .collect::<Vec<_>>(),
+        );
         let width = ranges.longmax - ranges.longmin;
         let height = ranges.latmax - ranges.latmin;
 
@@ -300,11 +317,12 @@ impl Widget<AppData> for MapWidget {
         );
 
         // make trips paths
-        self.trip_paths = trips
+        self.all_trip_paths = trips_coords
             .iter()
-            .map(|trip| {
+            .filter(|(selected, _)| !selected)
+            .map(|(_, trip_coords)| {
                 let mut path = BezPath::new();
-                for (i, coord) in trip.iter().enumerate() {
+                for (i, coord) in trip_coords.iter().enumerate() {
                     if i == 0 {
                         path.move_to(MapWidget::long_lat_to_canvas(
                             coord,
@@ -337,13 +355,52 @@ impl Widget<AppData> for MapWidget {
             })
             .collect::<Vec<_>>();
 
-        for path in &self.trip_paths {
-            let stroke_color = Color::GREEN;
-            ctx.stroke(path, &stroke_color, 1.0);
+        self.selected_trip_paths = trips_coords
+            .iter()
+            .filter(|(selected, _)| *selected)
+            .map(|(_, trip_coords)| {
+                let mut path = BezPath::new();
+                for (i, coord) in trip_coords.iter().enumerate() {
+                    if i == 0 {
+                        path.move_to(MapWidget::long_lat_to_canvas(
+                            coord,
+                            ranges,
+                            width,
+                            height,
+                            zoomed_paint_width,
+                            zoomed_paint_height,
+                            x_padding,
+                            y_padding,
+                            self.focal_point,
+                            zoom,
+                        ));
+                    } else {
+                        path.line_to(MapWidget::long_lat_to_canvas(
+                            coord,
+                            ranges,
+                            width,
+                            height,
+                            zoomed_paint_width,
+                            zoomed_paint_height,
+                            x_padding,
+                            y_padding,
+                            self.focal_point,
+                            zoom,
+                        ));
+                    }
+                }
+                path
+            })
+            .collect::<Vec<_>>();
+
+        for path in &self.all_trip_paths {
+            ctx.stroke(path, &Color::GREEN, 1.0);
         }
         for path in &self.highlighted_trip_paths {
-            let stroke_color = Color::GREEN;
             ctx.stroke(path, &Color::NAVY, 3.);
+        }
+        for path in &self.selected_trip_paths {
+            ctx.stroke(path, &Color::YELLOW, 3.);
         }
 
         // if let Some(mouse_position) = self.mouse_position {
@@ -391,7 +448,7 @@ impl Widget<AppData> for MapWidget {
         if let Some(selected_circle) = selected_circle {
             ctx.fill(selected_circle, &Color::FUCHSIA);
         }
-        
+
         if let Some(circle) = self.highlighted_stop_circle {
             let circle = Circle::new(circle.center, if zoom > 6. { 6. * 1.4 } else { zoom * 1.4 });
             ctx.fill(circle, &Color::PURPLE);

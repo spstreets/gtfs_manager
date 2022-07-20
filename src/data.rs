@@ -116,6 +116,7 @@ impl ListItem for MyStopTime {
 #[derive(Clone, Data, Debug, Lens)]
 pub struct MyTrip {
     pub live: bool,
+    pub visible: bool,
     pub selected: bool,
     pub expanded: bool,
 
@@ -192,69 +193,11 @@ impl Data for MyRouteType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MyRGB8(pub RGB8);
-impl Data for MyRGB8 {
-    fn same(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct MyContinuousPickupDropOff(pub ContinuousPickupDropOff);
-impl MyContinuousPickupDropOff {
-    pub fn radio_vec() -> Vec<(String, MyContinuousPickupDropOff)> {
-        vec![
-            (
-                "Continuous".to_string(),
-                MyContinuousPickupDropOff(ContinuousPickupDropOff::Continuous),
-            ),
-            (
-                "NotAvailable".to_string(),
-                MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
-            ),
-            (
-                "ArrangeByPhone".to_string(),
-                MyContinuousPickupDropOff(ContinuousPickupDropOff::ArrangeByPhone),
-            ),
-            (
-                "CoordinateWithDriver".to_string(),
-                MyContinuousPickupDropOff(ContinuousPickupDropOff::CoordinateWithDriver),
-            ),
-            (
-                "Unknown(99)".to_string(),
-                MyContinuousPickupDropOff(ContinuousPickupDropOff::Unknown(99)),
-            ),
-        ]
-    }
-}
-impl Data for MyContinuousPickupDropOff {
-    fn same(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-#[derive(Data, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
-pub enum Fruit {
-    Apple,
-    Pear,
-    Orange,
-}
-impl Fruit {
-    pub fn radio_vec() -> Vec<(String, Fruit)> {
-        vec![
-            ("Apple".to_string(), Fruit::Apple),
-            ("Pear".to_string(), Fruit::Pear),
-            ("Orange".to_string(), Fruit::Orange),
-        ]
-    }
-}
-
 #[derive(Clone, Data, Lens)]
 pub struct MyRoute {
     pub new: bool,
     pub live: bool,
-    pub selected: bool,
+    pub visible: bool,
     pub expanded: bool,
 
     pub id: String,
@@ -279,7 +222,8 @@ impl ListItem for MyRoute {
     fn new_child(&mut self) -> String {
         let new_trip = MyTrip {
             live: true,
-            selected: true,
+            visible: true,
+            selected: false,
             expanded: false,
 
             id: Uuid::new_v4().to_string(),
@@ -305,7 +249,7 @@ impl ListItem for MyRoute {
     fn update_all(&mut self, value: bool) {
         // self.selected = value;
         self.trips.iter_mut().for_each(|trip| {
-            trip.selected = value;
+            trip.visible = value;
             trip.update_all(value);
         });
     }
@@ -328,7 +272,7 @@ impl ListItem for MyRoute {
 pub struct MyAgency {
     pub show_deleted: bool,
     pub live: bool,
-    pub selected: bool,
+    pub visible: bool,
     pub expanded: bool,
 
     pub id: Option<String>,
@@ -350,7 +294,7 @@ impl ListItem for MyAgency {
         let new_route = MyRoute {
             new: true,
             live: true,
-            selected: true,
+            visible: true,
             expanded: false,
             id: Uuid::new_v4().to_string(),
 
@@ -376,7 +320,7 @@ impl ListItem for MyAgency {
     }
     fn update_all(&mut self, value: bool) {
         self.routes.iter_mut().for_each(|route| {
-            route.selected = value;
+            route.visible = value;
             route.update_all(value);
         });
     }
@@ -460,31 +404,57 @@ impl ListItem for AppData {
         "null".to_string()
     }
 }
+// vector of trips (selected, vector of stop coords)
 impl AppData {
-    pub fn trips_coords(&self) -> Vec<Vec<(f64, f64)>> {
+    pub fn trips_coords(&self) -> Vec<(bool, Vec<(f64, f64)>)> {
         self.agencies
             .iter()
-            .filter(|agency| agency.selected)
+            .filter(|agency| agency.visible)
             .map(|agency| {
                 agency
                     .routes
                     .iter()
-                    .filter(|route| route.selected && route.trips.len() > 0)
+                    .filter(|route| route.visible && route.trips.len() > 0)
                     .map(|route| {
                         route
                             .trips
                             .iter()
-                            .filter(|trip| trip.selected)
+                            .filter(|trip| trip.visible)
                             .map(|trip| {
-                                trip.stops
-                                    .iter()
-                                    .filter(|stop| stop.selected)
-                                    .map(|stop| stop.coord)
-                                    .collect::<Vec<_>>()
+                                (
+                                    trip.selected,
+                                    trip.stops
+                                        .iter()
+                                        .filter(|stop| stop.selected)
+                                        .map(|stop| stop.coord)
+                                        .collect::<Vec<_>>(),
+                                )
                             })
-                            .flatten()
                             .collect::<Vec<_>>()
                     })
+                    .flatten()
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect::<Vec<_>>()
+    }
+    // TODO shouldn't do filtering here, should include flags with coords so can do filtering later
+    // TODO should be recording whether agencies/routes are visible/selected here...
+    pub fn flat_trips(&self) -> Vec<(bool, MyTrip)> {
+        self.agencies
+            .iter()
+            .map(|agency| {
+                agency
+                    .routes
+                    .iter()
+                    .map(|route| {
+                        route
+                            .trips
+                            .iter()
+                            .map(|trip| (agency.visible, trip.clone()))
+                            .collect::<Vec<_>>()
+                    })
+                    .flatten()
                     .collect::<Vec<_>>()
             })
             .flatten()
@@ -562,7 +532,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 .map(|route| MyRoute {
                     new: false,
                     live: true,
-                    selected: true,
+                    visible: true,
                     expanded: false,
 
                     id: route.id.clone(),
@@ -638,7 +608,8 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                             // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
                             MyTrip {
                                 live: true,
-                                selected: true,
+                                visible: true,
+                                selected: false,
                                 expanded: false,
 
                                 id: trip.id.clone(),
@@ -671,7 +642,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
             MyAgency {
                 show_deleted: true,
                 live: true,
-                selected: true,
+                visible: true,
                 expanded: false,
 
                 id: agency.id.clone(),
