@@ -28,6 +28,7 @@ pub const ITEM_UPDATE: Selector<(String, String)> = Selector::new("item.update")
 pub const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.child");
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
 pub const SHOW_STOP: Selector<String> = Selector::new("show.stop");
+pub const SELECT_AGENCY: Selector<String> = Selector::new("select.agency");
 
 pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
@@ -290,6 +291,19 @@ impl AppDelegate<AppData> for Delegate {
                     stop.selected = false;
                 }
             }
+            druid::Handled::Yes
+        } else if let Some(agency_id) = cmd.get(SELECT_AGENCY) {
+            dbg!(agency_id);
+            data.selected_agency = Some(agency_id.clone());
+            // data.routes.pop_back();
+            // for route in data.routes.iter_mut() {
+            //     if &route.agency_id == agency_id {
+            //         // stop.scroll_to_me += 1;
+            //         route.selected = true;
+            //     } else {
+            //         route.selected = false;
+            //     }
+            // }
             druid::Handled::Yes
         } else {
             druid::Handled::No

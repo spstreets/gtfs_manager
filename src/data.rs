@@ -382,7 +382,16 @@ pub struct AppData {
     #[data(ignore)]
     #[lens(ignore)]
     pub gtfs: Rc<MyGtfs>,
+
+    pub selected_agency: Option<String>,
+    pub selected_route: Option<String>,
+    pub selected_trip: Option<String>,
+    pub selected_stop_time: Option<String>,
+
     pub agencies: Vector<MyAgency>,
+    pub routes: Vector<MyRoute>,
+    pub trips: Vector<MyTrip>,
+    pub stop_times: Vector<MyStopTime>,
     pub stops: Vector<MyStop>,
     pub expanded: bool,
     pub actions: Vector<Action>,
@@ -665,13 +674,129 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
     //     .filter(|stop| filtered_stop_ids.contains(&stop.id))
     //     .collect::<Vec<_>>();
 
+    // let (start_index, end_index) = stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
+    // let mut stops = stop_times[start_index..end_index]
+    let mut stop_times = stop_times
+        .iter()
+        // .filter(|stop_time| stop_time.trip_id == trip.id)
+        .map(|stop_time| {
+            let stop = stop_map.get(&stop_time.stop_id).unwrap();
+            filtered_stop_ids.push(stop.id.clone());
+            MyStopTime {
+                live: true,
+                selected: true,
+
+                trip_id: stop_time.trip_id.clone(),
+                arrival_time: stop_time.arrival_time.clone(),
+                departure_time: stop_time.departure_time.clone(),
+                stop_id: stop_time.stop_id.clone(),
+                stop_sequence: stop_time.stop_sequence.clone(),
+                stop_headsign: stop_time.stop_headsign.clone(),
+                pickup_type: MyPickupDropOffType(stop_time.pickup_type.clone()),
+                drop_off_type: MyPickupDropOffType(stop_time.drop_off_type.clone()),
+                continuous_pickup: MyContinuousPickupDropOff(stop_time.continuous_pickup.clone()),
+                continuous_drop_off: MyContinuousPickupDropOff(
+                    stop_time.continuous_drop_off.clone(),
+                ),
+                shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
+                timepoint: MyTimepointType(stop_time.timepoint.clone()),
+
+                stop_time: Some(Rc::new(stop_time.clone())),
+                // stop_time: stop_time.clone(),
+                name: stop.name.clone(),
+                coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
+            }
+        })
+        .collect::<Vector<_>>();
+    stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
+
+    let trips = trips
+        .iter()
+        .enumerate()
+        // <limiting
+        // .enumerate()
+        // .filter(|(i, _)| if limited { *i < 5 } else { true })
+        // .map(|(_, x)| x)
+        // limiting>
+        .map(|(i, trip)| {
+            // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
+            MyTrip {
+                live: true,
+                visible: true,
+                selected: false,
+                expanded: false,
+
+                id: trip.id.clone(),
+                service_id: trip.service_id.clone(),
+                route_id: trip.route_id.clone(),
+                shape_id: trip.shape_id.clone(),
+                trip_headsign: trip.trip_headsign.clone(),
+                trip_short_name: trip.trip_short_name.clone(),
+                direction_id: trip.direction_id.map(|x| MyDirectionType(x)),
+                block_id: trip.block_id.clone(),
+                wheelchair_accessible: MyAvailability(trip.wheelchair_accessible),
+                bikes_allowed: MyBikesAllowedType(trip.bikes_allowed),
+
+                trip: Some(Rc::new(trip.clone())),
+                name: trip.id.clone(),
+                stops: Vector::new(),
+            }
+        })
+        .collect::<Vector<_>>();
+
+    let mut routes = routes
+        .iter()
+        // <limiting
+        .enumerate()
+        .filter(|(i, _)| if limited { *i < 40 } else { true })
+        .map(|(_, x)| x)
+        // limiting>
+        .map(|route| MyRoute {
+            new: false,
+            live: true,
+            visible: true,
+            expanded: false,
+
+            id: route.id.clone(),
+            short_name: route.short_name.clone(),
+            long_name: route.long_name.clone(),
+            desc: route.desc.clone(),
+            route_type: MyRouteType(route.route_type.clone()),
+            url: route.url.clone(),
+            agency_id: route.agency_id.clone(),
+            order: route.order.clone(),
+            color: MyRGB8(route.color.clone()),
+            text_color: MyRGB8(route.text_color.clone()),
+            continuous_pickup: MyContinuousPickupDropOff(route.continuous_pickup.clone()),
+            continuous_drop_off: MyContinuousPickupDropOff(route.continuous_drop_off.clone()),
+
+            route: Some(Rc::new(route.clone())),
+            trips: Vector::new(),
+        })
+        .collect::<Vector<_>>();
+    routes.sort_by(|route1, route2| {
+        route1
+            .route
+            .as_ref()
+            .unwrap()
+            .short_name
+            .cmp(&route2.route.as_ref().unwrap().short_name)
+    });
+
     let app_data = AppData {
         show_deleted: true,
         show_edits: false,
         show_actions: false,
         gtfs: Rc::new(my_gtfs),
+        selected_agency: None,
+        selected_route: None,
+        selected_trip: None,
+        selected_stop_time: None,
         expanded: true,
         agencies,
+        routes,
+        trips,
+        stop_times,
         stops: stops
             .iter()
             // .enumerate()

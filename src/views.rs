@@ -29,6 +29,7 @@ use filtered_list::FilteredList;
 
 // parameters
 const SPACING_1: f64 = 20.;
+const NARROW_LIST_WIDTH: f64 = 200.;
 const CORNER_RADIUS: f64 = 5.;
 const HEADING_1: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::BOLD)
@@ -404,6 +405,15 @@ pub fn stop_ui() -> impl Widget<MyStop> {
     .fix_width(600.)
 }
 
+pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
+    Container::new(
+        Label::new(|data: &MyStopTime, _env: &_| format!("{}", data.id()))
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .fix_width(NARROW_LIST_WIDTH)
+}
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
 pub fn stop_time_ui() -> impl Widget<MyStopTime> {
     let title = Flex::row()
@@ -649,6 +659,16 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
     .expand_width()
 }
 
+pub fn trip_ui_small() -> impl Widget<MyTrip> {
+    Container::new(
+        Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id()))
+            .with_font(HEADING_2)
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .fix_width(NARROW_LIST_WIDTH)
+}
 pub fn trip_ui() -> impl Widget<MyTrip> {
     let title = Flex::row()
         .with_child(
@@ -862,6 +882,15 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
     .expand_width()
 }
 
+pub fn route_ui_small() -> impl Widget<MyRoute> {
+    Container::new(
+        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .fix_width(NARROW_LIST_WIDTH)
+}
 pub fn route_ui() -> impl Widget<MyRoute> {
     let title = Flex::row()
         .with_child(
@@ -1079,49 +1108,61 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
-    let children_header = Flex::row()
-        .with_child(Expander::new("Trip variants").lens(MyRoute::expanded))
-        .with_child(Either::new(
-            |data: &MyRoute, _: &_| data.expanded,
-            child_buttons(),
-            Flex::row(),
-        ))
-        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-        .expand_width();
+    // let children_header = Flex::row()
+    //     .with_child(Expander::new("Trip variants").lens(MyRoute::expanded))
+    //     .with_child(Either::new(
+    //         |data: &MyRoute, _: &_| data.expanded,
+    //         child_buttons(),
+    //         Flex::row(),
+    //     ))
+    //     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+    //     .expand_width();
 
-    let children = Either::new(
-        |data: &MyRoute, _env: &Env| data.expanded,
-        FilteredList::new(
-            List::new(trip_ui).with_spacing(10.),
-            |item_data: &MyTrip, filtered: &()| item_data.live,
-        )
-        .lens(druid::lens::Map::new(
-            |data: &MyRoute| (data.trips.clone(), ()),
-            |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
-                data.trips = inner.0;
-                // data.filter = inner.1;
-            },
-        )),
-        Flex::row(),
-    );
+    // let children = Either::new(
+    //     |data: &MyRoute, _env: &Env| data.expanded,
+    //     FilteredList::new(
+    //         List::new(trip_ui).with_spacing(10.),
+    //         |item_data: &MyTrip, filtered: &()| item_data.live,
+    //     )
+    //     .lens(druid::lens::Map::new(
+    //         |data: &MyRoute| (data.trips.clone(), ()),
+    //         |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
+    //             data.trips = inner.0;
+    //             // data.filter = inner.1;
+    //         },
+    //     )),
+    //     Flex::row(),
+    // );
 
     Container::new(
         Flex::column()
             .with_child(title)
             .with_spacer(SPACING_1)
             .with_child(fields)
-            .with_spacer(SPACING_1)
-            .with_child(children_header)
-            .with_default_spacer()
-            .with_child(children)
+            // .with_spacer(SPACING_1)
+            // .with_child(children_header)
+            // .with_default_spacer()
+            // .with_child(children)
             .cross_axis_alignment(CrossAxisAlignment::Start)
             .padding((10., 10., 10., 10.)),
     )
     .rounded(CORNER_RADIUS)
     .background(Color::grey(0.16))
-    .expand_width()
+    .fix_width(600.)
 }
 
+pub fn agency_ui_small() -> impl Widget<MyAgency> {
+    Container::new(
+        Button::new(|data: &MyAgency, _env: &_| format!("{}", data.name))
+            .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+                ctx.submit_command(SELECT_AGENCY.with(data.id.clone().unwrap()))
+            })
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .fix_width(NARROW_LIST_WIDTH)
+}
 pub fn agency_ui() -> impl Widget<MyAgency> {
     let title = Flex::row()
         .with_child(
@@ -1223,41 +1264,41 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
-    let children_header = Flex::row()
-        .with_child(Expander::new("Routes").lens(MyAgency::expanded))
-        .with_child(Either::new(
-            |data: &MyAgency, _: &_| data.expanded,
-            child_buttons(),
-            Flex::row(),
-        ))
-        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-        .expand_width();
+    // let children_header = Flex::row()
+    //     .with_child(Expander::new("Routes").lens(MyAgency::expanded))
+    //     .with_child(Either::new(
+    //         |data: &MyAgency, _: &_| data.expanded,
+    //         child_buttons(),
+    //         Flex::row(),
+    //     ))
+    //     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+    //     .expand_width();
 
-    let children = Either::new(
-        |data: &MyAgency, _env: &Env| data.expanded,
-        FilteredList::new(
-            List::new(route_ui).with_spacing(10.),
-            |item_data: &MyRoute, filtered: &()| item_data.live,
-        )
-        .lens(druid::lens::Map::new(
-            |data: &MyAgency| (data.routes.clone(), ()),
-            |data: &mut MyAgency, inner: (Vector<MyRoute>, ())| {
-                data.routes = inner.0;
-                // data.filter = inner.1;
-            },
-        )),
-        Flex::row(),
-    );
+    // let children = Either::new(
+    //     |data: &MyAgency, _env: &Env| data.expanded,
+    //     FilteredList::new(
+    //         List::new(route_ui).with_spacing(10.),
+    //         |item_data: &MyRoute, filtered: &()| item_data.live,
+    //     )
+    //     .lens(druid::lens::Map::new(
+    //         |data: &MyAgency| (data.routes.clone(), ()),
+    //         |data: &mut MyAgency, inner: (Vector<MyRoute>, ())| {
+    //             data.routes = inner.0;
+    //             // data.filter = inner.1;
+    //         },
+    //     )),
+    //     Flex::row(),
+    // );
 
     Container::new(
         Flex::column()
             .with_child(title)
             .with_spacer(SPACING_1)
             .with_child(fields)
-            .with_spacer(SPACING_1)
-            .with_child(children_header)
-            .with_default_spacer()
-            .with_child(children)
+            // .with_spacer(SPACING_1)
+            // .with_child(children_header)
+            // .with_default_spacer()
+            // .with_child(children)
             .cross_axis_alignment(CrossAxisAlignment::Start)
             .padding((10., 10., 10., 10.)),
     )
@@ -1313,73 +1354,78 @@ pub fn main_widget() -> impl Widget<AppData> {
     println!("make main widget");
     let map_widget = (MapWidget::new(1., 1., Point::ZERO)).expand();
 
-    let agencies_header = Flex::row()
-        .with_child(Expander::new("Agencies").lens(AppData::expanded))
-        .with_child(Either::new(
-            |data: &AppData, _: &_| data.expanded,
-            child_buttons(),
-            Flex::row(),
-        ))
-        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-        .expand_width();
+    // let agencies_header = Flex::row()
+    //     .with_child(Expander::new("Agencies").lens(AppData::expanded))
+    //     .with_child(Either::new(
+    //         |data: &AppData, _: &_| data.expanded,
+    //         child_buttons(),
+    //         Flex::row(),
+    //     ))
+    //     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+    //     .expand_width();
 
-    let agencies = Either::new(
-        |data: &AppData, _env: &Env| data.expanded,
-        Scroll::new(
-            Flex::column().with_child(
-                List::new(agency_ui)
-                    .with_spacing(10.)
-                    .lens(AppData::agencies),
-            ),
-        )
-        .fix_width(600.),
-        Flex::row().fix_width(600.),
+    let agencies = Scroll::new(
+        Flex::column().with_child(
+            List::new(agency_ui_small)
+                .with_spacing(10.)
+                .lens(AppData::agencies),
+        ),
     )
-    // Scroll::new(
-    //     Flex::column().with_child(update_all_buttons()).with_child(
-    //         List::new(agency_ui)
-    //             .with_spacing(10.)
-    //             .lens(AppData::agencies),
-    //     ),
-    // )
-    .fix_width(600.);
+    .fix_width(NARROW_LIST_WIDTH);
+
+    let routes = Scroll::new(
+        Flex::column().with_child(
+            FilteredList::new(
+                List::new(route_ui_small).with_spacing(10.),
+                |route: &MyRoute, filtered: &Option<String>| {
+                    // TODO properly handle cases with no agency id so is None
+                    filtered.as_ref().map_or(false, |id| {
+                        route
+                            .agency_id
+                            .as_ref()
+                            .map_or(true, |agency_id| agency_id == id)
+                    })
+                },
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
+                |data: &mut AppData, inner: (Vector<MyRoute>, Option<String>)| {
+                    data.routes = inner.0;
+                    data.selected_agency = inner.1;
+                },
+            )),
+        ),
+    )
+    .fix_width(NARROW_LIST_WIDTH);
+
+    let trips = Scroll::new(
+        Flex::column().with_child(
+            List::new(trip_ui_small)
+                .with_spacing(10.)
+                .lens(AppData::trips),
+        ),
+    )
+    .fix_width(NARROW_LIST_WIDTH);
+
+    let stop_times = Scroll::new(
+        Flex::column().with_child(
+            List::new(stop_time_ui_small)
+                .with_spacing(10.)
+                .lens(AppData::stop_times),
+        ),
+    )
+    .fix_width(NARROW_LIST_WIDTH);
 
     Flex::row()
         .with_child(
-            Flex::column()
-                .with_child(Checkbox::new("show deleted").lens(AppData::show_deleted))
+            Flex::row()
+                .with_child(agencies)
                 .with_default_spacer()
-                .with_child(Expander::new("Edits").lens(AppData::show_edits))
+                .with_child(routes)
                 .with_default_spacer()
-                .with_child(
-                    Either::new(
-                        |data: &AppData, _env: &Env| data.show_edits,
-                        List::new(edit)
-                            .with_spacing(10.)
-                            .lens(AppData::edits)
-                            .fix_width(600.),
-                        Flex::row().fix_width(600.),
-                    )
-                    .fix_width(600.),
-                )
+                .with_child(trips)
                 .with_default_spacer()
-                .with_child(Expander::new("Actions").lens(AppData::show_actions))
-                .with_default_spacer()
-                .with_child(
-                    Either::new(
-                        |data: &AppData, _env: &Env| data.show_actions,
-                        List::new(action)
-                            .with_spacing(10.)
-                            .lens(AppData::actions)
-                            .fix_width(600.),
-                        Flex::row().fix_width(600.),
-                    )
-                    .fix_width(600.),
-                )
-                .with_default_spacer()
-                .with_child(agencies_header.fix_width(600.))
-                .with_default_spacer()
-                .with_flex_child(agencies, 1.)
+                .with_child(stop_times)
                 .cross_axis_alignment(CrossAxisAlignment::Start),
         )
         // .with_default_spacer()
@@ -1400,21 +1446,21 @@ pub fn main_widget() -> impl Widget<AppData> {
         //     )
         //     .fix_width(600.),
         // )
-        .with_default_spacer()
-        .with_child(
-            FilteredList::new(
-                List::new(stop_ui).with_spacing(10.),
-                |stop: &MyStop, filtered: &()| stop.selected,
-            )
-            .lens(druid::lens::Map::new(
-                |data: &AppData| (data.stops.clone(), ()),
-                |data: &mut AppData, inner: (Vector<MyStop>, ())| {
-                    data.stops = inner.0;
-                    // data.filter = inner.1;
-                },
-            ))
-            .fix_width(600.),
-        )
+        // .with_default_spacer()
+        // .with_child(
+        //     FilteredList::new(
+        //         List::new(stop_ui).with_spacing(10.),
+        //         |stop: &MyStop, filtered: &()| stop.selected,
+        //     )
+        //     .lens(druid::lens::Map::new(
+        //         |data: &AppData| (data.stops.clone(), ()),
+        //         |data: &mut AppData, inner: (Vector<MyStop>, ())| {
+        //             data.stops = inner.0;
+        //             // data.filter = inner.1;
+        //         },
+        //     ))
+        //     .fix_width(600.),
+        // )
         .with_spacer(20.)
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
         .cross_axis_alignment(CrossAxisAlignment::Start)
