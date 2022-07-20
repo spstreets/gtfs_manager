@@ -107,7 +107,7 @@ SQLite could allow faster querying
 It seems like the app is going to need the entire dataset loaded into memory anyway, given most of the size is from shapes.txt and we will also want to immediately display all the route on the map, so being able to store the data on disk and query a subset of it doesn't seem to be necessary.
 
 SQLite would allow working with very large datasets
-It doesn't seem like any individual datasets will be too large to read into memory, but this could be useful for working with multiple datasets. But again, either we display multiple datasets at the same time in which case they need to fit in memory, else we are switching between them and can just drop them then load the next one, which could be quick for switching back and forth if we serialize them.
+It doesn't seem like any individual datasets will be too large to read into memory, but this could be useful for working with multiple datasets. But again, either we display multiple datasets at the same time in which case they need to fit in memory, else we are switching between them and can just drop them then load the next one, which could be quick for switching back and forth if we serialize them. UPDATE: the only part of the UI which would display everything at once is the map, which doesn't need all the data stored in memory.
 
 ## editing
 
