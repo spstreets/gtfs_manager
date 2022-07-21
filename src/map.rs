@@ -1,6 +1,8 @@
 use druid::im::Vector;
 use druid::kurbo::{BezPath, Circle, Shape};
-use druid::piet::{FontFamily, ImageFormat, InterpolationMode, Text, TextLayoutBuilder};
+use druid::piet::{
+    CairoImage, Device, FontFamily, ImageFormat, InterpolationMode, Text, TextLayoutBuilder,
+};
 use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
 use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
 use druid::{
@@ -58,6 +60,8 @@ pub struct MapWidget {
     drag_start: Option<Point>,
     focal_point: Point,
     limit: Option<usize>,
+    cached_image: Option<CairoImage>,
+    redraw: bool,
 }
 impl MapWidget {
     pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
@@ -74,6 +78,8 @@ impl MapWidget {
             drag_start: None,
             focal_point: offset,
             limit: Some(50),
+            cached_image: None,
+            redraw: true,
         }
     }
 
@@ -209,33 +215,38 @@ impl Widget<AppData> for MapWidget {
         data: &AppData,
         env: &Env,
     ) {
-        'outer: for (agency, old_agency) in data.agencies.iter().zip(old_data.agencies.iter()) {
-            if !agency.visible.same(&old_agency.visible) {
-                ctx.request_paint();
-                break 'outer;
-            } else {
-                for (route, old_route) in agency.routes.iter().zip(old_agency.routes.iter()) {
-                    if !route.visible.same(&old_route.visible) {
-                        ctx.request_paint();
-                        break 'outer;
-                    } else {
-                        for (trip, old_trip) in route.trips.iter().zip(old_route.trips.iter()) {
-                            if !trip.visible.same(&old_trip.visible) {
-                                ctx.request_paint();
-                                break 'outer;
-                            } else {
-                                for (stop, old_stop) in trip.stops.iter().zip(old_trip.stops.iter())
-                                {
-                                    if !stop.selected.same(&old_stop.selected) {
-                                        ctx.request_paint();
-                                        break 'outer;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // 'outer: for (agency, old_agency) in data.agencies.iter().zip(old_data.agencies.iter()) {
+        //     if !agency.visible.same(&old_agency.visible) {
+        //         ctx.request_paint();
+        //         break 'outer;
+        //     } else {
+        //         for (route, old_route) in agency.routes.iter().zip(old_agency.routes.iter()) {
+        //             if !route.visible.same(&old_route.visible) {
+        //                 ctx.request_paint();
+        //                 break 'outer;
+        //             } else {
+        //                 for (trip, old_trip) in route.trips.iter().zip(old_route.trips.iter()) {
+        //                     if !trip.visible.same(&old_trip.visible) {
+        //                         ctx.request_paint();
+        //                         break 'outer;
+        //                     } else {
+        //                         for (stop, old_stop) in trip.stops.iter().zip(old_trip.stops.iter())
+        //                         {
+        //                             if !stop.selected.same(&old_stop.selected) {
+        //                                 ctx.request_paint();
+        //                                 break 'outer;
+        //                             }
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+
+        // TODO is this ok or need to loop through and compare items?
+        if !data.trips.same(&old_data.trips) {
+            ctx.request_paint();
         }
 
         // if !old_data.same(data) {
@@ -273,188 +284,237 @@ impl Widget<AppData> for MapWidget {
         // RenderContext
 
         // todo encode gtfs coords and painting coords into two distinct types for clarity
+
         let size = ctx.size();
         let rect = size.to_rect();
-        ctx.fill(rect, &Color::grey(0.1));
+        // ctx.fill(rect, &Color::grey(0.1));
 
-        let mut trips_coords = data.trips_coords();
-        dbg!(trips_coords.len());
+        if self.redraw {
+            self.redraw = false;
 
-        if let Some(limit) = self.limit {
-            trips_coords = trips_coords.iter().cloned().take(limit).collect::<Vec<_>>();
-        }
+            let mut trips_coords = data.trips_coords();
 
-        // find size of path data
-        // TODO don't clone coord vecs
-        let ranges = min_max_trips_coords(
-            &trips_coords
-                .iter()
-                .map(|trip| trip.1.clone())
-                .collect::<Vec<_>>(),
-        );
-        let width = ranges.longmax - ranges.longmin;
-        let height = ranges.latmax - ranges.latmin;
-
-        // calculate size of maximum properly propotioned box we can paint in
-        let (mut paint_width, mut paint_height) = if width > height {
-            (size.width, size.height * height / width)
-        } else {
-            (size.width * width / height, size.height)
-        };
-
-        let zoom = self.zoom_level;
-        let (zoomed_paint_width, zoomed_paint_height) = (paint_width * zoom, paint_height * zoom);
-
-        let (x_padding, y_padding) = MapWidget::calculate_padding(
-            width,
-            height,
-            size,
-            zoom,
-            zoomed_paint_width,
-            zoomed_paint_height,
-            paint_width,
-            paint_height,
-        );
-
-        // make trips paths
-        self.all_trip_paths = trips_coords
-            .iter()
-            .filter(|(selected, _)| !selected)
-            .map(|(_, trip_coords)| {
-                let mut path = BezPath::new();
-                for (i, coord) in trip_coords.iter().enumerate() {
-                    if i == 0 {
-                        path.move_to(MapWidget::long_lat_to_canvas(
-                            coord,
-                            ranges,
-                            width,
-                            height,
-                            zoomed_paint_width,
-                            zoomed_paint_height,
-                            x_padding,
-                            y_padding,
-                            self.focal_point,
-                            zoom,
-                        ));
-                    } else {
-                        path.line_to(MapWidget::long_lat_to_canvas(
-                            coord,
-                            ranges,
-                            width,
-                            height,
-                            zoomed_paint_width,
-                            zoomed_paint_height,
-                            x_padding,
-                            y_padding,
-                            self.focal_point,
-                            zoom,
-                        ));
-                    }
-                }
-                path
-            })
-            .collect::<Vec<_>>();
-        dbg!(self.all_trip_paths.len());
-
-        self.selected_trip_paths = trips_coords
-            .iter()
-            .filter(|(selected, _)| *selected)
-            .map(|(_, trip_coords)| {
-                let mut path = BezPath::new();
-                for (i, coord) in trip_coords.iter().enumerate() {
-                    if i == 0 {
-                        path.move_to(MapWidget::long_lat_to_canvas(
-                            coord,
-                            ranges,
-                            width,
-                            height,
-                            zoomed_paint_width,
-                            zoomed_paint_height,
-                            x_padding,
-                            y_padding,
-                            self.focal_point,
-                            zoom,
-                        ));
-                    } else {
-                        path.line_to(MapWidget::long_lat_to_canvas(
-                            coord,
-                            ranges,
-                            width,
-                            height,
-                            zoomed_paint_width,
-                            zoomed_paint_height,
-                            x_padding,
-                            y_padding,
-                            self.focal_point,
-                            zoom,
-                        ));
-                    }
-                }
-                path
-            })
-            .collect::<Vec<_>>();
-        dbg!(self.selected_trip_paths.len());
-
-        for path in &self.all_trip_paths {
-            dbg!(path);
-            ctx.stroke(path, &Color::GREEN, 1.0);
-        }
-        for path in &self.highlighted_trip_paths {
-            ctx.stroke(path, &Color::NAVY, 3.);
-        }
-        for path in &self.selected_trip_paths {
-            ctx.stroke(path, &Color::YELLOW, 3.);
-        }
-
-        // if let Some(mouse_position) = self.mouse_position {
-        //     let circle = Circle::new(mouse_position, 10.);
-        //     ctx.fill(circle, &Color::OLIVE);
-        // }
-
-        self.stop_circles = data
-            .stops
-            .iter()
-            .map(|stop| {
-                Circle::new(
-                    MapWidget::long_lat_to_canvas(
-                        &(stop.coord.0, stop.coord.1),
-                        ranges,
-                        width,
-                        height,
-                        zoomed_paint_width,
-                        zoomed_paint_height,
-                        x_padding,
-                        y_padding,
-                        self.focal_point,
-                        zoom,
-                    ),
-                    if zoom > 6. { 6. } else { zoom },
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let mut selected_circle = None;
-        for (circle, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
-            if stop.selected {
-                selected_circle = Some(Circle::new(
-                    circle.center,
-                    if circle.radius < 2. {
-                        2. * 1.4
-                    } else {
-                        circle.radius * 1.4
-                    },
-                ));
-            } else {
-                ctx.fill(circle, &Color::BLUE);
+            if let Some(limit) = self.limit {
+                trips_coords = trips_coords.iter().cloned().take(limit).collect::<Vec<_>>();
             }
-        }
-        if let Some(selected_circle) = selected_circle {
-            ctx.fill(selected_circle, &Color::FUCHSIA);
-        }
 
-        if let Some(circle) = self.highlighted_stop_circle {
-            let circle = Circle::new(circle.center, if zoom > 6. { 6. * 1.4 } else { zoom * 1.4 });
-            ctx.fill(circle, &Color::PURPLE);
+            // find size of path data
+            // TODO don't clone coord vecs
+            let ranges = min_max_trips_coords(
+                &trips_coords
+                    .iter()
+                    .map(|trip| trip.1.clone())
+                    .collect::<Vec<_>>(),
+            );
+            let width = ranges.longmax - ranges.longmin;
+            let height = ranges.latmax - ranges.latmin;
+
+            // calculate size of maximum properly propotioned box we can paint in
+            let (mut paint_width, mut paint_height) = if width > height {
+                (size.width, size.height * height / width)
+            } else {
+                (size.width * width / height, size.height)
+            };
+
+            let zoom = self.zoom_level;
+            let (zoomed_paint_width, zoomed_paint_height) =
+                (paint_width * zoom, paint_height * zoom);
+
+            let (x_padding, y_padding) = MapWidget::calculate_padding(
+                width,
+                height,
+                size,
+                zoom,
+                zoomed_paint_width,
+                zoomed_paint_height,
+                paint_width,
+                paint_height,
+            );
+
+            // make trips paths
+            self.all_trip_paths = trips_coords
+                .iter()
+                .filter(|(selected, _)| !selected)
+                .map(|(_, trip_coords)| {
+                    let mut path = BezPath::new();
+                    for (i, coord) in trip_coords.iter().enumerate() {
+                        if i == 0 {
+                            path.move_to(MapWidget::long_lat_to_canvas(
+                                coord,
+                                ranges,
+                                width,
+                                height,
+                                zoomed_paint_width,
+                                zoomed_paint_height,
+                                x_padding,
+                                y_padding,
+                                self.focal_point,
+                                zoom,
+                            ));
+                        } else {
+                            path.line_to(MapWidget::long_lat_to_canvas(
+                                coord,
+                                ranges,
+                                width,
+                                height,
+                                zoomed_paint_width,
+                                zoomed_paint_height,
+                                x_padding,
+                                y_padding,
+                                self.focal_point,
+                                zoom,
+                            ));
+                        }
+                    }
+                    path
+                })
+                .collect::<Vec<_>>();
+
+            self.selected_trip_paths = trips_coords
+                .iter()
+                .filter(|(selected, _)| *selected)
+                .map(|(_, trip_coords)| {
+                    let mut path = BezPath::new();
+                    for (i, coord) in trip_coords.iter().enumerate() {
+                        if i == 0 {
+                            path.move_to(MapWidget::long_lat_to_canvas(
+                                coord,
+                                ranges,
+                                width,
+                                height,
+                                zoomed_paint_width,
+                                zoomed_paint_height,
+                                x_padding,
+                                y_padding,
+                                self.focal_point,
+                                zoom,
+                            ));
+                        } else {
+                            path.line_to(MapWidget::long_lat_to_canvas(
+                                coord,
+                                ranges,
+                                width,
+                                height,
+                                zoomed_paint_width,
+                                zoomed_paint_height,
+                                x_padding,
+                                y_padding,
+                                self.focal_point,
+                                zoom,
+                            ));
+                        }
+                    }
+                    path
+                })
+                .collect::<Vec<_>>();
+
+            self.stop_circles = data
+                .stops
+                .iter()
+                .map(|stop| {
+                    Circle::new(
+                        MapWidget::long_lat_to_canvas(
+                            &(stop.coord.0, stop.coord.1),
+                            ranges,
+                            width,
+                            height,
+                            zoomed_paint_width,
+                            zoomed_paint_height,
+                            x_padding,
+                            y_padding,
+                            self.focal_point,
+                            zoom,
+                        ),
+                        if zoom > 6. { 6. } else { zoom },
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            let mut cached_image;
+            {
+                let mut device = Device::new().unwrap();
+                let mut target = device.bitmap_target(1000, 1000, 1.).unwrap();
+                let mut piet_context = target.render_context();
+
+                piet_context.save();
+                piet_context.transform(Affine::scale(1000. / ctx.size().height));
+
+                // paint the map
+                for path in &self.all_trip_paths {
+                    piet_context.stroke(path, &Color::GREEN, 1.0);
+                }
+                for path in &self.highlighted_trip_paths {
+                    piet_context.stroke(path, &Color::NAVY, 3.);
+                }
+                for path in &self.selected_trip_paths {
+                    piet_context.stroke(path, &Color::YELLOW, 3.);
+                }
+
+                // if let Some(mouse_position) = self.mouse_position {
+                //     let circle = Circle::new(mouse_position, 10.);
+                //     ctx.fill(circle, &Color::OLIVE);
+                // }
+
+                let mut selected_circle = None;
+                for (circle, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+                    if stop.selected {
+                        selected_circle = Some(Circle::new(
+                            circle.center,
+                            if circle.radius < 2. {
+                                2. * 1.4
+                            } else {
+                                circle.radius * 1.4
+                            },
+                        ));
+                    } else {
+                        piet_context.fill(circle, &Color::BLUE);
+                    }
+                }
+                if let Some(selected_circle) = selected_circle {
+                    piet_context.fill(selected_circle, &Color::FUCHSIA);
+                }
+
+                if let Some(circle) = self.highlighted_stop_circle {
+                    let circle =
+                        Circle::new(circle.center, if zoom > 6. { 6. * 1.4 } else { zoom * 1.4 });
+                    piet_context.fill(circle, &Color::PURPLE);
+                }
+
+                piet_context.restore();
+                // piet_context.with_save(|ctx| {
+                //     {}
+                //     Ok(())
+                // });
+
+                piet_context.finish().unwrap();
+                let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+                // let cached_image = ctx
+                cached_image = ctx
+                    .make_image(
+                        1000,
+                        1000,
+                        // image_buf.to_image(piet_context),
+                        image_buf.raw_pixels(),
+                        ImageFormat::RgbaPremul,
+                    )
+                    .unwrap();
+            }
+            // std::mem::drop(piet_context);
+            // let cached_image = image_buf.to_image(ctx);
+            self.cached_image = Some(cached_image);
+            ctx.draw_image(
+                &self.cached_image.as_ref().unwrap(),
+                rect,
+                InterpolationMode::Bilinear,
+            );
+        } else {
+            ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+            ctx.transform(Affine::scale(self.zoom_level));
+            ctx.draw_image(
+                &self.cached_image.as_ref().unwrap(),
+                rect,
+                InterpolationMode::Bilinear,
+            );
         }
     }
 
