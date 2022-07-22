@@ -787,7 +787,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         .iter()
         // <limiting
         .enumerate()
-        .filter(|(i, _)| if limited { *i < 40 } else { true })
+        // .filter(|(i, _)| if limited { *i < 40 } else { true })
         .map(|(_, x)| x)
         // limiting>
         .map(|route| MyRoute {

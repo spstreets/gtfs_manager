@@ -55,13 +55,15 @@ pub struct MapWidget {
     selected_trip_paths: Vec<BezPath>,
     stop_circles: Vec<Circle>,
     highlighted_stop_circle: Option<Circle>,
+    selected_stop_circle: Option<Circle>,
     zoom_level: f64,
     speed: f64,
     drag_start: Option<Point>,
     focal_point: Point,
     limit: Option<usize>,
     cached_image: Option<CairoImage>,
-    redraw: bool,
+    redraw_base: bool,
+    redraw_highlights: bool,
 }
 impl MapWidget {
     pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
@@ -73,13 +75,16 @@ impl MapWidget {
             selected_trip_paths: Vec::new(),
             stop_circles: Vec::new(),
             highlighted_stop_circle: None,
+            selected_stop_circle: None,
             zoom_level,
             speed,
             drag_start: None,
             focal_point: offset,
-            limit: Some(50),
+            // limit: Some(50),
+            limit: None,
             cached_image: None,
-            redraw: true,
+            redraw_base: true,
+            redraw_highlights: true,
         }
     }
 
@@ -126,6 +131,16 @@ impl MapWidget {
             - focal_point.y * zoom;
         Point::new(x2, y2)
     }
+
+    fn draw_cache(&self, ctx: &mut PaintCtx, rect: Rect) {
+        ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+        ctx.transform(Affine::scale(self.zoom_level));
+        ctx.draw_image(
+            &self.cached_image.as_ref().unwrap(),
+            rect,
+            InterpolationMode::Bilinear,
+        );
+    }
 }
 impl Widget<AppData> for MapWidget {
     fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppData, env: &Env) {
@@ -166,6 +181,7 @@ impl Widget<AppData> for MapWidget {
                     for trip_path in &self.all_trip_paths {
                         // if trip_path.
                         if trip_path.contains(mouse_event.pos) {
+                            self.redraw_highlights = true;
                             highlighted_trip_paths.push(trip_path.clone());
                         }
                     }
@@ -174,6 +190,7 @@ impl Widget<AppData> for MapWidget {
                     self.highlighted_stop_circle = None;
                     for circle in &self.stop_circles {
                         if circle.contains(mouse_event.pos) {
+                            self.redraw_highlights = true;
                             self.highlighted_stop_circle = Some(circle.clone());
                         }
                     }
@@ -184,10 +201,13 @@ impl Widget<AppData> for MapWidget {
                 if let Some(drag_start) = self.drag_start {
                     if me.pos == drag_start {
                         // TODO differentiate between stop click and path click
+                        // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
                         for (stop_circle, stop) in
                             self.stop_circles.iter().zip(data.stops.iter_mut())
                         {
                             if stop_circle.contains(me.pos) {
+                                self.redraw_highlights = true;
+                                self.selected_stop_circle = Some(*stop_circle);
                                 ctx.submit_command(SELECT_STOP.with(stop.id.clone()));
                             }
                         }
@@ -290,9 +310,10 @@ impl Widget<AppData> for MapWidget {
         ctx.clip(rect);
         // ctx.fill(rect, &Color::grey(0.1));
 
-        if self.redraw {
+        if self.redraw_base {
             dbg!("redraw");
-            self.redraw = false;
+            self.redraw_base = false;
+            self.redraw_highlights = false;
 
             let mut trips_coords = data.trips_coords();
 
@@ -509,14 +530,35 @@ impl Widget<AppData> for MapWidget {
                 rect,
                 InterpolationMode::Bilinear,
             );
+        } else if self.redraw_highlights {
+            dbg!("redraw highlights");
+            self.draw_cache(ctx, rect);
+            ctx.fill(Circle::new(Point::new(100., 100.), 50.), &Color::FUCHSIA);
+            for path in &self.highlighted_trip_paths {
+                ctx.stroke(path, &Color::NAVY, 3.);
+            }
+            for path in &self.selected_trip_paths {
+                ctx.stroke(path, &Color::YELLOW, 3.);
+            }
+            if let Some(selected_circle) = self.selected_stop_circle {
+                ctx.fill(selected_circle, &Color::FUCHSIA);
+            }
+
+            if let Some(circle) = self.highlighted_stop_circle {
+                let circle = Circle::new(
+                    circle.center,
+                    if self.zoom_level > 6. {
+                        6. * 1.4
+                    } else {
+                        self.zoom_level * 1.4
+                    },
+                );
+                ctx.fill(circle, &Color::PURPLE);
+            }
+            self.redraw_highlights = false;
         } else {
-            ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
-            ctx.transform(Affine::scale(self.zoom_level));
-            ctx.draw_image(
-                &self.cached_image.as_ref().unwrap(),
-                rect,
-                InterpolationMode::Bilinear,
-            );
+            dbg!("use cache");
+            self.draw_cache(ctx, rect);
         }
     }
 
