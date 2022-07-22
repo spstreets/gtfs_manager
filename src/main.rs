@@ -20,7 +20,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use gtfs_manager::{main_widget, make_initial_data, AppData, Delegate, ListItem, MapWidget};
+use gtfs_manager::{main_widget, make_initial_data, AppData, Delegate, ListItem};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

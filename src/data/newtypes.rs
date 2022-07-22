@@ -220,3 +220,29 @@ impl Data for MyContinuousPickupDropOff {
         self.0 == other.0
     }
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MyRouteType(pub RouteType);
+impl MyRouteType {
+    pub fn radio_vec() -> Vec<(String, MyRouteType)> {
+        vec![
+            ("Tramway".to_string(), MyRouteType(RouteType::Tramway)),
+            ("Subway".to_string(), MyRouteType(RouteType::Subway)),
+            ("Rail".to_string(), MyRouteType(RouteType::Rail)),
+            ("Bus".to_string(), MyRouteType(RouteType::Bus)),
+            ("Ferry".to_string(), MyRouteType(RouteType::Ferry)),
+            ("CableCar".to_string(), MyRouteType(RouteType::CableCar)),
+            ("Gondola".to_string(), MyRouteType(RouteType::Gondola)),
+            ("Funicular".to_string(), MyRouteType(RouteType::Funicular)),
+            ("Coach".to_string(), MyRouteType(RouteType::Coach)),
+            ("Air".to_string(), MyRouteType(RouteType::Air)),
+            ("Taxi".to_string(), MyRouteType(RouteType::Taxi)),
+            ("Other(99)".to_string(), MyRouteType(RouteType::Other(99))),
+        ]
+    }
+}
+impl Data for MyRouteType {
+    fn same(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
