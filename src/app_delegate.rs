@@ -71,6 +71,7 @@ impl AppDelegate<AppData> for Delegate {
         data: &mut AppData,
         env: &Env,
     ) -> druid::Handled {
+        dbg!("command");
         if let Some(item_delete) = cmd.get(ITEM_DELETE) {
             dbg!(item_delete);
 
@@ -328,20 +329,20 @@ impl AppDelegate<AppData> for Delegate {
             }
             druid::Handled::Yes
         } else if let Some(route_id) = cmd.get(SELECT_ROUTE) {
-            if data.selected_route != Some(route_id.clone()) {
-                data.selected_route = Some(route_id.clone());
-            }
-            data.selected_trip = None;
-            data.selected_stop_time = None;
-            // TODO need to set data.stop_times = Vector::new();
+            // if data.selected_route != Some(route_id.clone()) {
+            //     data.selected_route = Some(route_id.clone());
+            // }
+            // data.selected_trip = None;
+            // data.selected_stop_time = None;
+            // // TODO need to set data.stop_times = Vector::new();
 
-            for route in data.routes.iter_mut() {
-                if &route.id == route_id {
-                    route.selected = true;
-                } else {
-                    route.selected = false;
-                }
-            }
+            // for route in data.routes.iter_mut() {
+            //     if &route.id == route_id {
+            //         route.selected = true;
+            //     } else {
+            //         route.selected = false;
+            //     }
+            // }
             druid::Handled::Yes
         } else if let Some(trip_id) = cmd.get(SELECT_TRIP) {
             if data.selected_trip != Some(trip_id.clone()) {

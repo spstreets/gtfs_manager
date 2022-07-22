@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("launching app");
     AppLauncher::with_window(main_window)
         .delegate(Delegate {})
-        // .log_to_console()
+        .log_to_console()
         .launch(initial_data)?;
     Ok(())
 }

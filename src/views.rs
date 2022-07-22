@@ -971,7 +971,8 @@ pub fn route_ui_small() -> impl Widget<MyRoute> {
         }))
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
-            ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
+            data.selected = true;
+            // ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
         })
 }
 pub fn route_ui() -> impl Widget<MyRoute> {
@@ -1037,36 +1038,36 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             },
         ))
         .with_default_spacer()
-        .with_child(field_row(
-            "short_name",
-            TextBox::new()
-                .with_placeholder("route short_name")
-                .lens(MyRoute::short_name),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.short_name != data.short_name,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "long_name",
-            TextBox::new()
-                .with_placeholder("route long_name")
-                .lens(MyRoute::long_name),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.long_name != data.long_name,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "desc",
-            option_string().lens(MyRoute::desc),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.desc != data.desc,
-                None => true,
-            },
-        ))
+        // .with_child(field_row(
+        //     "short_name",
+        //     TextBox::new()
+        //         .with_placeholder("route short_name")
+        //         .lens(MyRoute::short_name),
+        //     |data: &MyRoute, _: &_| match &data.route {
+        //         Some(route) => route.short_name != data.short_name,
+        //         None => true,
+        //     },
+        // ))
+        // .with_default_spacer()
+        // .with_child(field_row(
+        //     "long_name",
+        //     TextBox::new()
+        //         .with_placeholder("route long_name")
+        //         .lens(MyRoute::long_name),
+        //     |data: &MyRoute, _: &_| match &data.route {
+        //         Some(route) => route.long_name != data.long_name,
+        //         None => true,
+        //     },
+        // ))
+        // .with_default_spacer()
+        // .with_child(field_row(
+        //     "desc",
+        //     option_string().lens(MyRoute::desc),
+        //     |data: &MyRoute, _: &_| match &data.route {
+        //         Some(route) => route.desc != data.desc,
+        //         None => true,
+        //     },
+        // ))
         .with_default_spacer()
         .with_child(field_row(
             "route_type",
@@ -1091,14 +1092,14 @@ pub fn route_ui() -> impl Widget<MyRoute> {
             },
         ))
         .with_default_spacer()
-        .with_child(field_row(
-            "url",
-            option_string().lens(MyRoute::url),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.url != data.url,
-                None => true,
-            },
-        ))
+        // .with_child(field_row(
+        //     "url",
+        //     option_string().lens(MyRoute::url),
+        //     |data: &MyRoute, _: &_| match &data.route {
+        //         Some(route) => route.url != data.url,
+        //         None => true,
+        //     },
+        // ))
         .with_default_spacer()
         .with_child(field_row(
             "agency_id",
@@ -1433,6 +1434,52 @@ pub fn main_widget() -> impl Widget<AppData> {
     //     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
     //     .expand_width();
 
+    // let agencies = Scroll::new(
+    //     Flex::column().with_child(
+    //         List::new(|| either_ui(agency_ui(), agency_ui_small()))
+    //             .with_spacing(10.)
+    //             .lens(AppData::agencies),
+    //     ),
+    // )
+    // .fix_width(NARROW_LIST_WIDTH);
+
+    // let routes = Scroll::new(
+    //     Flex::column().with_child(
+    //         FilteredList::new(
+    //             List::new(|| either_ui(route_ui(), route_ui_small())).with_spacing(10.),
+    //             |route: &MyRoute, filtered: &Option<Option<String>>| {
+    //                 filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+    //             },
+    //         )
+    //         .lens(druid::lens::Map::new(
+    //             |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
+    //             |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+    //                 data.routes = inner.0;
+    //                 data.selected_agency = inner.1;
+    //             },
+    //         )),
+    //     ),
+    // )
+    // .fix_width(NARROW_LIST_WIDTH);
+
+    // let trips = Scroll::new(
+    //     Flex::column().with_child(
+    //         FilteredList::new(
+    //             List::new(|| either_ui(trip_ui(), trip_ui_small())).with_spacing(10.),
+    //             |trip: &MyTrip, filtered: &Option<String>| {
+    //                 filtered.as_ref().map_or(false, |id| &trip.route_id == id)
+    //             },
+    //         )
+    //         .lens(druid::lens::Map::new(
+    //             |data: &AppData| (data.trips.clone(), data.selected_route.clone()),
+    //             |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+    //                 data.trips = inner.0;
+    //                 data.selected_route = inner.1;
+    //             },
+    //         )),
+    //     ),
+    // )
+    // .fix_width(NARROW_LIST_WIDTH);
     let agencies = Scroll::new(
         Flex::column().with_child(
             List::new(|| either_ui(agency_ui(), agency_ui_small()))
@@ -1444,38 +1491,18 @@ pub fn main_widget() -> impl Widget<AppData> {
 
     let routes = Scroll::new(
         Flex::column().with_child(
-            FilteredList::new(
-                List::new(|| either_ui(route_ui(), route_ui_small())).with_spacing(10.),
-                |route: &MyRoute, filtered: &Option<Option<String>>| {
-                    filtered.as_ref().map_or(false, |id| &route.agency_id == id)
-                },
-            )
-            .lens(druid::lens::Map::new(
-                |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
-                |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
-                    data.routes = inner.0;
-                    data.selected_agency = inner.1;
-                },
-            )),
+            List::new(|| either_ui(route_ui(), route_ui_small()))
+                .with_spacing(10.)
+                .lens(AppData::routes),
         ),
     )
     .fix_width(NARROW_LIST_WIDTH);
 
     let trips = Scroll::new(
         Flex::column().with_child(
-            FilteredList::new(
-                List::new(|| either_ui(trip_ui(), trip_ui_small())).with_spacing(10.),
-                |trip: &MyTrip, filtered: &Option<String>| {
-                    filtered.as_ref().map_or(false, |id| &trip.route_id == id)
-                },
-            )
-            .lens(druid::lens::Map::new(
-                |data: &AppData| (data.trips.clone(), data.selected_route.clone()),
-                |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
-                    data.trips = inner.0;
-                    data.selected_route = inner.1;
-                },
-            )),
+            List::new(|| either_ui(trip_ui(), trip_ui_small()))
+                .with_spacing(10.)
+                .lens(AppData::trips),
         ),
     )
     .fix_width(NARROW_LIST_WIDTH);
@@ -1500,14 +1527,15 @@ pub fn main_widget() -> impl Widget<AppData> {
     //     ),
     // )
     // .fix_width(NARROW_LIST_WIDTH);
-    let stop_times = Scroll::new(
-        Flex::column().with_child(
-            List::new(|| either_ui(stop_time_ui(), stop_time_ui_small()))
-                .with_spacing(10.)
-                .lens(AppData::stop_times),
-        ),
-    )
-    .fix_width(NARROW_LIST_WIDTH);
+
+    // let stop_times = Scroll::new(
+    //     Flex::column().with_child(
+    //         List::new(|| either_ui(stop_time_ui(), stop_time_ui_small()))
+    //             .with_spacing(10.)
+    //             .lens(AppData::stop_times),
+    //     ),
+    // )
+    // .fix_width(NARROW_LIST_WIDTH);
 
     Flex::row()
         .with_child(
@@ -1532,13 +1560,13 @@ pub fn main_widget() -> impl Widget<AppData> {
                         .with_child(trips)
                         .cross_axis_alignment(CrossAxisAlignment::Start),
                 )
-                .with_default_spacer()
-                .with_child(
-                    Flex::column()
-                        .with_child(Label::new("Stop times"))
-                        .with_child(stop_times)
-                        .cross_axis_alignment(CrossAxisAlignment::Start),
-                )
+                // .with_default_spacer()
+                // .with_child(
+                //     Flex::column()
+                //         .with_child(Label::new("Stop times"))
+                //         .with_child(stop_times)
+                //         .cross_axis_alignment(CrossAxisAlignment::Start),
+                // )
                 .cross_axis_alignment(CrossAxisAlignment::Start),
         )
         // .with_default_spacer()
@@ -1559,23 +1587,23 @@ pub fn main_widget() -> impl Widget<AppData> {
         //     )
         //     .fix_width(600.),
         // )
-        .with_default_spacer()
-        .with_child(
-            FilteredList::new(
-                List::new(stop_ui).with_spacing(10.),
-                |stop: &MyStop, filtered: &()| stop.selected,
-            )
-            .lens(druid::lens::Map::new(
-                |data: &AppData| (data.stops.clone(), ()),
-                |data: &mut AppData, inner: (Vector<MyStop>, ())| {
-                    data.stops = inner.0;
-                    // data.filter = inner.1;
-                },
-            ))
-            .fix_width(NARROW_LIST_WIDTH),
-        )
-        .with_spacer(20.)
-        .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
+        // .with_default_spacer()
+        // .with_child(
+        //     FilteredList::new(
+        //         List::new(stop_ui).with_spacing(10.),
+        //         |stop: &MyStop, filtered: &()| stop.selected,
+        //     )
+        //     .lens(druid::lens::Map::new(
+        //         |data: &AppData| (data.stops.clone(), ()),
+        //         |data: &mut AppData, inner: (Vector<MyStop>, ())| {
+        //             data.stops = inner.0;
+        //             // data.filter = inner.1;
+        //         },
+        //     ))
+        //     .fix_width(NARROW_LIST_WIDTH),
+        // )
+        // .with_spacer(20.)
+        // .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .padding(20.)
