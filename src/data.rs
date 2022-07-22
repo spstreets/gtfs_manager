@@ -148,6 +148,7 @@ pub struct MyTrip {
     // trip: RawTrip,
     pub name: String,
     pub stops: Vector<MyStopTime>,
+    pub n_stops: usize,
 }
 impl MyTrip {
     pub fn new(route_id: String) -> Self {
@@ -171,6 +172,7 @@ impl MyTrip {
             trip: None,
             name: "new trip name".to_string(),
             stops: Vector::new(),
+            n_stops: 0,
         }
     }
 }
@@ -257,6 +259,7 @@ pub struct MyRoute {
     #[data(ignore)]
     pub route: Option<Rc<Route>>,
     pub trips: Vector<MyTrip>,
+    pub n_stops: usize,
 }
 impl ListItem for MyRoute {
     fn new_child(&mut self) -> String {
@@ -280,6 +283,7 @@ impl ListItem for MyRoute {
             trip: None,
             name: "new trip name".to_string(),
             stops: Vector::new(),
+            n_stops: 0,
         };
         let new_trip_id = new_trip.id();
         self.trips.push_front(new_trip);
@@ -332,6 +336,7 @@ pub struct MyAgency {
     #[data(ignore)]
     pub agency: Option<Rc<Agency>>,
     pub routes: Vector<MyRoute>,
+    pub n_stops: usize,
 }
 impl ListItem for MyAgency {
     fn new_child(&mut self) -> String {
@@ -357,6 +362,7 @@ impl ListItem for MyAgency {
 
             route: None,
             trips: Vector::new(),
+            n_stops: 0,
         };
         let new_route_id = new_route.id();
         self.routes.push_front(new_route);
@@ -698,6 +704,10 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
 
             agency: Some(Rc::new(agency.clone())),
             routes: Vector::new(),
+            n_stops: routes
+                .iter()
+                .filter(|route| route.agency_id == agency.id)
+                .count(),
         })
         .collect::<Vector<_>>();
 
@@ -778,7 +788,12 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
 
                 trip: Some(Rc::new(trip.clone())),
                 name: trip.id.clone(),
+
                 stops: Vector::new(),
+                n_stops: stop_times
+                    .iter()
+                    .filter(|stop_time| stop_time.trip_id == trip.id)
+                    .count(),
             }
         })
         .collect::<Vector<_>>();
@@ -812,6 +827,10 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
 
             route: Some(Rc::new(route.clone())),
             trips: Vector::new(),
+            n_stops: trips
+                .iter()
+                .filter(|trip| trip.route_id == route.id)
+                .count(),
         })
         .collect::<Vector<_>>();
     routes.sort_by(|route1, route2| {
