@@ -287,9 +287,11 @@ impl Widget<AppData> for MapWidget {
 
         let size = ctx.size();
         let rect = size.to_rect();
+        ctx.clip(rect);
         // ctx.fill(rect, &Color::grey(0.1));
 
         if self.redraw {
+            dbg!("redraw");
             self.redraw = false;
 
             let mut trips_coords = data.trips_coords();
