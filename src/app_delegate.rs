@@ -326,6 +326,13 @@ impl AppDelegate<AppData> for Delegate {
                     agency.selected = false;
                 }
             }
+            // data.routes = data
+            //     .all_routes
+            //     .iter()
+            //     .filter(|route| &route.agency_id == agency_id)
+            //     // .take(20)
+            //     .cloned()
+            //     .collect::<Vector<_>>();
             druid::Handled::Yes
         } else if let Some(route_id) = cmd.get(SELECT_ROUTE) {
             if data.selected_route != Some(route_id.clone()) {
@@ -357,12 +364,13 @@ impl AppDelegate<AppData> for Delegate {
                 }
             }
 
-            data.stop_times = data
-                .all_stop_times
-                .iter()
-                .filter(|stop_time| &stop_time.trip_id == trip_id)
-                .cloned()
-                .collect::<Vector<_>>();
+            dbg!("filter and assign stop times");
+            // data.stop_times = data
+            //     .all_stop_times
+            //     .iter()
+            //     .filter(|stop_time| &stop_time.trip_id == trip_id)
+            //     .cloned()
+            //     .collect::<Vector<_>>();
 
             druid::Handled::Yes
         } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {

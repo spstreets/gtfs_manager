@@ -456,7 +456,6 @@ pub struct AppData {
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
     pub trips: Vector<MyTrip>,
-    pub all_stop_times: Vector<MyStopTime>,
     pub stop_times: Vector<MyStopTime>,
     pub stops: Vector<MyStop>,
     pub expanded: bool,
@@ -860,8 +859,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         agencies,
         routes,
         trips,
-        all_stop_times: stop_times,
-        stop_times: Vector::new(),
+        stop_times,
         stops: stops
             .iter()
             // .enumerate()
