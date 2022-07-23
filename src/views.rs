@@ -741,21 +741,39 @@ fn field_row<T: Data>(
 // }
 
 pub fn trip_ui_small() -> impl Widget<MyTrip> {
-    Flex::column()
-        .with_child(Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id)))
-        .with_child(Label::new(|data: &MyTrip, _env: &_| {
-            format!("Stops: {}", data.n_stops)
-        }))
-        .with_child(Either::new(
-            |data: &MyTrip, _: &_| data.selected,
-            Label::new("selected"),
-            Label::new("not seleted"),
-        ))
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .on_click(|ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
-            // ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
-            data.selected = !data.selected
-        })
+    Container::new(
+        Flex::column()
+            .with_child(Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id)))
+            .with_child(Label::new(|data: &MyTrip, _env: &_| {
+                format!("Stops: {}", data.n_stops)
+            }))
+            .with_child(Either::new(
+                |data: &MyTrip, _: &_| data.selected,
+                Label::new("selected"),
+                Label::new("not seleted"),
+            ))
+            .cross_axis_alignment(CrossAxisAlignment::Start),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+    // EnvScope must wrap the border, else Missing Key panic
+    .env_scope(|env, stop_time| {
+        // dbg!("set env");
+        env.set(
+            VARIABLE_ITEM_BORDER_WIDTH,
+            if stop_time.selected {
+                SELECTED_ITEM_BORDER_WIDTH
+            } else {
+                0.
+            },
+        )
+    })
+    .fix_width(NARROW_LIST_WIDTH)
+    .on_click(|ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
+        ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
+        // data.selected = !data.selected
+    })
 }
 // pub fn trip_ui() -> impl Widget<MyTrip> {
 //     let fields = Flex::column()
@@ -943,27 +961,45 @@ pub fn trip_ui_small() -> impl Widget<MyTrip> {
 // }
 
 pub fn route_ui_small() -> impl Widget<MyRoute> {
-    Flex::column()
-        .with_child(Label::new(|data: &MyRoute, _env: &_| {
-            format!("{}", data.short_name)
-        }))
-        .with_child(
-            Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
-                .with_line_break_mode(LineBreaking::Clip),
+    Container::new(
+        Flex::column()
+            .with_child(Label::new(|data: &MyRoute, _env: &_| {
+                format!("{}", data.short_name)
+            }))
+            .with_child(
+                Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
+                    .with_line_break_mode(LineBreaking::Clip),
+            )
+            .with_child(Label::new(|data: &MyRoute, _env: &_| {
+                format!("Trips: {}", data.n_stops)
+            }))
+            .with_child(Either::new(
+                |data: &MyRoute, _: &_| data.selected,
+                Label::new("selected"),
+                Label::new("not seleted"),
+            ))
+            .cross_axis_alignment(CrossAxisAlignment::Start),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+    // EnvScope must wrap the border, else Missing Key panic
+    .env_scope(|env, stop_time| {
+        // dbg!("set env");
+        env.set(
+            VARIABLE_ITEM_BORDER_WIDTH,
+            if stop_time.selected {
+                SELECTED_ITEM_BORDER_WIDTH
+            } else {
+                0.
+            },
         )
-        .with_child(Label::new(|data: &MyRoute, _env: &_| {
-            format!("Trips: {}", data.n_stops)
-        }))
-        .with_child(Either::new(
-            |data: &MyRoute, _: &_| data.selected,
-            Label::new("selected"),
-            Label::new("not seleted"),
-        ))
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
-            data.selected = !data.selected
-            // ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
-        })
+    })
+    .fix_width(NARROW_LIST_WIDTH)
+    .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+        // data.selected = !data.selected
+        ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
+    })
 }
 // pub fn route_ui() -> impl Widget<MyRoute> {
 //     let fieldsdfa = Flex::column()
@@ -1199,23 +1235,41 @@ pub fn route_ui_small() -> impl Widget<MyRoute> {
 // }
 
 pub fn agency_ui_small() -> impl Widget<MyAgency> {
-    Flex::column()
-        .with_child(Label::new(|data: &MyAgency, _env: &_| {
-            format!("{}", data.name)
-        }))
-        .with_child(Label::new(|data: &MyAgency, _env: &_| {
-            format!("Routes: {}", data.n_stops)
-        }))
-        .with_child(Either::new(
-            |data: &MyAgency, _: &_| data.selected,
-            Label::new("selected"),
-            Label::new("not seleted"),
-        ))
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
-            // ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
-            data.selected = !data.selected
-        })
+    Container::new(
+        Flex::column()
+            .with_child(Label::new(|data: &MyAgency, _env: &_| {
+                format!("{}", data.name)
+            }))
+            .with_child(Label::new(|data: &MyAgency, _env: &_| {
+                format!("Routes: {}", data.n_stops)
+            }))
+            .with_child(Either::new(
+                |data: &MyAgency, _: &_| data.selected,
+                Label::new("selected"),
+                Label::new("not seleted"),
+            ))
+            .cross_axis_alignment(CrossAxisAlignment::Start),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+    // EnvScope must wrap the border, else Missing Key panic
+    .env_scope(|env, stop_time| {
+        // dbg!("set env");
+        env.set(
+            VARIABLE_ITEM_BORDER_WIDTH,
+            if stop_time.selected {
+                SELECTED_ITEM_BORDER_WIDTH
+            } else {
+                0.
+            },
+        )
+    })
+    .fix_width(NARROW_LIST_WIDTH)
+    .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+        ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
+        // data.selected = !data.selected
+    })
 }
 // pub fn agency_ui() -> impl Widget<MyAgency> {
 //     let title = Flex::row()
