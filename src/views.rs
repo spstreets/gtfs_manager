@@ -423,53 +423,54 @@ fn field_row<T: Data>(
 //     // .fix_width(600.)
 // }
 
-// // pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
-// //     Container::new(
-// //         Label::new(|data: &MyStopTime, _env: &_| {
-// //             format!(
-// //                 "{}: {}",
-// //                 data.stop_sequence,
-// //                 data.stop.as_ref().unwrap().name
-// //             )
-// //         })
-// //         .padding((10., 10., 10., 10.)),
-// //     )
-// //     .rounded(CORNER_RADIUS)
-// //     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-// //     // .border(Color::RED, 0.)
-// //     // .background(BG_COLOR)
-// //     // .env_scope(|env, item| env.set(BG_COLOR, Color::RED))
-// //     // .env_scope(|env, item| env.set(BG_COLOR,  Color::BLUE.into()))
-// //     .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
-// //     // EnvScope must wrap the border, else Missing Key panic
-// //     .env_scope(|env, stop_time| {
-// //         // dbg!("set env");
-// //         env.set(
-// //             VARIABLE_ITEM_BORDER_WIDTH,
-// //             if stop_time.selected {
-// //                 SELECTED_ITEM_BORDER_WIDTH
-// //             } else {
-// //                 0.
-// //             },
-// //         )
-// //     })
-// //     .fix_width(NARROW_LIST_WIDTH)
-// //     // can't determine why there is a big delay before click closure starts
-// //     .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
-// //         dbg!("got click");
-// //         ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
-// //     })
-// // }
+pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
+    Container::new(
+        Label::new(|data: &MyStopTime, _env: &_| {
+            format!(
+                "{}: {}",
+                data.stop_sequence,
+                // data.stop.as_ref().unwrap().name
+                data.stop_id
+            )
+        })
+        .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    // .border(Color::RED, 0.)
+    // .background(BG_COLOR)
+    // .env_scope(|env, item| env.set(BG_COLOR, Color::RED))
+    // .env_scope(|env, item| env.set(BG_COLOR,  Color::BLUE.into()))
+    .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+    // EnvScope must wrap the border, else Missing Key panic
+    .env_scope(|env, stop_time| {
+        // dbg!("set env");
+        env.set(
+            VARIABLE_ITEM_BORDER_WIDTH,
+            if stop_time.selected {
+                SELECTED_ITEM_BORDER_WIDTH
+            } else {
+                0.
+            },
+        )
+    })
+    .fix_width(NARROW_LIST_WIDTH)
+    // can't determine why there is a big delay before click closure starts
+    .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+        dbg!("got click");
+        ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
+    })
+}
 // pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
 //     Label::new(|data: &MyStopTime, _env: &_| {
 //         format!(
 //             "{}: {}",
 //             data.stop_sequence,
-//             data.stop.as_ref().unwrap().name
+//             // data.stop.as_ref().unwrap().name
+//             data.stop_id
 //         )
 //     })
 //     .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
-//         dbg!("got click");
 //         ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
 //     })
 // }
@@ -1432,25 +1433,41 @@ pub fn main_widget() -> impl Widget<AppData> {
     )
     .fix_width(NARROW_LIST_WIDTH);
 
+    let stop_times = Scroll::new(
+        Flex::column().with_child(
+            List::new(stop_time_ui_small)
+                .with_spacing(10.)
+                .lens(AppData::stop_times),
+        ),
+    )
+    .fix_width(NARROW_LIST_WIDTH);
+
     Flex::row()
         .with_child(
             Flex::column()
                 .with_child(Label::new("Agencies"))
-                .with_child(agencies)
+                .with_flex_child(agencies, 1.)
                 .cross_axis_alignment(CrossAxisAlignment::Start),
         )
         .with_default_spacer()
         .with_child(
             Flex::column()
                 .with_child(Label::new("Routes"))
-                .with_child(routes)
+                .with_flex_child(routes, 1.)
                 .cross_axis_alignment(CrossAxisAlignment::Start),
         )
         .with_default_spacer()
         .with_child(
             Flex::column()
                 .with_child(Label::new("Trips"))
-                .with_child(trips)
+                .with_flex_child(trips, 1.)
+                .cross_axis_alignment(CrossAxisAlignment::Start),
+        )
+        .with_default_spacer()
+        .with_child(
+            Flex::column()
+                .with_child(Label::new("Stop times"))
+                .with_flex_child(stop_times, 1.)
                 .cross_axis_alignment(CrossAxisAlignment::Start),
         )
         .cross_axis_alignment(CrossAxisAlignment::Start)

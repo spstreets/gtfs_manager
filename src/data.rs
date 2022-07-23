@@ -9,6 +9,7 @@ use rgb::RGB8;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
+use std::sync::Arc;
 use uuid::Uuid;
 
 mod newtypes;
@@ -34,21 +35,23 @@ pub use newtypes::*;
 //     pub pathways: usize,
 // }
 
-// #[derive(Clone, Data, Debug, Lens)]
-// pub struct MyStopTime {
-//     pub trip_id: String,
-//     pub arrival_time: Option<u32>,
-//     pub departure_time: Option<u32>,
-//     pub stop_id: String,
-//     pub stop_sequence: u16,
-//     pub stop_headsign: Option<String>,
-//     pub pickup_type: MyPickupDropOffType,
-//     pub drop_off_type: MyPickupDropOffType,
-//     pub continuous_pickup: MyContinuousPickupDropOff,
-//     pub continuous_drop_off: MyContinuousPickupDropOff,
-//     pub shape_dist_traveled: Option<f32>,
-//     pub timepoint: MyTimepointType,
-// }
+#[derive(Clone, Data, Debug, Lens)]
+pub struct MyStopTime {
+    pub selected: bool,
+
+    pub trip_id: Arc<String>,
+    pub arrival_time: Option<u32>,
+    pub departure_time: Option<u32>,
+    pub stop_id: Arc<String>,
+    pub stop_sequence: u16,
+    pub stop_headsign: Option<Arc<String>>,
+    pub pickup_type: MyPickupDropOffType,
+    pub drop_off_type: MyPickupDropOffType,
+    pub continuous_pickup: MyContinuousPickupDropOff,
+    pub continuous_drop_off: MyContinuousPickupDropOff,
+    pub shape_dist_traveled: Option<f32>,
+    pub timepoint: MyTimepointType,
+}
 
 #[derive(Clone, Data, Debug, Lens)]
 pub struct MyTrip {
@@ -192,6 +195,7 @@ pub struct AppData {
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
     pub trips: Vector<MyTrip>,
+    pub stop_times: Vector<MyStopTime>,
 }
 
 pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
@@ -273,6 +277,31 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         })
         .collect::<Vector<_>>();
 
+    // let mut stop_times = stop_times
+    //     .iter()
+    //     // .filter(|stop_time| stop_time.trip_id == trip.id)
+    //     .map(|stop_time| MyStopTime {
+    //         selected: false,
+
+    //         trip_id: Arc::new(stop_time.trip_id.clone()),
+    //         arrival_time: stop_time.arrival_time.clone(),
+    //         departure_time: stop_time.departure_time.clone(),
+    //         stop_id: Arc::new(stop_time.stop_id.clone()),
+    //         stop_sequence: stop_time.stop_sequence.clone(),
+    //         stop_headsign: stop_time
+    //             .stop_headsign
+    //             .clone()
+    //             .map(|stop_headsign| Arc::new(stop_headsign)),
+    //         pickup_type: MyPickupDropOffType(stop_time.pickup_type.clone()),
+    //         drop_off_type: MyPickupDropOffType(stop_time.drop_off_type.clone()),
+    //         continuous_pickup: MyContinuousPickupDropOff(stop_time.continuous_pickup.clone()),
+    //         continuous_drop_off: MyContinuousPickupDropOff(stop_time.continuous_drop_off.clone()),
+    //         shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
+    //         timepoint: MyTimepointType(stop_time.timepoint.clone()),
+    //     })
+    //     .collect::<Vector<_>>();
+    // stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
+
     // let stops = stops
     //     .iter()
     //     .map(|stop| MyStop {
@@ -306,6 +335,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         agencies,
         routes,
         trips,
+        stop_times: Vector::new(),
     };
     app_data
 }

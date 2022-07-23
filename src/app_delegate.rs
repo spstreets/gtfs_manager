@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::keyboard_types::Key;
@@ -33,7 +34,7 @@ pub const SELECT_STOP: Selector<String> = Selector::new("show.stop");
 pub const SELECT_AGENCY: Selector<Option<String>> = Selector::new("select.agency");
 pub const SELECT_ROUTE: Selector<String> = Selector::new("select.route");
 pub const SELECT_TRIP: Selector<String> = Selector::new("select.trip");
-pub const SELECT_STOP_TIME: Selector<(String, u16)> = Selector::new("select.stop_time");
+pub const SELECT_STOP_TIME: Selector<(Arc<String>, u16)> = Selector::new("select.stop_time");
 
 pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
@@ -96,6 +97,17 @@ impl AppDelegate<AppData> for Delegate {
                     trip.selected = true;
                 } else {
                     trip.selected = false;
+                }
+            }
+
+            druid::Handled::Yes
+        } else if let Some(stop_time_id) = cmd.get(SELECT_STOP_TIME) {
+            for stop_time in data.stop_times.iter_mut() {
+                if stop_time.trip_id == stop_time_id.0 && stop_time.stop_sequence == stop_time_id.1
+                {
+                    stop_time.selected = true;
+                } else {
+                    stop_time.selected = false;
                 }
             }
 
