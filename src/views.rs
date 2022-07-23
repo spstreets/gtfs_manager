@@ -474,6 +474,14 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
     })
 }
 
+pub fn selected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
+    Container::new(child.padding((10., 10., 10., 10.)))
+        .rounded(CORNER_RADIUS)
+        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+        // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+        .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
+        .fix_width(NARROW_LIST_WIDTH)
+}
 pub fn item_container<T: ListItem + Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
     Container::new(child.padding((10., 10., 10., 10.)))
         .rounded(CORNER_RADIUS)
@@ -1433,33 +1441,92 @@ pub fn main_widget() -> impl Widget<AppData> {
     //     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
     //     .expand_width();
 
-    let agencies = Scroll::new(
-        Flex::column().with_child(
-            List::new(|| either_ui(agency_ui(), agency_ui_small()))
-                .with_spacing(10.)
-                .lens(AppData::agencies),
+    // let agencies = Scroll::new(
+    //     Flex::column().with_child(
+    //         List::new(|| either_ui(agency_ui(), agency_ui_small()))
+    //             .with_spacing(10.)
+    //             .lens(AppData::agencies),
+    //     ),
+    // )
+    // .fix_width(NARROW_LIST_WIDTH);
+    let agencies = Either::new(
+        |data: &AppData, _: &_| data.agencies.iter().any(|agency| agency.selected),
+        FilteredList::new(
+            List::new(|| selected_item_container(agency_ui_small())).with_spacing(10.),
+            |agency: &MyAgency, filtered: &()| {
+                // filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+                agency.selected
+            },
+        )
+        .lens(druid::lens::Map::new(
+            |data: &AppData| (data.agencies.clone(), ()),
+            |data: &mut AppData, inner: (Vector<MyAgency>, ())| {
+                data.agencies = inner.0;
+                // data.selected_agency = inner.1;
+            },
+        )),
+        Scroll::new(
+            Flex::column().with_child(
+                List::new(|| either_ui(agency_ui(), agency_ui_small()))
+                    .with_spacing(10.)
+                    .lens(AppData::agencies),
+            ),
         ),
     )
     .fix_width(NARROW_LIST_WIDTH);
 
-    let routes = Scroll::new(
-        Flex::column().with_child(
+    // let routes = Scroll::new(
+    //     Flex::column().with_child(
+    //         FilteredList::new(
+    //             List::new(|| either_ui(route_ui(), route_ui_small())).with_spacing(10.),
+    //             |route: &MyRoute, filtered: &Option<Option<String>>| {
+    //                 filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+    //             },
+    //         )
+    //         .lens(druid::lens::Map::new(
+    //             |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
+    //             |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+    //                 data.routes = inner.0;
+    //                 data.selected_agency = inner.1;
+    //             },
+    //         )),
+    //     ),
+    // )
+    // .fix_width(NARROW_LIST_WIDTH);
+    let routes = Flex::column()
+        .with_child(Either::new(
+            |data: &AppData, _: &_| data.routes.iter().any(|route| route.selected),
             FilteredList::new(
-                List::new(|| either_ui(route_ui(), route_ui_small())).with_spacing(10.),
-                |route: &MyRoute, filtered: &Option<Option<String>>| {
-                    filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+                List::new(|| selected_item_container(route_ui_small())).with_spacing(10.),
+                |route: &MyRoute, filtered: &()| {
+                    // filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+                    route.selected
                 },
             )
             .lens(druid::lens::Map::new(
-                |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
-                |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+                |data: &AppData| (data.routes.clone(), ()),
+                |data: &mut AppData, inner: (Vector<MyRoute>, ())| {
                     data.routes = inner.0;
-                    data.selected_agency = inner.1;
+                    // data.selected_agency = inner.1;
                 },
             )),
-        ),
-    )
-    .fix_width(NARROW_LIST_WIDTH);
+            Scroll::new(
+                FilteredList::new(
+                    List::new(|| either_ui(route_ui(), route_ui_small())).with_spacing(10.),
+                    |route: &MyRoute, filtered: &Option<Option<String>>| {
+                        filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+                    },
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
+                    |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+                        data.routes = inner.0;
+                        data.selected_agency = inner.1;
+                    },
+                )),
+            ),
+        ))
+        .fix_width(NARROW_LIST_WIDTH);
 
     let trips = Scroll::new(
         Flex::column().with_child(
