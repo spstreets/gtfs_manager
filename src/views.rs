@@ -741,11 +741,17 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
 }
 
 pub fn trip_ui_small() -> impl Widget<MyTrip> {
-    Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id())).on_click(
-        |ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
+    Flex::column()
+        .with_child(Label::new(|data: &MyTrip, _env: &_| {
+            format!("{}", data.id())
+        }))
+        .with_child(Label::new(|data: &MyTrip, _env: &_| {
+            format!("Stops: {}", data.n_stops)
+        }))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .on_click(|ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
             ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
-        },
-    )
+        })
 }
 pub fn trip_ui() -> impl Widget<MyTrip> {
     let title = Flex::row()
@@ -960,6 +966,10 @@ pub fn route_ui_small() -> impl Widget<MyRoute> {
             Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
                 .with_line_break_mode(LineBreaking::Clip),
         )
+        .with_child(Label::new(|data: &MyRoute, _env: &_| {
+            format!("Trips: {}", data.n_stops)
+        }))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
         .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
             ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
         })
@@ -1221,11 +1231,17 @@ pub fn route_ui() -> impl Widget<MyRoute> {
 }
 
 pub fn agency_ui_small() -> impl Widget<MyAgency> {
-    Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name)).on_click(
-        |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+    Flex::column()
+        .with_child(Label::new(|data: &MyAgency, _env: &_| {
+            format!("{}", data.name)
+        }))
+        .with_child(Label::new(|data: &MyAgency, _env: &_| {
+            format!("Routes: {}", data.n_stops)
+        }))
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
             ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
-        },
-    )
+        })
 }
 pub fn agency_ui() -> impl Widget<MyAgency> {
     let title = Flex::row()
