@@ -358,7 +358,7 @@ impl AppDelegate<AppData> for Delegate {
             }
 
             data.stop_times = data
-                .stop_times_other
+                .all_stop_times
                 .iter()
                 .filter(|stop_time| &stop_time.trip_id == trip_id)
                 .cloned()

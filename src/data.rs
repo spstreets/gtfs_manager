@@ -436,19 +436,18 @@ pub struct AppData {
     #[data(ignore)]
     #[lens(ignore)]
     pub gtfs: Rc<MyGtfs>,
-    #[data(ignore)]
-    #[lens(ignore)]
-    pub trips_other2: Vec<RawTrip>,
-    #[data(ignore)]
-    #[lens(ignore)]
-    pub stop_times_other2: Vec<RawStopTime>,
-    #[data(ignore)]
-    #[lens(ignore)]
-    pub stops_other2: Vec<Stop>,
-    #[data(ignore)]
-    #[lens(ignore)]
-    pub stop_times_other: Vec<MyStopTime>,
-
+    // #[data(ignore)]
+    // #[lens(ignore)]
+    // pub trips_other2: Vec<RawTrip>,
+    // #[data(ignore)]
+    // #[lens(ignore)]
+    // pub stop_times_other2: Vec<RawStopTime>,
+    // #[data(ignore)]
+    // #[lens(ignore)]
+    // pub stops_other2: Vec<Stop>,
+    // #[data(ignore)]
+    // #[lens(ignore)]
+    // pub stop_times_other: Vec<MyStopTime>,
     pub selected_agency: Option<Option<String>>,
     pub selected_route: Option<String>,
     pub selected_trip: Option<String>,
@@ -457,6 +456,7 @@ pub struct AppData {
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
     pub trips: Vector<MyTrip>,
+    pub all_stop_times: Vector<MyStopTime>,
     pub stop_times: Vector<MyStopTime>,
     pub stops: Vector<MyStop>,
     pub expanded: bool,
@@ -518,11 +518,12 @@ impl AppData {
 
         // trips.sort_by(|x1, x2| x1.id.cmp(&x2.id));
         // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
+        dbg!("make trip coords");
         let mut stop_time_range_from_trip_id = HashMap::new();
         let mut trip_start_index = 0;
         let mut trip_end_index = 0;
-        let mut current_trip = self.stop_times_other2[0].trip_id.clone();
-        let stop_times2 = self.stop_times_other2.clone();
+        let mut current_trip = self.gtfs.stop_times[0].trip_id.clone();
+        let stop_times2 = self.gtfs.stop_times.clone();
         for stop_time in stop_times2 {
             // when we arrive at a new section of trip_id's insert the index range into to map, update the current trip, and reset the range start index
             if current_trip != stop_time.trip_id {
@@ -539,7 +540,7 @@ impl AppData {
 
         // hash map for getting a stop by stop_id
         let mut stop_map = HashMap::new();
-        let stops2 = self.stops_other2.clone();
+        let stops2 = self.gtfs.stops.clone();
         stops2.iter().for_each(|stop| {
             stop_map.insert(stop.id.clone(), stop.clone());
         });
@@ -552,7 +553,7 @@ impl AppData {
             .map(|trip| {
                 let (start_index, end_index) =
                     stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
-                let mut stops = self.stop_times_other2[start_index..end_index]
+                let mut stops = self.gtfs.stop_times[start_index..end_index]
                     .iter()
                     // .filter(|stop_time| stop_time.trip_id == trip.id)
                     .map(|stop_time| {
@@ -756,7 +757,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<Vector<_>>();
     stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
 
     let trips = trips
@@ -847,11 +848,10 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         show_edits: false,
         show_actions: false,
         gtfs: Rc::new(my_gtfs),
-        trips_other2,
-        stop_times_other2,
-        stops_other2,
-        stop_times_other: stop_times,
-
+        // trips_other2: Vec::new(),
+        // stop_times_other2: Vec::new(),
+        // stops_other2: Vec::new(),
+        // stop_times_other: Vec::new(),
         selected_agency: None,
         selected_route: None,
         selected_trip: None,
@@ -860,6 +860,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
         agencies,
         routes,
         trips,
+        all_stop_times: stop_times,
         stop_times: Vector::new(),
         stops: stops
             .iter()
