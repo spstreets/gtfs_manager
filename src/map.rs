@@ -208,7 +208,7 @@ impl Widget<AppData> for MapWidget {
                             if stop_circle.contains(me.pos) {
                                 self.redraw_highlights = true;
                                 self.selected_stop_circle = Some(*stop_circle);
-                                ctx.submit_command(SELECT_STOP.with(stop.id.clone()));
+                                ctx.submit_command(SELECT_STOP_LIST.with(stop.id.clone()));
                             }
                         }
                         // for (path, trip) in
