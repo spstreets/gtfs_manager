@@ -467,7 +467,7 @@ pub fn selected_stop_time_ui_small() -> impl Widget<MyStopTime> {
             format!(
                 "{}: {}",
                 data.stop_sequence,
-                data.stop.as_ref().unwrap().name
+                data.stop_name
             )
         })
         .with_line_break_mode(LineBreaking::Clip),
@@ -489,7 +489,7 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
             format!(
                 "{}: {}",
                 data.stop_sequence,
-                data.stop.as_ref().unwrap().name
+                data.stop_name
             )
         })
         .with_line_break_mode(LineBreaking::Clip),
@@ -604,7 +604,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
         .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "arrival_time",
-            option_u32().lens(MyStopTime::arrival_time),
+            option_string().lens(MyStopTime::arrival_time),
             |data: &MyStopTime, _: &_| match &data.stop_time {
                 Some(stop_time) => stop_time.arrival_time != data.arrival_time,
                 None => true,
@@ -613,7 +613,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
         .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "departure_time",
-            option_u32().lens(MyStopTime::departure_time),
+            option_string().lens(MyStopTime::departure_time),
             |data: &MyStopTime, _: &_| match &data.stop_time {
                 Some(stop_time) => stop_time.departure_time != data.departure_time,
                 None => true,
@@ -1534,40 +1534,40 @@ fn edit() -> impl Widget<Edit> {
         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
         .rounded(CORNER_RADIUS)
 }
-fn action() -> impl Widget<Action> {
-    Container::new(
-        Flex::row()
-            .with_child(Label::new(|data: &Action, _: &_| match data.edit_type {
-                EditType::Delete => format!(
-                    "Delete: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-                EditType::Create => format!(
-                    "Create: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-                EditType::Update => format!(
-                    "Update: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-            }))
-            .with_child(
-                Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Action, _| {
-                    ctx.submit_command(EDIT_DELETE.with(data.id));
-                }),
-            ),
-    )
-    .padding((10., 10., 10., 10.))
-    // .background(Color::grey(0.1))
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .rounded(CORNER_RADIUS)
-}
+// fn action() -> impl Widget<Action> {
+//     Container::new(
+//         Flex::row()
+//             .with_child(Label::new(|data: &Action, _: &_| match data.edit_type {
+//                 EditType::Delete => format!(
+//                     "Delete: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//                 EditType::Create => format!(
+//                     "Create: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//                 EditType::Update => format!(
+//                     "Update: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//             }))
+//             .with_child(
+//                 Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Action, _| {
+//                     ctx.submit_command(EDIT_DELETE.with(data.id));
+//                 }),
+//             ),
+//     )
+//     .padding((10., 10., 10., 10.))
+//     // .background(Color::grey(0.1))
+//     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+//     .rounded(CORNER_RADIUS)
+// }
 
 fn agency_selected() -> Box<dyn Widget<AppData>> {
     Box::new(
