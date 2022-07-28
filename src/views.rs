@@ -1534,40 +1534,40 @@ fn edit() -> impl Widget<Edit> {
         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
         .rounded(CORNER_RADIUS)
 }
-fn action() -> impl Widget<Action> {
-    Container::new(
-        Flex::row()
-            .with_child(Label::new(|data: &Action, _: &_| match data.edit_type {
-                EditType::Delete => format!(
-                    "Delete: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-                EditType::Create => format!(
-                    "Create: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-                EditType::Update => format!(
-                    "Update: {} {}. {}",
-                    data.item_type,
-                    data.item_id,
-                    data.item_data.clone().unwrap().data_info()
-                ),
-            }))
-            .with_child(
-                Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Action, _| {
-                    ctx.submit_command(EDIT_DELETE.with(data.id));
-                }),
-            ),
-    )
-    .padding((10., 10., 10., 10.))
-    // .background(Color::grey(0.1))
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    .rounded(CORNER_RADIUS)
-}
+// fn action() -> impl Widget<Action> {
+//     Container::new(
+//         Flex::row()
+//             .with_child(Label::new(|data: &Action, _: &_| match data.edit_type {
+//                 EditType::Delete => format!(
+//                     "Delete: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//                 EditType::Create => format!(
+//                     "Create: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//                 EditType::Update => format!(
+//                     "Update: {} {}. {}",
+//                     data.item_type,
+//                     data.item_id,
+//                     data.item_data.clone().unwrap().data_info()
+//                 ),
+//             }))
+//             .with_child(
+//                 Button::new("x").on_click(|ctx: &mut EventCtx, data: &mut Action, _| {
+//                     ctx.submit_command(EDIT_DELETE.with(data.id));
+//                 }),
+//             ),
+//     )
+//     .padding((10., 10., 10., 10.))
+//     // .background(Color::grey(0.1))
+//     .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+//     .rounded(CORNER_RADIUS)
+// }
 
 fn agency_selected() -> Box<dyn Widget<AppData>> {
     Box::new(

@@ -6,6 +6,7 @@ use gtfs_structures::{
     StopTransfer, TimepointType, Trip,
 };
 use rgb::RGB8;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -27,7 +28,7 @@ pub trait ListItem {
     // fn name(&self) -> String;
 }
 
-#[derive(Clone, Data, Debug, Lens)]
+#[derive(Clone, Data, Debug, Lens, Serialize, Deserialize)]
 pub struct MyStop {
     pub live: bool,
     pub selected: bool,
@@ -77,12 +78,11 @@ impl ListItem for MyStop {
     }
 }
 
-#[derive(Clone, Data, Debug, Lens)]
+#[derive(Clone, Data, Debug, Lens, Serialize, Deserialize)]
 pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
     pub show_editing: bool,
-
 
     pub trip_id: String,
     pub arrival_time: Option<u32>,
@@ -126,7 +126,7 @@ impl ListItem for MyStopTime {
     }
 }
 
-#[derive(Clone, Data, Debug, Lens)]
+#[derive(Clone, Data, Debug, Lens, Serialize, Deserialize)]
 pub struct MyTrip {
     pub live: bool,
     pub visible: bool,
@@ -212,7 +212,7 @@ impl ListItem for MyTrip {
     // }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyRouteType(pub RouteType);
 impl MyRouteType {
     pub fn radio_vec() -> Vec<(String, MyRouteType)> {
@@ -238,7 +238,7 @@ impl Data for MyRouteType {
     }
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct MyRoute {
     pub new: bool,
     pub live: bool,
@@ -321,7 +321,7 @@ impl ListItem for MyRoute {
     }
 }
 
-#[derive(Clone, Data, Default, Lens)]
+#[derive(Clone, Data, Default, Lens, Serialize, Deserialize)]
 pub struct MyAgency {
     pub show_deleted: bool,
     pub live: bool,
@@ -395,13 +395,13 @@ impl ListItem for MyAgency {
     }
 }
 
-#[derive(Clone, Data, Debug, PartialEq)]
+#[derive(Clone, Data, Debug, PartialEq, Serialize, Deserialize)]
 pub enum EditType {
     Delete,
     Update,
     Create,
 }
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct Action {
     pub id: usize,
     pub edit_type: EditType,
@@ -409,8 +409,10 @@ pub struct Action {
     pub item_id: String,
     // todo this of course means that the edit list won't get updated when eg a field name changes
     // #[data(ignore)]
-    #[lens(ignore)]
-    pub item_data: Option<Rc<dyn ListItem>>,
+
+    // not sure how to derive Serialize for trait object
+    // #[lens(ignore)]
+    // pub item_data: Option<Rc<dyn ListItem>>,
 }
 impl Debug for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -423,6 +425,7 @@ impl Debug for Action {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct MyGtfs {
     pub agencies: Vec<Agency>,
     pub routes: Vec<Route>,
@@ -431,12 +434,12 @@ pub struct MyGtfs {
     pub stops: Vec<Stop>,
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct Edit {
     id: usize,
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct AppData {
     pub show_deleted: bool,
     pub show_edits: bool,
@@ -634,12 +637,12 @@ impl AppData {
     }
 }
 
-pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
-    let mut agencies = gtfs.agencies.unwrap();
-    let mut routes = gtfs.routes.unwrap();
-    let mut trips = gtfs.trips.unwrap();
-    let mut stop_times = gtfs.stop_times.unwrap();
-    let mut stops = gtfs.stops.unwrap();
+pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
+    let agencies = gtfs.agencies.as_mut().unwrap();
+    let routes = gtfs.routes.as_mut().unwrap();
+    let trips = gtfs.trips.as_mut().unwrap();
+    let stop_times = gtfs.stop_times.as_mut().unwrap();
+    let stops = gtfs.stops.as_mut().unwrap();
 
     let my_gtfs = MyGtfs {
         agencies: agencies.clone(),

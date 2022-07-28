@@ -5,8 +5,9 @@ use gtfs_structures::{
     StopTime, TimepointType, Trip,
 };
 use rgb::RGB8;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyLocationType(pub LocationType);
 impl MyLocationType {
     pub fn radio_vec() -> Vec<(String, MyLocationType)> {
@@ -44,7 +45,7 @@ impl Data for MyLocationType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyTimepointType(pub TimepointType);
 impl MyTimepointType {
     pub fn radio_vec() -> Vec<(String, MyTimepointType)> {
@@ -63,7 +64,7 @@ impl Data for MyTimepointType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyPickupDropOffType(pub PickupDropOffType);
 impl MyPickupDropOffType {
     pub fn radio_vec() -> Vec<(String, MyPickupDropOffType)> {
@@ -97,7 +98,7 @@ impl Data for MyPickupDropOffType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyDirectionType(pub DirectionType);
 impl MyDirectionType {
     pub fn radio_vec() -> Vec<(String, MyDirectionType)> {
@@ -119,7 +120,7 @@ impl Data for MyDirectionType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyAvailability(pub Availability);
 impl MyAvailability {
     pub fn radio_vec() -> Vec<(String, MyAvailability)> {
@@ -149,7 +150,7 @@ impl Data for MyAvailability {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyBikesAllowedType(pub BikesAllowedType);
 impl MyBikesAllowedType {
     pub fn radio_vec() -> Vec<(String, MyBikesAllowedType)> {
@@ -179,7 +180,7 @@ impl Data for MyBikesAllowedType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MyRGB8(pub RGB8);
 impl Data for MyRGB8 {
     fn same(&self, other: &Self) -> bool {
@@ -187,7 +188,7 @@ impl Data for MyRGB8 {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MyContinuousPickupDropOff(pub ContinuousPickupDropOff);
 impl MyContinuousPickupDropOff {
     pub fn radio_vec() -> Vec<(String, MyContinuousPickupDropOff)> {
