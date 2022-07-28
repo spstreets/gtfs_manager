@@ -81,6 +81,8 @@ impl ListItem for MyStop {
 pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
+    pub show_editing: bool,
+
 
     pub trip_id: String,
     pub arrival_time: Option<u32>,
@@ -130,6 +132,7 @@ pub struct MyTrip {
     pub visible: bool,
     pub selected: bool,
     pub expanded: bool,
+    pub show_editing: bool,
 
     pub id: String,
     pub service_id: String,
@@ -157,6 +160,7 @@ impl MyTrip {
             visible: true,
             selected: false,
             expanded: false,
+            show_editing: false,
 
             id: Uuid::new_v4().to_string(),
             service_id: "needtogetcalendar.serviceid".to_string(),
@@ -241,6 +245,7 @@ pub struct MyRoute {
     pub visible: bool,
     pub expanded: bool,
     pub selected: bool,
+    pub show_editing: bool,
 
     pub id: String,
     pub short_name: String,
@@ -268,6 +273,7 @@ impl ListItem for MyRoute {
             visible: true,
             selected: false,
             expanded: false,
+            show_editing: false,
 
             id: Uuid::new_v4().to_string(),
             service_id: "needtogetcalendar.serviceid".to_string(),
@@ -322,6 +328,7 @@ pub struct MyAgency {
     pub visible: bool,
     pub expanded: bool,
     pub selected: bool,
+    pub show_editing: bool,
 
     pub id: Option<String>,
     pub name: String,
@@ -346,6 +353,7 @@ impl ListItem for MyAgency {
             visible: true,
             expanded: false,
             selected: false,
+            show_editing: false,
             id: Uuid::new_v4().to_string(),
 
             short_name: "new route short name".to_string(),
@@ -562,6 +570,7 @@ impl AppData {
                         MyStopTime {
                             live: true,
                             selected: true,
+                            show_editing: true,
 
                             trip_id: stop_time.trip_id.clone(),
                             arrival_time: stop_time.arrival_time.clone(),
@@ -693,6 +702,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
             visible: true,
             expanded: false,
             selected: false,
+            show_editing: false,
 
             id: agency.id.clone(),
             name: agency.name.clone(),
@@ -728,6 +738,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
             MyStopTime {
                 live: true,
                 selected: false,
+                show_editing: false,
 
                 trip_id: stop_time.trip_id.clone(),
                 arrival_time: stop_time.arrival_time.clone(),
@@ -775,6 +786,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
                 visible: true,
                 selected: false,
                 expanded: false,
+                show_editing: false,
 
                 id: trip.id.clone(),
                 service_id: trip.service_id.clone(),
@@ -812,6 +824,7 @@ pub fn make_initial_data(gtfs: RawGtfs) -> AppData {
             visible: true,
             expanded: false,
             selected: false,
+            show_editing: false,
 
             id: route.id.clone(),
             short_name: route.short_name.clone(),

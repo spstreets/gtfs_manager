@@ -29,7 +29,8 @@ use filtered_list::FilteredList;
 
 // parameters
 const SPACING_1: f64 = 20.;
-const NARROW_LIST_WIDTH: f64 = 200.;
+// const NARROW_LIST_WIDTH: f64 = 200.;
+const NARROW_LIST_WIDTH: f64 = 600.;
 const CORNER_RADIUS: f64 = 5.;
 const HEADING_1: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::BOLD)
@@ -470,6 +471,12 @@ pub fn selected_stop_time_ui_small() -> impl Widget<MyStopTime> {
             )
         })
         .with_line_break_mode(LineBreaking::Clip),
+        Checkbox::new("fields").lens(MyStopTime::show_editing),
+        Either::new(
+            |data: &MyStopTime, _: &_| data.show_editing,
+            stop_time_ui(),
+            Flex::column(),
+        ),
     )
     .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
         dbg!("got click");
@@ -501,13 +508,40 @@ pub fn unselected_item_container<T: Data>(child: impl Widget<T> + 'static) -> im
         // .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
         .fix_width(NARROW_LIST_WIDTH)
 }
-pub fn selected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
-    Container::new(child.padding((10., 10., 10., 10.)))
-        .rounded(CORNER_RADIUS)
-        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-        // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
-        .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
-        .fix_width(NARROW_LIST_WIDTH)
+// pub fn selected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
+//     Container::new(child.padding((10., 10., 10., 10.)))
+//         .rounded(CORNER_RADIUS)
+//         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+//         // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+//         .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
+//         .fix_width(NARROW_LIST_WIDTH)
+// }
+pub fn selected_item_container<T: Data + ListItem>(
+    child: impl Widget<T> + 'static,
+    edit_checkbox: impl Widget<T> + 'static,
+    either_fields: impl Widget<T> + 'static,
+) -> impl Widget<T> {
+    Container::new(
+        Flex::column()
+            .with_child(
+                Flex::row()
+                    .with_child(child)
+                    .with_child(
+                        Flex::column()
+                            .with_child(edit_checkbox)
+                            .with_child(delete_item_button()),
+                    )
+                    .must_fill_main_axis(true)
+                    .main_axis_alignment(MainAxisAlignment::SpaceBetween),
+            )
+            .with_child(either_fields)
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+    .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
+    .fix_width(NARROW_LIST_WIDTH)
 }
 pub fn item_container<T: ListItem + Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
     Container::new(child.padding((10., 10., 10., 10.)))
@@ -541,22 +575,22 @@ pub fn either_ui<T: ListItem + Data>(
 
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
 pub fn stop_time_ui() -> impl Widget<MyStopTime> {
-    let title = Flex::row()
-        .with_child(Checkbox::new("").lens(MyStopTime::selected))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyStopTime, _env: &Env| data.live,
-            Label::new(""),
-            Label::new("deleted").with_text_color(Color::RED),
-        ))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyStopTime, _env: &Env| data.stop_time.is_none(),
-            Label::new("new item").with_text_color(Color::RED),
-            Label::new(""),
-        ))
-        .with_default_spacer()
-        .with_child(delete_item_button());
+    // let title = Flex::row()
+    //     .with_child(Checkbox::new("").lens(MyStopTime::selected))
+    //     .with_default_spacer()
+    //     .with_child(Either::new(
+    //         |data: &MyStopTime, _env: &Env| data.live,
+    //         Label::new(""),
+    //         Label::new("deleted").with_text_color(Color::RED),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(Either::new(
+    //         |data: &MyStopTime, _env: &Env| data.stop_time.is_none(),
+    //         Label::new("new item").with_text_color(Color::RED),
+    //         Label::new(""),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(delete_item_button());
 
     let fields = Flex::column()
         .with_child(field_row(
@@ -600,6 +634,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
             "stop_id",
             Button::new(|data: &MyStopTime, _: &_| data.stop_id.clone()).on_click(
                 |ctx: &mut EventCtx, data: &mut MyStopTime, _| {
+                    dbg!("submit sotp event");
                     ctx.submit_command(SELECT_STOP_LIST.with(data.stop_id.clone()));
                 },
             ),
@@ -756,8 +791,8 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
     Flex::column()
-        .with_child(title)
-        .with_spacer(SPACING_1)
+        // .with_child(title)
+        // .with_spacer(SPACING_1)
         .with_child(fields)
         // .with_child(
         //     FilteredList::new(
@@ -800,30 +835,36 @@ pub fn trip_ui_small_selected() -> impl Widget<MyTrip> {
                 format!("Stops: {}", data.n_stops)
             }))
             .cross_axis_alignment(CrossAxisAlignment::Start),
+        Checkbox::new("fields").lens(MyTrip::show_editing),
+        Either::new(
+            |data: &MyTrip, _: &_| data.show_editing,
+            trip_ui(),
+            Flex::column(),
+        ),
     )
     .on_click(|ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
         ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
     })
 }
 pub fn trip_ui() -> impl Widget<MyTrip> {
-    let title = Flex::row()
-        .with_child(Checkbox::new("").lens(MyTrip::visible))
-        .with_default_spacer()
-        .with_child(Checkbox::new("select").lens(MyTrip::selected))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyTrip, _env: &Env| data.live,
-            Label::new(""),
-            Label::new("deleted").with_text_color(Color::RED),
-        ))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyTrip, _env: &Env| data.trip.is_none(),
-            Label::new("new item").with_text_color(Color::RED),
-            Label::new(""),
-        ))
-        .with_default_spacer()
-        .with_child(delete_item_button());
+    // let title = Flex::row()
+    //     .with_child(Checkbox::new("").lens(MyTrip::visible))
+    //     .with_default_spacer()
+    //     .with_child(Checkbox::new("select").lens(MyTrip::selected))
+    //     .with_default_spacer()
+    //     .with_child(Either::new(
+    //         |data: &MyTrip, _env: &Env| data.live,
+    //         Label::new(""),
+    //         Label::new("deleted").with_text_color(Color::RED),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(Either::new(
+    //         |data: &MyTrip, _env: &Env| data.trip.is_none(),
+    //         Label::new("new item").with_text_color(Color::RED),
+    //         Label::new(""),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(delete_item_button());
 
     let fields = Flex::column()
         .with_child(field_row(
@@ -966,46 +1007,46 @@ pub fn trip_ui() -> impl Widget<MyTrip> {
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start);
 
-    let children_header = Flex::row()
-        .with_child(
-            Flex::row()
-                .with_child(Label::new(|data: &MyTrip, _: &_| {
-                    data.stops.len().to_string()
-                }))
-                .with_child(Expander::new("Stop times").lens(MyTrip::expanded)),
-        )
-        .with_child(Either::new(
-            |data: &MyTrip, _: &_| data.expanded,
-            child_buttons(),
-            Flex::row(),
-        ))
-        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-        .expand_width();
+    // let children_header = Flex::row()
+    //     .with_child(
+    //         Flex::row()
+    //             .with_child(Label::new(|data: &MyTrip, _: &_| {
+    //                 data.stops.len().to_string()
+    //             }))
+    //             .with_child(Expander::new("Stop times").lens(MyTrip::expanded)),
+    //     )
+    //     .with_child(Either::new(
+    //         |data: &MyTrip, _: &_| data.expanded,
+    //         child_buttons(),
+    //         Flex::row(),
+    //     ))
+    //     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+    //     .expand_width();
 
-    let children = Either::new(
-        |data: &MyTrip, _env: &Env| data.expanded,
-        FilteredList::new(
-            List::new(stop_time_ui).with_spacing(10.),
-            |item_data: &MyStopTime, filtered: &()| item_data.live,
-        )
-        .lens(druid::lens::Map::new(
-            |data: &MyTrip| (data.stops.clone(), ()),
-            |data: &mut MyTrip, inner: (Vector<MyStopTime>, ())| {
-                data.stops = inner.0;
-                // data.filter = inner.1;
-            },
-        )),
-        Flex::row(),
-    );
+    // let children = Either::new(
+    //     |data: &MyTrip, _env: &Env| data.expanded,
+    //     FilteredList::new(
+    //         List::new(stop_time_ui).with_spacing(10.),
+    //         |item_data: &MyStopTime, filtered: &()| item_data.live,
+    //     )
+    //     .lens(druid::lens::Map::new(
+    //         |data: &MyTrip| (data.stops.clone(), ()),
+    //         |data: &mut MyTrip, inner: (Vector<MyStopTime>, ())| {
+    //             data.stops = inner.0;
+    //             // data.filter = inner.1;
+    //         },
+    //     )),
+    //     Flex::row(),
+    // );
 
     Flex::column()
-        .with_child(title)
-        .with_spacer(SPACING_1)
+        // .with_child(title)
+        // .with_spacer(SPACING_1)
         .with_child(fields)
-        .with_spacer(SPACING_1)
-        .with_child(children_header)
-        .with_default_spacer()
-        .with_child(children)
+        // .with_spacer(SPACING_1)
+        // .with_child(children_header)
+        // .with_default_spacer()
+        // .with_child(children)
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
@@ -1023,6 +1064,12 @@ pub fn route_ui_small_selected() -> impl Widget<MyRoute> {
                 format!("Trips: {}", data.n_stops)
             }))
             .cross_axis_alignment(CrossAxisAlignment::Start),
+        Checkbox::new("fields").lens(MyRoute::show_editing),
+        Either::new(
+            |data: &MyRoute, _: &_| data.show_editing,
+            route_ui(),
+            Flex::column(),
+        ),
     )
     .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
         ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
@@ -1056,28 +1103,28 @@ pub fn route_ui_small() -> impl Widget<MyRoute> {
 //     })
 // }
 pub fn route_ui() -> impl Widget<MyRoute> {
-    let title = Flex::row()
-        .with_child(Checkbox::new("").lens(MyRoute::visible))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyRoute, _env: &Env| data.live,
-            Label::new(""),
-            Label::new("deleted").with_text_color(Color::RED),
-        ))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyRoute, _env: &Env| data.new,
-            Label::new("new item").with_text_color(Color::RED),
-            Label::new(""),
-        ))
-        .with_default_spacer()
-        .with_child(delete_item_button())
-        .with_default_spacer()
-        .with_child(
-            Button::new("Add Trip").on_click(|ctx, data: &mut MyRoute, _| {
-                ctx.submit_command(NEW_TRIP.with(data.id.clone()));
-            }),
-        );
+    // let title = Flex::row()
+    //     .with_child(Checkbox::new("").lens(MyRoute::visible))
+    //     .with_default_spacer()
+    //     .with_child(Either::new(
+    //         |data: &MyRoute, _env: &Env| data.live,
+    //         Label::new(""),
+    //         Label::new("deleted").with_text_color(Color::RED),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(Either::new(
+    //         |data: &MyRoute, _env: &Env| data.new,
+    //         Label::new("new item").with_text_color(Color::RED),
+    //         Label::new(""),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(delete_item_button())
+    //     .with_default_spacer()
+    //     .with_child(
+    //         Button::new("Add Trip").on_click(|ctx, data: &mut MyRoute, _| {
+    //             ctx.submit_command(NEW_TRIP.with(data.id.clone()));
+    //         }),
+    //     );
 
     let fieldsdfa = Flex::column()
         .with_child(field_row(
@@ -1301,8 +1348,8 @@ pub fn route_ui() -> impl Widget<MyRoute> {
     // );
 
     Flex::column()
-        .with_child(title)
-        .with_spacer(SPACING_1)
+        // .with_child(title)
+        // .with_spacer(SPACING_1)
         .with_child(fields)
         // .with_spacer(SPACING_1)
         // .with_child(children_header)
@@ -1336,26 +1383,32 @@ pub fn agency_ui_small_selected() -> impl Widget<MyAgency> {
                 format!("Routes: {}", data.n_stops)
             }))
             .cross_axis_alignment(CrossAxisAlignment::Start),
+        Checkbox::new("fields").lens(MyAgency::show_editing),
+        Either::new(
+            |data: &MyAgency, _: &_| data.show_editing,
+            agency_ui(),
+            Flex::column(),
+        ),
     )
     .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
         ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
     })
 }
 pub fn agency_ui() -> impl Widget<MyAgency> {
-    let title = Flex::row()
-        .with_child(Either::new(
-            |data: &MyAgency, _env: &Env| data.live,
-            Label::new(""),
-            Label::new("deleted").with_text_color(Color::RED),
-        ))
-        .with_default_spacer()
-        .with_child(Either::new(
-            |data: &MyAgency, _env: &Env| data.agency.is_none(),
-            Label::new("new item").with_text_color(Color::RED),
-            Label::new(""),
-        ))
-        .with_default_spacer()
-        .with_child(delete_item_button());
+    // let title = Flex::row()
+    //     .with_child(Either::new(
+    //         |data: &MyAgency, _env: &Env| data.live,
+    //         Label::new(""),
+    //         Label::new("deleted").with_text_color(Color::RED),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(Either::new(
+    //         |data: &MyAgency, _env: &Env| data.agency.is_none(),
+    //         Label::new("new item").with_text_color(Color::RED),
+    //         Label::new(""),
+    //     ))
+    //     .with_default_spacer()
+    //     .with_child(delete_item_button());
 
     let fields = Flex::column()
         .with_child(field_row(
@@ -1464,8 +1517,8 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
     // );
 
     Flex::column()
-        .with_child(title)
-        .with_spacer(SPACING_1)
+        // .with_child(title)
+        // .with_spacer(SPACING_1)
         .with_child(fields)
         // .with_spacer(SPACING_1)
         // .with_child(children_header)
@@ -1558,25 +1611,6 @@ pub fn main_widget() -> impl Widget<AppData> {
         .with_default_spacer()
         .fix_width(NARROW_LIST_WIDTH);
 
-    // let routes = Scroll::new(
-    //     Flex::column().with_child(
-    //         FilteredList::new(
-    //             List::new(|| either_ui(route_ui(), route_ui_small())).with_spacing(10.),
-    //             |route: &MyRoute, filtered: &Option<Option<String>>| {
-    //                 filtered.as_ref().map_or(false, |id| &route.agency_id == id)
-    //             },
-    //         )
-    //         .lens(druid::lens::Map::new(
-    //             |data: &AppData| (data.routes.clone(), data.selected_agency.clone()),
-    //             |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
-    //                 data.routes = inner.0;
-    //                 data.selected_agency = inner.1;
-    //             },
-    //         )),
-    //     ),
-    // )
-    // .fix_width(NARROW_LIST_WIDTH);
-
     let selected_route = Flex::column()
         .with_child(
             FilteredList::new(
@@ -1596,59 +1630,6 @@ pub fn main_widget() -> impl Widget<AppData> {
         .with_default_spacer()
         .fix_width(NARROW_LIST_WIDTH);
 
-    // Scroll::new(ViewSwitcher::new(
-    //     |data: &AppData, _env| {
-    //         data.agencies.iter().find_map(|agency| {
-    //             if agency.selected {
-    //                 Some(agency.id.clone())
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //     },
-    //     |selector: &Option<Option<String>>, _data: &AppData, _env: &Env| {
-    //         if let Some(agency_id) = selector.as_ref() {
-    //             Box::new(
-    //                 List::new(route_ui_small)
-    //                     .with_spacing(10.)
-    //                     .lens(AppData::routes),
-    //             )
-    //         } else {
-    //             Box::new(Flex::column())
-    //         }
-    //     },
-    // )),
-
-    // Either::new(
-    //     |data: &AppData, _: &_| data.selected_agency.is_some(),
-    //     Container::new(Scroll::new(
-    //         List::new(route_ui_small)
-    //             .with_spacing(10.)
-    //             .lens(AppData::routes),
-    //     )),
-    //     Container::new(Flex::column()),
-    // ),
-
-    // let routes = Scroll::new(
-    //     Flex::column().with_child(
-    //         List::new(route_ui_small)
-    //             .with_spacing(10.)
-    //             .lens(AppData::routes),
-    //     ),
-    // )
-    // .fix_width(NARROW_LIST_WIDTH);
-
-    // let selected_trip = FilteredList::new(
-    //     List::new(trip_ui_small_selected).with_spacing(10.),
-    //     |trip: &MyTrip, filtered: &()| trip.selected,
-    // )
-    // .lens(druid::lens::Map::new(
-    //     |data: &AppData| (data.trips.clone(), ()),
-    //     |data: &mut AppData, inner: (Vector<MyTrip>, ())| {
-    //         data.trips = inner.0;
-    //     },
-    // ))
-    // .fix_width(NARROW_LIST_WIDTH);
     let selected_trip = Flex::column()
         .with_child(
             FilteredList::new(
@@ -1685,6 +1666,73 @@ pub fn main_widget() -> impl Widget<AppData> {
     ))
     .fix_width(NARROW_LIST_WIDTH);
 
+    let selected_stop = FilteredList::new(
+        List::new(stop_ui).with_spacing(10.),
+        |stop: &MyStop, filtered: &Option<String>| {
+            filtered.as_ref().map_or(false, |id| &stop.id == id)
+        },
+    )
+    .lens(druid::lens::Map::new(
+        |data: &AppData| (data.stops.clone(), data.selected_stop_id.clone()),
+        |data: &mut AppData, inner: (Vector<MyStop>, Option<String>)| {
+            data.stops = inner.0;
+            data.selected_stop_id = inner.1;
+        },
+    ));
+
+    // fn lists_selector<T: Data>(list_type: ItemType) -> Box<dyn Widget<T>> {
+    //     match list_type {
+    //         ItemType::Stop => panic!(""),
+    //         ItemType::StopTime => Box::new(Flex::column()),
+    //         ItemType::Trip => Box::new(
+    //             FilteredList::new(
+    //                 List::new(stop_time_ui_small).with_spacing(10.),
+    //                 |stop_time: &MyStopTime, filtered: &Option<String>| {
+    //                     filtered
+    //                         .as_ref()
+    //                         .map_or(false, |id| &stop_time.trip_id == id)
+    //                 },
+    //             )
+    //             .lens(druid::lens::Map::new(
+    //                 |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
+    //                 |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
+    //                     data.stop_times = inner.0;
+    //                     data.selected_trip_id = inner.1;
+    //                 },
+    //             )),
+    //         ),
+    //         ItemType::Route => Box::new(
+    //             FilteredList::new(
+    //                 List::new(trip_ui_small).with_spacing(10.),
+    //                 |trip: &MyTrip, filtered: &Option<String>| {
+    //                     filtered.as_ref().map_or(false, |id| &trip.route_id == id)
+    //                 },
+    //             )
+    //             .lens(druid::lens::Map::new(
+    //                 |data: &AppData| (data.trips.clone(), data.selected_route_id.clone()),
+    //                 |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+    //                     data.trips = inner.0;
+    //                     data.selected_route_id = inner.1;
+    //                 },
+    //             )),
+    //         ),
+    //         ItemType::Agency => Box::new(
+    //             FilteredList::new(
+    //                 List::new(route_ui_small).with_spacing(10.),
+    //                 |route: &MyRoute, filtered: &Option<Option<String>>| {
+    //                     filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+    //                 },
+    //             )
+    //             .lens(druid::lens::Map::new(
+    //                 |data: &AppData| (data.routes.clone(), data.selected_agency_id.clone()),
+    //                 |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+    //                     data.routes = inner.0;
+    //                     data.selected_agency_id = inner.1;
+    //                 },
+    //             )),
+    //         ),
+    //     }
+    // }
     let lists = ViewSwitcher::new(
         |data: &AppData, _: &_| {
             if data.selected_stop_time_id.is_some() {
@@ -1700,28 +1748,26 @@ pub fn main_widget() -> impl Widget<AppData> {
             }
         },
         |selector: &Option<ItemType>, data: &AppData, _: &_| {
-            if let Some(list_type) = selector {
-                match list_type {
-                    ItemType::Stop => panic!(""),
-                    ItemType::StopTime => Box::new(Flex::column()),
-                    ItemType::Trip => Box::new(  FilteredList::new(
-                        List::new(stop_time_ui_small).with_spacing(10.),
-                        |stop_time: &MyStopTime, filtered: &Option<String>|   
-                            filtered
-                                .as_ref()
-                                .map_or(false, |id| &stop_time.trip_id == id)
-                          
-                    )
-                    .lens(druid::lens::Map::new(
-                        |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
-                        |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
-                            data.stop_times = inner.0;
-                            data.selected_trip_id = inner.1;
-                        },
-                    ))
-                  )  ,
-                    ItemType::Route => Box::new(
-                        FilteredList::new(
+            // NOTE define widgets outside of match to keep formatter working
+            let trip_box = Box::new(
+                FilteredList::new(
+                    List::new(stop_time_ui_small).with_spacing(10.),
+                    |stop_time: &MyStopTime, filtered: &Option<String>| {
+                        filtered
+                            .as_ref()
+                            .map_or(false, |id| &stop_time.trip_id == id)
+                    },
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
+                    |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
+                        data.stop_times = inner.0;
+                        data.selected_trip_id = inner.1;
+                    },
+                )),
+            );
+            let route_box = Box::new(
+                FilteredList::new(
                     List::new(trip_ui_small).with_spacing(10.),
                     |trip: &MyTrip, filtered: &Option<String>| {
                         filtered.as_ref().map_or(false, |id| &trip.route_id == id)
@@ -1733,89 +1779,41 @@ pub fn main_widget() -> impl Widget<AppData> {
                         data.trips = inner.0;
                         data.selected_route_id = inner.1;
                     },
-                ))
-                    ),
-                    ItemType::Agency => Box::new(FilteredList::new(
-                        List::new(route_ui_small).with_spacing(10.),
-                        |route: &MyRoute, filtered: &Option<Option<String>>| {
-                            filtered.as_ref().map_or(false, |id| &route.agency_id == id)
-                        },
-                    )
-                    .lens(druid::lens::Map::new(
-                        |data: &AppData| (data.routes.clone(), data.selected_agency_id.clone()),
-                        |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
-                            data.routes = inner.0;
-                            data.selected_agency_id = inner.1;
-                        },
-                    ))
-                    ),
+                )),
+            );
+            let agency_box = Box::new(
+                FilteredList::new(
+                    List::new(route_ui_small).with_spacing(10.),
+                    |route: &MyRoute, filtered: &Option<Option<String>>| {
+                        filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+                    },
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &AppData| (data.routes.clone(), data.selected_agency_id.clone()),
+                    |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+                        data.routes = inner.0;
+                        data.selected_agency_id = inner.1;
+                    },
+                )),
+            );
+            if let Some(list_type) = selector {
+                match list_type {
+                    ItemType::Stop => panic!(""),
+                    ItemType::StopTime => Box::new(Flex::column()),
+                    ItemType::Trip => trip_box,
+                    ItemType::Route => route_box,
+                    ItemType::Agency => agency_box,
                 }
             } else {
-                Box::new(List::new(agency_ui_small)
-                    .with_spacing(10.)
-                    .lens(AppData::agencies)  )
+                Box::new(
+                    List::new(agency_ui_small)
+                        .with_spacing(10.)
+                        .lens(AppData::agencies),
+                )
             }
         },
     )
     .fix_width(NARROW_LIST_WIDTH);
-
-    // let lists = Either::new(
-    //     |data: &AppData, _: &_| data.selected_stop_time_id.is_some(),
-    //     Flex::column(),
-    //     Either::new(
-    //         |data: &AppData, _: &_| data.selected_trip_id.is_some(),
-    //         FilteredList::new(
-    //             List::new(stop_time_ui_small).with_spacing(10.),
-    //             |stop_time: &MyStopTime, filtered: &Option<String>| {
-    //                 filtered
-    //                     .as_ref()
-    //                     .map_or(false, |id| &stop_time.trip_id == id)
-    //             },
-    //         )
-    //         .lens(druid::lens::Map::new(
-    //             |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
-    //             |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
-    //                 data.stop_times = inner.0;
-    //                 data.selected_trip_id = inner.1;
-    //             },
-    //         )),
-    //         Either::new(
-    //             |data: &AppData, _: &_| data.selected_route_id.is_some(),
-    //             FilteredList::new(
-    //                 List::new(trip_ui_small).with_spacing(10.),
-    //                 |trip: &MyTrip, filtered: &Option<String>| {
-    //                     filtered.as_ref().map_or(false, |id| &trip.route_id == id)
-    //                 },
-    //             )
-    //             .lens(druid::lens::Map::new(
-    //                 |data: &AppData| (data.trips.clone(), data.selected_route_id.clone()),
-    //                 |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
-    //                     data.trips = inner.0;
-    //                     data.selected_route_id = inner.1;
-    //                 },
-    //             )),
-    //             Either::new(
-    //                 |data: &AppData, _: &_| data.selected_agency_id.is_some(),
-    //                 FilteredList::new(
-    //                     List::new(route_ui_small).with_spacing(10.),
-    //                     |route: &MyRoute, filtered: &Option<Option<String>>| {
-    //                         filtered.as_ref().map_or(false, |id| &route.agency_id == id)
-    //                     },
-    //                 )
-    //                 .lens(druid::lens::Map::new(
-    //                     |data: &AppData| (data.routes.clone(), data.selected_agency_id.clone()),
-    //                     |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
-    //                         data.routes = inner.0;
-    //                         data.selected_agency_id = inner.1;
-    //                     },
-    //                 )),
-    //                 List::new(agency_ui_small)
-    //                     .with_spacing(10.)
-    //                     .lens(AppData::agencies),
-    //             ),
-    //         ),
-    //     ),
-    // );
 
     #[derive(Clone, Data, PartialEq, Eq)]
     enum ItemType {
@@ -1827,7 +1825,7 @@ pub fn main_widget() -> impl Widget<AppData> {
     }
     let editable_item = ViewSwitcher::new(
         |data: &AppData, _: &_| {
-            if data.stops.iter().any(|stop| stop.selected) {
+            if data.selected_stop_id.is_some() {
                 Some(ItemType::Stop)
             } else if data.selected_stop_time_id.is_some() {
                 Some(ItemType::StopTime)
@@ -1905,6 +1903,195 @@ pub fn main_widget() -> impl Widget<AppData> {
     )
     .fix_width(NARROW_LIST_WIDTH);
 
+    let all_together_now =
+        ViewSwitcher::new(
+            |data: &AppData, _: &_| {
+                // if data.selected_stop_id.is_some() {
+                //     Some(ItemType::Stop)
+                // } else if data.selected_stop_time_id.is_some() {
+                //     Some(ItemType::StopTime)
+                // } else if data.selected_trip_id.is_some() {
+                //     Some(ItemType::Trip)
+                // } else if data.selected_route_id.is_some() {
+                //     Some(ItemType::Route)
+                // } else if data.selected_agency_id.is_some() {
+                //     Some(ItemType::Agency)
+                // } else {
+                //     None
+                // }
+                (
+                    data.selected_agency_id.clone()  ,
+                    data.selected_route_id.clone(),
+                    data.selected_trip_id.clone(),
+                    data.selected_stop_time_id.clone(),
+                    data.selected_stop_id.clone(),
+                )
+            },
+            |selector: &(
+                Option<Option<String>>,
+                Option<String>,
+                Option<String>,
+                Option<(String, u16)>,
+                Option<String>,
+            ),
+             data: &AppData,
+             _: &_| {
+                // TODO want parents to become unselected when children are selected
+                // if nothing selected: agency_list
+                // if agency selected: selected agency and trip list
+                // ...
+                // if trip selected: unselected parents, selected trip, and stop_time list
+                // if stop_time selected: unselected parents, selected stop_time
+                // if stop selected: unselected parents (if they are already selected, else nothing since we don't know what the parents are), selected stop
+                if *selector == (None, None, None, None, None) {
+                    Box::new(
+                        List::new(agency_ui_small)
+                            .with_spacing(10.)
+                            .lens(AppData::agencies),
+                    )
+                } else if data.selected_agency_id.is_some() && data.selected_route_id == None {
+                    Box::new(Flex::column()
+                .with_child(
+                    FilteredList::new(
+                        List::new(agency_ui_small_selected).with_spacing(10.),
+                        |agency: &MyAgency, filtered: &Option<Option<String>>| {
+                            filtered.as_ref().map_or(false, |id| &agency.id == id)
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.agencies.clone(), data.selected_agency_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyAgency>, Option<Option<String>>)| {
+                            data.agencies = inner.0;
+                            data.selected_agency_id = inner.1;
+                        },
+                    )),
+                )
+                .with_default_spacer().with_child(FilteredList::new(
+                    List::new(route_ui_small).with_spacing(10.),
+                    |route: &MyRoute, filtered: &Option<Option<String>>| {
+                        filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+                    },
+                )
+                .lens(druid::lens::Map::new(
+                    |data: &AppData| (data.routes.clone(), data.selected_agency_id.clone()),
+                    |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+                        data.routes = inner.0;
+                        data.selected_agency_id = inner.1;
+                    },
+                ))  )
+                .fix_width(NARROW_LIST_WIDTH))
+                } else if data.selected_route_id.is_some() && data.selected_trip_id.is_none() {
+                    Box::new(Flex::column()
+                .with_child(
+                    FilteredList::new(
+                        List::new(route_ui_small_selected).with_spacing(10.),
+                        |route: &MyRoute, filtered: &Option<String>| {
+                            filtered.as_ref().map_or(false, |id| &route.id == id)
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.routes.clone(), data.selected_route_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyRoute>, Option<String>)| {
+                            data.routes = inner.0;
+                            data.selected_route_id = inner.1;
+                        },
+                    )),
+                )
+                .with_default_spacer()
+                .with_child(
+                    FilteredList::new(
+                        List::new(trip_ui_small).with_spacing(10.),
+                        |trip: &MyTrip, filtered: &Option<String>| {
+                            filtered.as_ref().map_or(false, |id| &trip.route_id == id)
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.trips.clone(), data.selected_route_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+                            data.trips = inner.0;
+                            data.selected_route_id = inner.1;
+                        },
+                    )),
+                )
+                .fix_width(NARROW_LIST_WIDTH)  )
+                } else if data.selected_trip_id.is_some() && data.selected_stop_time_id.is_none() {
+                    Box::new(
+                    Flex::column()
+                        .with_child(
+                            FilteredList::new(
+                                List::new(trip_ui_small_selected).with_spacing(10.),
+                                |trip: &MyTrip, filtered: &Option<String>| {
+                                    filtered.as_ref().map_or(false, |id| &trip.id == id)
+                                },
+                            )
+                            .lens(druid::lens::Map::new(
+                                |data: &AppData| {
+                                    (data.trips.clone(), data.selected_trip_id.clone())
+                                },
+                                |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+                                    data.trips = inner.0;
+                                    data.selected_trip_id = inner.1;
+                                },
+                            )),
+                        )
+                        .with_default_spacer().with_child(FilteredList::new(
+                            List::new(stop_time_ui_small).with_spacing(10.),
+                            |stop_time: &MyStopTime, filtered: &Option<String>| {
+                                filtered
+                                    .as_ref()
+                                    .map_or(false, |id| &stop_time.trip_id == id)
+                            },
+                        )
+                        .lens(druid::lens::Map::new(
+                            |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
+                            |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
+                                data.stop_times = inner.0;
+                                data.selected_trip_id = inner.1;
+                            },
+                        ))  )
+                        .fix_width(NARROW_LIST_WIDTH),
+                )
+                } else if data.selected_stop_time_id.is_some() {
+                    Box::new(FilteredList::new(
+                        List::new(selected_stop_time_ui_small).with_spacing(10.),
+                        |stop_time: &MyStopTime, filtered: &Option<(String, u16)>| {
+                            filtered.as_ref().map_or(false, |id| {
+                                stop_time.trip_id == id.0 && stop_time.stop_sequence == id.1
+                            })
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.stop_times.clone(), data.selected_stop_time_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyStopTime>, Option<(String, u16)>)| {
+                            data.stop_times = inner.0;
+                            data.selected_stop_time_id = inner.1;
+                        },
+                    ))
+                    .fix_width(NARROW_LIST_WIDTH)  )
+                
+                    
+                } else if data.selected_stop_id.is_some() {
+                     Box::new(FilteredList::new(
+                        List::new(stop_ui).with_spacing(10.),
+                        |stop: &MyStop, filtered: &Option<String>| {
+                            filtered.as_ref().map_or(false, |id| &stop.id == id)
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.stops.clone(), data.selected_stop_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyStop>, Option<String>)| {
+                            data.stops = inner.0;
+                            data.selected_stop_id = inner.1;
+                        },
+                    ))  )
+                }
+                else {
+                    panic!("unexpected item selection combination")  
+                }
+            },
+        )
+        .fix_width(NARROW_LIST_WIDTH);
+
     // let editable_item = Either::new(
     //     |data: &AppData, _: &_| data.stops.iter().any(|stop| stop.selected),
     //     FilteredList::new(
@@ -1966,14 +2153,33 @@ pub fn main_widget() -> impl Widget<AppData> {
     // )
     // .fix_width(NARROW_LIST_WIDTH);
 
+    // let all_together_now = ViewSwitcher::new(|data: &AppData, _: &_| {
+    //     if data.stops.iter().any(|stop| stop.selected) {
+    //         Some(ItemType::Stop)
+    //     } else if data.selected_stop_time_id.is_some() {
+    //         Some(ItemType::StopTime)
+    //     } else if data.selected_trip_id.is_some() {
+    //         Some(ItemType::Trip)
+    //     } else if data.selected_route_id.is_some() {
+    //         Some(ItemType::Route)
+    //     } else if data.selected_agency_id.is_some() {
+    //         Some(ItemType::Agency)
+    //     } else {
+    //         None
+    //     }
+    // },
+    // |selector: &Option<ItemType>, data: &AppData, _: &_| {)
+
     Flex::row()
         .with_flex_child(
             Flex::column()
-                .with_child(selected_agency)
-                .with_child(selected_route)
-                .with_child(selected_trip)
-                .with_child(selected_stop_time)
-                .with_flex_child(Scroll::new(lists), 1.)
+                // .with_child(selected_agency)
+                // .with_child(selected_route)
+                // .with_child(selected_trip)
+                // .with_child(selected_stop_time)
+                // .with_child(selected_stop)
+                // .with_flex_child(Scroll::new(lists), 1.)
+                .with_child(all_together_now  )
                 .cross_axis_alignment(CrossAxisAlignment::Start),
             1.,
         )
@@ -1989,15 +2195,8 @@ pub fn main_widget() -> impl Widget<AppData> {
         //     Label::new("sup").fix_width(600.),
         // ))
         // .with_default_spacer()
-        // .with_child(
-        //     Scroll::new(
-        //         Flex::column()
-        //             .with_child(List::new(stop_ui).with_spacing(10.).lens(AppData::stops)),
-        //     )
-        //     .fix_width(600.),
-        // )
-        .with_default_spacer()
-        .with_child(editable_item)
+        // .with_default_spacer()
+        // .with_child(editable_item)
         .with_default_spacer()
         // .with_spacer(20.)
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))

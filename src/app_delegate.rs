@@ -29,8 +29,8 @@ pub const ITEM_UPDATE: Selector<(String, String)> = Selector::new("item.update")
 pub const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.child");
 pub const NEW_TRIP: Selector<String> = Selector::new("new.trip");
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
-pub const SELECT_STOP_LIST: Selector<String> = Selector::new("show.stop");
-pub const SELECT_STOP_MAP: Selector<String> = Selector::new("show.stop");
+pub const SELECT_STOP_LIST: Selector<String> = Selector::new("select.stop.list");
+pub const SELECT_STOP_MAP: Selector<String> = Selector::new("select.stop.map");
 pub const SELECT_AGENCY: Selector<Option<String>> = Selector::new("select.agency");
 pub const SELECT_ROUTE: Selector<String> = Selector::new("select.route");
 pub const SELECT_TRIP: Selector<String> = Selector::new("select.trip");
@@ -72,6 +72,7 @@ impl AppDelegate<AppData> for Delegate {
         data: &mut AppData,
         env: &Env,
     ) -> druid::Handled {
+        dbg!("got cmd");
         if let Some(item_delete) = cmd.get(ITEM_DELETE) {
             dbg!(item_delete);
 
@@ -310,6 +311,8 @@ impl AppDelegate<AppData> for Delegate {
             data.selected_stop_time_id = None;
             druid::Handled::Yes
         } else if let Some(stop_id) = cmd.get(SELECT_STOP_LIST) {
+            dbg!("select_stop_list");
+            data.selected_stop_id = Some(stop_id.clone());
             for stop in data.stops.iter_mut() {
                 if &stop.id == stop_id {
                     // stop.scroll_to_me += 1;
@@ -325,6 +328,7 @@ impl AppDelegate<AppData> for Delegate {
             // data.selected_stop_time_id = None;
             druid::Handled::Yes
         } else if let Some(agency_id) = cmd.get(SELECT_AGENCY) {
+            // TODO why is the if statement needed?
             if data.selected_agency_id != Some(agency_id.clone()) {
                 dbg!("update agency");
                 data.selected_agency_id = Some(agency_id.clone());
