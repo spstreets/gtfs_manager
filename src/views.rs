@@ -464,11 +464,7 @@ pub fn stop_ui() -> impl Widget<MyStop> {
 pub fn selected_stop_time_ui_small() -> impl Widget<MyStopTime> {
     selected_item_container(
         Label::new(|data: &MyStopTime, _env: &_| {
-            format!(
-                "{}: {}",
-                data.stop_sequence,
-                data.stop_name
-            )
+            format!("{}: {}", data.stop_sequence, data.stop_name)
         })
         .with_line_break_mode(LineBreaking::Clip),
         Checkbox::new("fields").lens(MyStopTime::show_editing),
@@ -486,11 +482,7 @@ pub fn selected_stop_time_ui_small() -> impl Widget<MyStopTime> {
 pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
     unselected_item_container(
         Label::new(|data: &MyStopTime, _env: &_| {
-            format!(
-                "{}: {}",
-                data.stop_sequence,
-                data.stop_name
-            )
+            format!("{}: {}", data.stop_sequence, data.stop_name)
         })
         .with_line_break_mode(LineBreaking::Clip),
     )
@@ -1588,20 +1580,23 @@ fn agency_selected() -> Box<dyn Widget<AppData>> {
                 )),
             )
             .with_default_spacer()
-            .with_child(
-                FilteredList::new(
-                    List::new(route_ui_small).with_spacing(10.),
-                    |route: &MyRoute, filtered: &Option<Option<String>>| {
-                        filtered.as_ref().map_or(false, |id| &route.agency_id == id)
-                    },
-                )
-                .lens(druid::lens::Map::new(
-                    |data: &AppData| (data.routes.clone(), data.selected_agency_id.clone()),
-                    |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
-                        data.routes = inner.0;
-                        data.selected_agency_id = inner.1;
-                    },
-                )),
+            .with_flex_child(
+                Scroll::new(
+                    FilteredList::new(
+                        List::new(route_ui_small).with_spacing(10.),
+                        |route: &MyRoute, filtered: &Option<Option<String>>| {
+                            filtered.as_ref().map_or(false, |id| &route.agency_id == id)
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.routes.clone(), data.selected_agency_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyRoute>, Option<Option<String>>)| {
+                            data.routes = inner.0;
+                            data.selected_agency_id = inner.1;
+                        },
+                    )),
+                ),
+                1.,
             )
             .fix_width(NARROW_LIST_WIDTH),
     )
@@ -1690,20 +1685,23 @@ fn route_selected() -> Box<dyn Widget<AppData>> {
                 )),
             )
             .with_default_spacer()
-            .with_child(
-                FilteredList::new(
-                    List::new(trip_ui_small).with_spacing(10.),
-                    |trip: &MyTrip, filtered: &Option<String>| {
-                        filtered.as_ref().map_or(false, |id| &trip.route_id == id)
-                    },
-                )
-                .lens(druid::lens::Map::new(
-                    |data: &AppData| (data.trips.clone(), data.selected_route_id.clone()),
-                    |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
-                        data.trips = inner.0;
-                        data.selected_route_id = inner.1;
-                    },
-                )),
+            .with_flex_child(
+                Scroll::new(
+                    FilteredList::new(
+                        List::new(trip_ui_small).with_spacing(10.),
+                        |trip: &MyTrip, filtered: &Option<String>| {
+                            filtered.as_ref().map_or(false, |id| &trip.route_id == id)
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.trips.clone(), data.selected_route_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+                            data.trips = inner.0;
+                            data.selected_route_id = inner.1;
+                        },
+                    )),
+                ),
+                1.,
             )
             .fix_width(NARROW_LIST_WIDTH),
     )
@@ -1730,22 +1728,25 @@ fn trip_selected() -> Box<dyn Widget<AppData>> {
                 )),
             )
             .with_default_spacer()
-            .with_child(
-                FilteredList::new(
-                    List::new(stop_time_ui_small).with_spacing(10.),
-                    |stop_time: &MyStopTime, filtered: &Option<String>| {
-                        filtered
-                            .as_ref()
-                            .map_or(false, |id| &stop_time.trip_id == id)
-                    },
-                )
-                .lens(druid::lens::Map::new(
-                    |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
-                    |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
-                        data.stop_times = inner.0;
-                        data.selected_trip_id = inner.1;
-                    },
-                )),
+            .with_flex_child(
+                Scroll::new(
+                    FilteredList::new(
+                        List::new(stop_time_ui_small).with_spacing(10.),
+                        |stop_time: &MyStopTime, filtered: &Option<String>| {
+                            filtered
+                                .as_ref()
+                                .map_or(false, |id| &stop_time.trip_id == id)
+                        },
+                    )
+                    .lens(druid::lens::Map::new(
+                        |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
+                        |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
+                            data.stop_times = inner.0;
+                            data.selected_trip_id = inner.1;
+                        },
+                    )),
+                ),
+                1.,
             )
             .fix_width(NARROW_LIST_WIDTH),
     )
@@ -1879,12 +1880,7 @@ pub fn main_widget() -> impl Widget<AppData> {
     .fix_width(NARROW_LIST_WIDTH);
 
     Flex::row()
-        .with_flex_child(
-            Flex::column()
-                .with_child(all_together_now)
-                .cross_axis_alignment(CrossAxisAlignment::Start),
-            1.,
-        )
+        .with_flex_child(all_together_now, 1.)
         .with_default_spacer()
         // .with_spacer(20.)
         .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
