@@ -77,48 +77,48 @@ impl AppDelegate<AppData> for Delegate {
             dbg!(item_delete);
 
             // data.edits.clear();
-            for agency in data.agencies.iter_mut() {
-                for route in agency.routes.iter_mut() {
-                    if item_delete.0 == "route".to_string() && route.id() == item_delete.1 {
-                        route.live = false;
-                        data.actions.push_back(Action {
-                            id: data.actions.len(),
-                            edit_type: EditType::Delete,
-                            item_type: "route".to_string(),
-                            item_id: route.id(),
-                            // item_data: Some(Rc::new(route.clone())),
-                        });
-                    } else {
-                        for trip in route.trips.iter_mut() {
-                            if item_delete.0 == "trip".to_string() && trip.id() == item_delete.1 {
-                                trip.live = false;
-                                data.actions.push_back(Action {
-                                    id: data.actions.len(),
-                                    edit_type: EditType::Delete,
-                                    item_type: "trip".to_string(),
-                                    item_id: trip.id(),
-                                    // item_data: Some(Rc::new(trip.clone())),
-                                });
-                            } else {
-                                for stop_time in trip.stops.iter_mut() {
-                                    if item_delete.0 == "stop_time".to_string()
-                                        && stop_time.id() == item_delete.1
-                                    {
-                                        stop_time.live = false;
-                                        data.actions.push_back(Action {
-                                            id: data.actions.len(),
-                                            edit_type: EditType::Delete,
-                                            item_type: "stop_time".to_string(),
-                                            item_id: stop_time.id(),
-                                            // item_data: Some(Rc::new(stop_time.clone())),
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // for agency in data.agencies.iter_mut() {
+            //     for route in agency.routes.iter_mut() {
+            //         if item_delete.0 == "route".to_string() && route.id() == item_delete.1 {
+            //             route.live = false;
+            //             data.actions.push_back(Action {
+            //                 id: data.actions.len(),
+            //                 edit_type: EditType::Delete,
+            //                 item_type: "route".to_string(),
+            //                 item_id: route.id(),
+            //                 // item_data: Some(Rc::new(route.clone())),
+            //             });
+            //         } else {
+            //             for trip in route.trips.iter_mut() {
+            //                 if item_delete.0 == "trip".to_string() && trip.id() == item_delete.1 {
+            //                     trip.live = false;
+            //                     data.actions.push_back(Action {
+            //                         id: data.actions.len(),
+            //                         edit_type: EditType::Delete,
+            //                         item_type: "trip".to_string(),
+            //                         item_id: trip.id(),
+            //                         // item_data: Some(Rc::new(trip.clone())),
+            //                     });
+            //                 } else {
+            //                     for stop_time in trip.stops.iter_mut() {
+            //                         if item_delete.0 == "stop_time".to_string()
+            //                             && stop_time.id() == item_delete.1
+            //                         {
+            //                             stop_time.live = false;
+            //                             data.actions.push_back(Action {
+            //                                 id: data.actions.len(),
+            //                                 edit_type: EditType::Delete,
+            //                                 item_type: "stop_time".to_string(),
+            //                                 item_id: stop_time.id(),
+            //                                 // item_data: Some(Rc::new(stop_time.clone())),
+            //                             });
+            //                         }
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
             // druid::Handled::No
             druid::Handled::Yes
         } else if let Some(item_update) = cmd.get(ITEM_UPDATE) {
@@ -218,45 +218,45 @@ impl AppDelegate<AppData> for Delegate {
                         // item_data: Some(Rc::new(agency.clone())),
                     });
                 } else {
-                    for route in agency.routes.iter_mut() {
-                        if item_type == "route" && &route.id() == parent_id {
-                            route.new_child();
-                            data.actions.push_back(Action {
-                                id: data.actions.len(),
-                                edit_type: EditType::Create,
-                                // todo is the item type route? or should it be a trip?
-                                item_type: "trip".to_string(),
-                                item_id: route.id(),
-                                // item_data: Some(Rc::new(route.clone())),
-                            });
-                        } else {
-                            // for trip in route.trips.iter_mut() {
-                            //     if item_type == "trip" {
-                            //         trip.live = false;
-                            //         data.edits.push_back(Edit {
-                            //             id: data.edits.len(),
-                            //             edit_type: EditType::Delete,
-                            //             item_type: "trip".to_string(),
-                            //             item_id: trip.id(),
-                            //             item_data: Some(Rc::new(trip.clone())),
-                            //         });
-                            //     } else {
-                            //         for stop_time in trip.stops.iter_mut() {
-                            //             if item_type == "stop_time" {
-                            //                 stop_time.live = false;
-                            //                 data.edits.push_back(Edit {
-                            //                     id: data.edits.len(),
-                            //                     edit_type: EditType::Delete,
-                            //                     item_type: "stop_time".to_string(),
-                            //                     item_id: stop_time.id(),
-                            //                     item_data: Some(Rc::new(stop_time.clone())),
-                            //                 });
-                            //             }
-                            //         }
-                            //     }
-                            // }
-                        }
-                    }
+                    // for route in agency.routes.iter_mut() {
+                    //     if item_type == "route" && &route.id() == parent_id {
+                    //         route.new_child();
+                    //         data.actions.push_back(Action {
+                    //             id: data.actions.len(),
+                    //             edit_type: EditType::Create,
+                    //             // todo is the item type route? or should it be a trip?
+                    //             item_type: "trip".to_string(),
+                    //             item_id: route.id(),
+                    //             // item_data: Some(Rc::new(route.clone())),
+                    //         });
+                    //     } else {
+                    //         // for trip in route.trips.iter_mut() {
+                    //         //     if item_type == "trip" {
+                    //         //         trip.live = false;
+                    //         //         data.edits.push_back(Edit {
+                    //         //             id: data.edits.len(),
+                    //         //             edit_type: EditType::Delete,
+                    //         //             item_type: "trip".to_string(),
+                    //         //             item_id: trip.id(),
+                    //         //             item_data: Some(Rc::new(trip.clone())),
+                    //         //         });
+                    //         //     } else {
+                    //         //         for stop_time in trip.stops.iter_mut() {
+                    //         //             if item_type == "stop_time" {
+                    //         //                 stop_time.live = false;
+                    //         //                 data.edits.push_back(Edit {
+                    //         //                     id: data.edits.len(),
+                    //         //                     edit_type: EditType::Delete,
+                    //         //                     item_type: "stop_time".to_string(),
+                    //         //                     item_id: stop_time.id(),
+                    //         //                     item_data: Some(Rc::new(stop_time.clone())),
+                    //         //                 });
+                    //         //             }
+                    //         //         }
+                    //         //     }
+                    //         // }
+                    //     }
+                    // }
                 }
             }
             // druid::Handled::No
@@ -264,30 +264,30 @@ impl AppDelegate<AppData> for Delegate {
         } else if let Some(edit_id) = cmd.get(EDIT_DELETE) {
             dbg!(edit_id);
             let edit = data.actions.get(*edit_id).unwrap();
-            if edit.item_type == "stop_time".to_string() {
-                for agency in data.agencies.iter_mut() {
-                    for route in agency.routes.iter_mut() {
-                        for trip in route.trips.iter_mut() {
-                            for stop_time in trip.stops.iter_mut() {
-                                if stop_time.id() == edit.item_id {
-                                    stop_time.live = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if edit.item_type == "trip".to_string() {
-                for agency in data.agencies.iter_mut() {
-                    for route in agency.routes.iter_mut() {
-                        for trip in route.trips.iter_mut() {
-                            if trip.id() == edit.item_id {
-                                trip.live = true;
-                            }
-                        }
-                    }
-                }
-            }
+            // if edit.item_type == "stop_time".to_string() {
+            //     for agency in data.agencies.iter_mut() {
+            //         for route in agency.routes.iter_mut() {
+            //             for trip in route.trips.iter_mut() {
+            //                 for stop_time in trip.stops.iter_mut() {
+            //                     if stop_time.id() == edit.item_id {
+            //                         stop_time.live = true;
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            // if edit.item_type == "trip".to_string() {
+            //     for agency in data.agencies.iter_mut() {
+            //         for route in agency.routes.iter_mut() {
+            //             for trip in route.trips.iter_mut() {
+            //                 if trip.id() == edit.item_id {
+            //                     trip.live = true;
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
             data.actions.retain(|edit| edit.id != *edit_id);
             druid::Handled::Yes
         } else if let Some(route_id) = cmd.get(NEW_TRIP) {
