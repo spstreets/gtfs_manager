@@ -60,7 +60,6 @@ pub struct MapWidget {
     speed: f64,
     drag_start: Option<Point>,
     focal_point: Point,
-    limit: Option<usize>,
     cached_image: Option<CairoImage>,
     redraw_base: bool,
     redraw_highlights: bool,
@@ -80,8 +79,6 @@ impl MapWidget {
             speed,
             drag_start: None,
             focal_point: offset,
-            // limit: Some(50),
-            limit: None,
             cached_image: None,
             redraw_base: true,
             redraw_highlights: true,
@@ -119,16 +116,12 @@ impl MapWidget {
         height: f64,
         zoomed_paint_width: f64,
         zoomed_paint_height: f64,
-        x_padding: f64,
-        y_padding: f64,
         focal_point: Point,
         zoom: f64,
     ) -> Point {
         let (long, lat) = point;
-        let x2 = (*long - ranges.longmin) * (zoomed_paint_width / width) + x_padding
-            - focal_point.x * zoom;
-        let y2 = (*lat - ranges.latmin) * (zoomed_paint_height / height) + y_padding
-            - focal_point.y * zoom;
+        let x2 = (*long - ranges.longmin) * (zoomed_paint_width / width) - focal_point.x * zoom;
+        let y2 = (*lat - ranges.latmin) * (zoomed_paint_height / height) - focal_point.y * zoom;
         Point::new(x2, y2)
     }
 
@@ -171,6 +164,7 @@ impl Widget<AppData> for MapWidget {
                         );
                         self.drag_start = Some(drag_end);
                     } else {
+                        // we keep drag_start.is_some() even if the mouse has left the viewport, otherwise it is annoying if you slightly move your mouse outside the viewport and you loose your drag and have to click again
                         self.drag_start = None;
                         ctx.clear_cursor();
                     }
@@ -196,7 +190,10 @@ impl Widget<AppData> for MapWidget {
                             self.highlighted_stop_circle = Some(circle.clone());
                         }
                     }
-                    ctx.request_paint();
+                    if self.redraw_highlights {
+                        println!("mouse_move: paint");
+                        ctx.request_paint();
+                    }
                 }
             }
             Event::MouseUp(me) => {
@@ -267,7 +264,16 @@ impl Widget<AppData> for MapWidget {
         // }
 
         // TODO is this ok or need to loop through and compare items?
+        // need to differentiate between visible/selected/zoomed to determine whether we need to set self.redraw_base
+        println!("update");
         if !data.trips.same(&old_data.trips) {
+            println!("update: trips: paint");
+            self.redraw_base = true;
+            ctx.request_paint();
+        }
+        if !data.map_zoom_level.same(&&old_data.map_zoom_level) {
+            println!("update: map_zoom_level: paint");
+            self.redraw_base = true;
             ctx.request_paint();
         }
 
@@ -290,6 +296,7 @@ impl Widget<AppData> for MapWidget {
         //     let size = Size::new(300.0, 300.0);
         //     bc.constrain(size)
         // }
+        println!("layout");
         let size = Size::new(300.0, 300.0);
         bc.constrain(size);
         let max = bc.max().height.min(bc.max().width);
@@ -307,21 +314,20 @@ impl Widget<AppData> for MapWidget {
 
         // todo encode gtfs coords and painting coords into two distinct types for clarity
 
+        println!("paint");
         let size = ctx.size();
         let rect = size.to_rect();
         ctx.clip(rect);
-        // ctx.fill(rect, &Color::grey(0.1));
+        ctx.fill(rect, &Color::grey(0.6));
 
         if self.redraw_base {
-            dbg!("redraw");
+            println!("paint: redraw");
             self.redraw_base = false;
             self.redraw_highlights = false;
 
+            // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
+            // vector of trips (selected, vector of stop coords)
             let mut trips_coords = data.trips_coords();
-
-            if let Some(limit) = self.limit {
-                trips_coords = trips_coords.iter().cloned().take(limit).collect::<Vec<_>>();
-            }
 
             // find size of path data
             // TODO don't clone coord vecs
@@ -341,20 +347,27 @@ impl Widget<AppData> for MapWidget {
                 (size.width * width / height, size.height)
             };
 
-            let zoom = self.zoom_level;
+            // let zoom = self.zoom_level;
+            let zoom = match data.map_zoom_level {
+                ZoomLevel::One => 1.,
+                ZoomLevel::Two => 2.,
+                ZoomLevel::Three => 3.,
+            };
             let (zoomed_paint_width, zoomed_paint_height) =
                 (paint_width * zoom, paint_height * zoom);
 
-            let (x_padding, y_padding) = MapWidget::calculate_padding(
-                width,
-                height,
-                size,
-                zoom,
-                zoomed_paint_width,
-                zoomed_paint_height,
-                paint_width,
-                paint_height,
-            );
+            let long_lat_to_canvas_closure = |coord: &(f64, f64)| {
+                MapWidget::long_lat_to_canvas(
+                    coord,
+                    ranges,
+                    width,
+                    height,
+                    zoomed_paint_width,
+                    zoomed_paint_height,
+                    self.focal_point,
+                    zoom,
+                )
+            };
 
             // make trips paths
             self.all_trip_paths = trips_coords
@@ -364,31 +377,9 @@ impl Widget<AppData> for MapWidget {
                     let mut path = BezPath::new();
                     for (i, coord) in trip_coords.iter().enumerate() {
                         if i == 0 {
-                            path.move_to(MapWidget::long_lat_to_canvas(
-                                coord,
-                                ranges,
-                                width,
-                                height,
-                                zoomed_paint_width,
-                                zoomed_paint_height,
-                                x_padding,
-                                y_padding,
-                                self.focal_point,
-                                zoom,
-                            ));
+                            path.move_to(long_lat_to_canvas_closure(coord));
                         } else {
-                            path.line_to(MapWidget::long_lat_to_canvas(
-                                coord,
-                                ranges,
-                                width,
-                                height,
-                                zoomed_paint_width,
-                                zoomed_paint_height,
-                                x_padding,
-                                y_padding,
-                                self.focal_point,
-                                zoom,
-                            ));
+                            path.line_to(long_lat_to_canvas_closure(coord));
                         }
                     }
                     path
@@ -402,31 +393,9 @@ impl Widget<AppData> for MapWidget {
                     let mut path = BezPath::new();
                     for (i, coord) in trip_coords.iter().enumerate() {
                         if i == 0 {
-                            path.move_to(MapWidget::long_lat_to_canvas(
-                                coord,
-                                ranges,
-                                width,
-                                height,
-                                zoomed_paint_width,
-                                zoomed_paint_height,
-                                x_padding,
-                                y_padding,
-                                self.focal_point,
-                                zoom,
-                            ));
+                            path.move_to(long_lat_to_canvas_closure(coord));
                         } else {
-                            path.line_to(MapWidget::long_lat_to_canvas(
-                                coord,
-                                ranges,
-                                width,
-                                height,
-                                zoomed_paint_width,
-                                zoomed_paint_height,
-                                x_padding,
-                                y_padding,
-                                self.focal_point,
-                                zoom,
-                            ));
+                            path.line_to(long_lat_to_canvas_closure(coord));
                         }
                     }
                     path
@@ -438,18 +407,7 @@ impl Widget<AppData> for MapWidget {
                 .iter()
                 .map(|stop| {
                     Circle::new(
-                        MapWidget::long_lat_to_canvas(
-                            &(stop.coord.0, stop.coord.1),
-                            ranges,
-                            width,
-                            height,
-                            zoomed_paint_width,
-                            zoomed_paint_height,
-                            x_padding,
-                            y_padding,
-                            self.focal_point,
-                            zoom,
-                        ),
+                        long_lat_to_canvas_closure(&(stop.coord.0, stop.coord.1)),
                         if zoom > 6. { 6. } else { zoom },
                     )
                 })
@@ -533,7 +491,7 @@ impl Widget<AppData> for MapWidget {
                 InterpolationMode::Bilinear,
             );
         } else if self.redraw_highlights {
-            dbg!("redraw highlights");
+            println!("paint: redraw highlights");
             self.draw_cache(ctx, rect);
             ctx.fill(Circle::new(Point::new(100., 100.), 50.), &Color::FUCHSIA);
             for path in &self.highlighted_trip_paths {
@@ -559,7 +517,7 @@ impl Widget<AppData> for MapWidget {
             }
             self.redraw_highlights = false;
         } else {
-            dbg!("use cache");
+            println!("paint: use cache");
             self.draw_cache(ctx, rect);
         }
     }

@@ -1879,11 +1879,16 @@ pub fn main_widget() -> impl Widget<AppData> {
     )
     .fix_width(NARROW_LIST_WIDTH);
 
+    let zoom_level = RadioGroup::row(ZoomLevel::radio_group_vec()).lens(AppData::map_zoom_level);
+
     Flex::row()
         .with_flex_child(all_together_now, 1.)
         .with_default_spacer()
         // .with_spacer(20.)
-        .with_flex_child(map_widget, FlexParams::new(1.0, CrossAxisAlignment::Start))
+        .with_flex_child(
+            Flex::column().with_child(zoom_level).with_child(map_widget),
+            FlexParams::new(1.0, CrossAxisAlignment::Start),
+        )
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .padding(20.)

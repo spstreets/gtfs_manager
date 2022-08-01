@@ -441,11 +441,20 @@ pub struct Edit {
     id: usize,
 }
 
-#[derive(Clone, Data, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Data, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ZoomLevel {
-    Zero,
     One,
     Two,
+    Three,
+}
+impl ZoomLevel {
+    pub fn radio_group_vec() -> Vec<(String, ZoomLevel)> {
+        vec![
+            ("1x".to_string(), ZoomLevel::One),
+            ("2x".to_string(), ZoomLevel::Two),
+            ("3x".to_string(), ZoomLevel::Three),
+        ]
+    }
 }
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
@@ -939,7 +948,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // stops: Vector::new(),
         actions: Vector::new(),
         edits: Vector::new(),
-        map_zoom_level: ZoomLevel::One,
+        map_zoom_level: ZoomLevel::Two,
     };
     println!("{:?} finish make_initial_data", Utc::now());
     app_data
