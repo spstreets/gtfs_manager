@@ -135,6 +135,23 @@ impl MapWidget {
         );
     }
 }
+
+fn bez_path_from_coords_iter<I, P>(coords_iter: I) -> BezPath
+where
+    I: Iterator<Item = P>,
+    P: Into<Point>,
+{
+    let mut path = BezPath::new();
+    for (i, coord) in coords_iter.enumerate() {
+        if i == 0 {
+            path.move_to(coord);
+        } else {
+            path.line_to(coord);
+        }
+    }
+    path
+}
+
 impl Widget<AppData> for MapWidget {
     fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppData, env: &Env) {
         match event {
@@ -234,35 +251,6 @@ impl Widget<AppData> for MapWidget {
         data: &AppData,
         env: &Env,
     ) {
-        // 'outer: for (agency, old_agency) in data.agencies.iter().zip(old_data.agencies.iter()) {
-        //     if !agency.visible.same(&old_agency.visible) {
-        //         ctx.request_paint();
-        //         break 'outer;
-        //     } else {
-        //         for (route, old_route) in agency.routes.iter().zip(old_agency.routes.iter()) {
-        //             if !route.visible.same(&old_route.visible) {
-        //                 ctx.request_paint();
-        //                 break 'outer;
-        //             } else {
-        //                 for (trip, old_trip) in route.trips.iter().zip(old_route.trips.iter()) {
-        //                     if !trip.visible.same(&old_trip.visible) {
-        //                         ctx.request_paint();
-        //                         break 'outer;
-        //                     } else {
-        //                         for (stop, old_stop) in trip.stops.iter().zip(old_trip.stops.iter())
-        //                         {
-        //                             if !stop.selected.same(&old_stop.selected) {
-        //                                 ctx.request_paint();
-        //                                 break 'outer;
-        //                             }
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
         // TODO is this ok or need to loop through and compare items?
         // need to differentiate between visible/selected/zoomed to determine whether we need to set self.redraw_base
         println!("update");
@@ -331,12 +319,7 @@ impl Widget<AppData> for MapWidget {
 
             // find size of path data
             // TODO don't clone coord vecs
-            let ranges = min_max_trips_coords(
-                &trips_coords
-                    .iter()
-                    .map(|trip| trip.1.clone())
-                    .collect::<Vec<_>>(),
-            );
+            let ranges = min_max_trips_coords(&trips_coords);
             let width = ranges.longmax - ranges.longmin;
             let height = ranges.latmax - ranges.latmin;
 
@@ -372,33 +355,38 @@ impl Widget<AppData> for MapWidget {
             // make trips paths
             self.all_trip_paths = trips_coords
                 .iter()
-                .filter(|(selected, _)| !selected)
-                .map(|(_, trip_coords)| {
-                    let mut path = BezPath::new();
-                    for (i, coord) in trip_coords.iter().enumerate() {
-                        if i == 0 {
-                            path.move_to(long_lat_to_canvas_closure(coord));
-                        } else {
-                            path.line_to(long_lat_to_canvas_closure(coord));
-                        }
-                    }
-                    path
+                .zip(data.trips.iter())
+                .filter(|(_coords, trip)| trip.visible)
+                .map(|(coords, _)| {
+                    bez_path_from_coords_iter(
+                        coords.iter().map(|coord| long_lat_to_canvas_closure(coord)),
+                    )
                 })
                 .collect::<Vec<_>>();
 
+            // self.selected_trip_paths = trips_coords
+            //     .iter()
+            //     .filter(|(selected, _)| *selected)
+            //     .map(|(_, trip_coords)| {
+            //         let mut path = BezPath::new();
+            //         for (i, coord) in trip_coords.iter().enumerate() {
+            //             if i == 0 {
+            //                 path.move_to(long_lat_to_canvas_closure(coord));
+            //             } else {
+            //                 path.line_to(long_lat_to_canvas_closure(coord));
+            //             }
+            //         }
+            //         path
+            //     })
+            //     .collect::<Vec<_>>();
             self.selected_trip_paths = trips_coords
                 .iter()
-                .filter(|(selected, _)| *selected)
-                .map(|(_, trip_coords)| {
-                    let mut path = BezPath::new();
-                    for (i, coord) in trip_coords.iter().enumerate() {
-                        if i == 0 {
-                            path.move_to(long_lat_to_canvas_closure(coord));
-                        } else {
-                            path.line_to(long_lat_to_canvas_closure(coord));
-                        }
-                    }
-                    path
+                .zip(data.trips.iter())
+                .filter(|(_coords, trip)| trip.selected)
+                .map(|(coords, _)| {
+                    bez_path_from_coords_iter(
+                        coords.iter().map(|coord| long_lat_to_canvas_closure(coord)),
+                    )
                 })
                 .collect::<Vec<_>>();
 

@@ -522,144 +522,71 @@ impl ListItem for AppData {
 }
 // vector of trips (selected, vector of stop coords)
 impl AppData {
-    pub fn trips_coords(&self) -> Vec<(bool, Vec<(f64, f64)>)> {
-        // self.agencies
-        //     .iter()
-        //     .filter(|agency| agency.visible)
-        //     .map(|agency| {
-        //         agency
-        //             .routes
-        //             .iter()
-        //             .filter(|route| route.visible && route.trips.len() > 0)
-        //             .map(|route| {
-        //                 route
-        //                     .trips
-        //                     .iter()
-        //                     .filter(|trip| trip.visible)
-        //                     .map(|trip| {
-        //                         (
-        //                             trip.selected,
-        //                             trip.stops
-        //                                 .iter()
-        //                                 .filter(|stop| stop.selected)
-        //                                 .map(|stop| stop.coord)
-        //                                 .collect::<Vec<_>>(),
-        //                         )
-        //                     })
-        //                     .collect::<Vec<_>>()
-        //             })
-        //             .flatten()
-        //             .collect::<Vec<_>>()
-        //     })
-        //     .flatten()
-        //     .collect::<Vec<_>>()
-
-        // trips.sort_by(|x1, x2| x1.id.cmp(&x2.id));
-        // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
+    // TODO don't need to construct MyStopTime here
+    pub fn trips_coords(&self) -> Vec<Vec<(f64, f64)>> {
         dbg!("make trip coords");
-        // let mut stop_time_range_from_trip_id = HashMap::new();
-        // let mut trip_start_index = 0;
-        // let mut trip_end_index = 0;
-        // let mut current_trip = self.gtfs.stop_times[0].trip_id.clone();
-        // let stop_times2 = self.gtfs.stop_times.clone();
-        // for stop_time in stop_times2 {
-        //     // when we arrive at a new section of trip_id's insert the index range into to map, update the current trip, and reset the range start index
-        //     if current_trip != stop_time.trip_id {
-        //         stop_time_range_from_trip_id
-        //             .insert(current_trip.clone(), (trip_start_index, trip_end_index));
-        //         current_trip = stop_time.trip_id.clone();
-        //         trip_start_index = trip_end_index;
-        //     }
-        //     trip_end_index += 1;
-        // }
-        // // insert final trip id
-        // stop_time_range_from_trip_id
-        //     .insert(current_trip.clone(), (trip_start_index, trip_end_index));
-
-        // let mut filtered_stop_ids = Vec::new();
-
         self.trips
             .iter()
-            .filter(|trip| trip.visible)
             .map(|trip| {
                 let (start_index, end_index) = self
                     .stop_time_range_from_trip_id
                     .get(&trip.id)
                     .unwrap()
                     .clone();
-                let mut stops = self.gtfs.stop_times[start_index..end_index]
+                let mut stop_time_coords = self.gtfs.stop_times[start_index..end_index]
                     .iter()
-                    // .filter(|stop_time| stop_time.trip_id == trip.id)
                     .map(|stop_time| {
                         let stop = self
                             .stops
                             .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
                             .unwrap();
-                        // filtered_stop_ids.push(stop.id.clone());
-                        MyStopTime {
-                            live: true,
-                            selected: true,
-                            show_editing: true,
+                        // MyStopTime {
+                        //     live: true,
+                        //     selected: true,
+                        //     show_editing: true,
 
-                            trip_id: stop_time.trip_id.clone(),
-                            arrival_time: stop_time.arrival_time.clone(),
-                            departure_time: stop_time.departure_time.clone(),
-                            stop_id: stop_time.stop_id.clone(),
-                            stop_sequence: stop_time.stop_sequence.clone(),
-                            stop_headsign: stop_time.stop_headsign.clone(),
-                            pickup_type: MyPickupDropOffType(stop_time.pickup_type.clone()),
-                            drop_off_type: MyPickupDropOffType(stop_time.drop_off_type.clone()),
-                            continuous_pickup: MyContinuousPickupDropOff(
-                                stop_time.continuous_pickup.clone(),
-                            ),
-                            continuous_drop_off: MyContinuousPickupDropOff(
-                                stop_time.continuous_drop_off.clone(),
-                            ),
-                            shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
-                            timepoint: MyTimepointType(stop_time.timepoint.clone()),
+                        //     trip_id: stop_time.trip_id.clone(),
+                        //     arrival_time: stop_time.arrival_time.clone(),
+                        //     departure_time: stop_time.departure_time.clone(),
+                        //     stop_id: stop_time.stop_id.clone(),
+                        //     stop_sequence: stop_time.stop_sequence.clone(),
+                        //     stop_headsign: stop_time.stop_headsign.clone(),
+                        //     pickup_type: MyPickupDropOffType(stop_time.pickup_type.clone()),
+                        //     drop_off_type: MyPickupDropOffType(stop_time.drop_off_type.clone()),
+                        //     continuous_pickup: MyContinuousPickupDropOff(
+                        //         stop_time.continuous_pickup.clone(),
+                        //     ),
+                        //     continuous_drop_off: MyContinuousPickupDropOff(
+                        //         stop_time.continuous_drop_off.clone(),
+                        //     ),
+                        //     shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
+                        //     timepoint: MyTimepointType(stop_time.timepoint.clone()),
 
-                            stop_time: Some(Rc::new(stop_time.clone())),
-                            // stop_time: stop_time.clone(),
-                            stop_name: stop.name.clone(),
-                            stop: None,
-                            coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
-                        }
+                        //     stop_time: Some(Rc::new(stop_time.clone())),
+                        //     // stop_time: stop_time.clone(),
+                        //     stop_name: stop.name.clone(),
+                        //     stop: None,
+                        //     coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                        // }
+                        (
+                            stop_time.stop_sequence.clone(),
+                            (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                        )
                     })
                     .collect::<Vector<_>>();
-                stops.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
+                stop_time_coords.sort_by(|stop_time1, stop_time2| stop_time1.0.cmp(&stop_time2.0));
 
-                (
-                    trip.selected,
-                    stops
-                        .iter()
-                        .filter(|stop| stop.selected)
-                        .map(|stop| stop.coord)
-                        .collect::<Vec<_>>(),
-                )
+                stop_time_coords
+                    .iter()
+                    .map(|(_stop_sequence, coords)| *coords)
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>()
     }
     // TODO shouldn't do filtering here, should include flags with coords so can do filtering later
     // TODO should be recording whether agencies/routes are visible/selected here...
     pub fn flat_trips(&self) -> Vec<(bool, MyTrip)> {
-        // self.agencies
-        //     .iter()
-        //     .map(|agency| {
-        //         agency
-        //             .routes
-        //             .iter()
-        //             .map(|route| {
-        //                 route
-        //                     .trips
-        //                     .iter()
-        //                     .map(|trip| (agency.visible, trip.clone()))
-        //                     .collect::<Vec<_>>()
-        //             })
-        //             .flatten()
-        //             .collect::<Vec<_>>()
-        //     })
-        //     .flatten()
-        //     .collect::<Vec<_>>()
+        dbg!("make trip coords");
         todo!()
     }
 }
