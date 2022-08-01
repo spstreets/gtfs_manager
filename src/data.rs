@@ -441,6 +441,13 @@ pub struct Edit {
     id: usize,
 }
 
+#[derive(Clone, Data, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ZoomLevel {
+    Zero,
+    One,
+    Two,
+}
+
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct AppData {
     pub show_deleted: bool,
@@ -475,6 +482,8 @@ pub struct AppData {
     pub expanded: bool,
     pub actions: Vector<Action>,
     pub edits: Vector<Edit>,
+
+    pub map_zoom_level: ZoomLevel,
 }
 impl ListItem for AppData {
     fn new_child(&mut self) -> String {
@@ -930,6 +939,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // stops: Vector::new(),
         actions: Vector::new(),
         edits: Vector::new(),
+        map_zoom_level: ZoomLevel::One,
     };
     println!("{:?} finish make_initial_data", Utc::now());
     app_data

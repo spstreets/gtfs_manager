@@ -1,5 +1,5 @@
 use druid::im::Vector;
-use druid::kurbo::{BezPath, Circle, Shape};
+use druid::kurbo::{BezPath, Circle, ParamCurveNearest, Shape};
 use druid::piet::{
     CairoImage, Device, FontFamily, ImageFormat, InterpolationMode, Text, TextLayoutBuilder,
 };
@@ -179,10 +179,12 @@ impl Widget<AppData> for MapWidget {
                     self.mouse_position = Some(mouse_event.pos);
                     let mut highlighted_trip_paths = Vec::new();
                     for trip_path in &self.all_trip_paths {
-                        // if trip_path.
-                        if trip_path.contains(mouse_event.pos) {
-                            self.redraw_highlights = true;
-                            highlighted_trip_paths.push(trip_path.clone());
+                        for seg in trip_path.segments() {
+                            // NOTE accuracy arg in .nearest() isn't used for lines
+                            if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
+                                self.redraw_highlights = true;
+                                highlighted_trip_paths.push(trip_path.clone());
+                            }
                         }
                     }
                     self.highlighted_trip_paths = highlighted_trip_paths;
