@@ -483,6 +483,13 @@ pub struct AppData {
     pub selected_stop_time_id: Option<(String, u16)>,
     pub selected_stop_id: Option<String>,
 
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stop_time_range_from_trip_id: HashMap<String, (usize, usize)>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub stop_index_from_id: HashMap<String, usize>,
+
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
     pub trips: Vector<MyTrip>,
@@ -550,46 +557,45 @@ impl AppData {
         // trips.sort_by(|x1, x2| x1.id.cmp(&x2.id));
         // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
         dbg!("make trip coords");
-        let mut stop_time_range_from_trip_id = HashMap::new();
-        let mut trip_start_index = 0;
-        let mut trip_end_index = 0;
-        let mut current_trip = self.gtfs.stop_times[0].trip_id.clone();
-        let stop_times2 = self.gtfs.stop_times.clone();
-        for stop_time in stop_times2 {
-            // when we arrive at a new section of trip_id's insert the index range into to map, update the current trip, and reset the range start index
-            if current_trip != stop_time.trip_id {
-                stop_time_range_from_trip_id
-                    .insert(current_trip.clone(), (trip_start_index, trip_end_index));
-                current_trip = stop_time.trip_id.clone();
-                trip_start_index = trip_end_index;
-            }
-            trip_end_index += 1;
-        }
-        // insert final trip id
-        stop_time_range_from_trip_id
-            .insert(current_trip.clone(), (trip_start_index, trip_end_index));
+        // let mut stop_time_range_from_trip_id = HashMap::new();
+        // let mut trip_start_index = 0;
+        // let mut trip_end_index = 0;
+        // let mut current_trip = self.gtfs.stop_times[0].trip_id.clone();
+        // let stop_times2 = self.gtfs.stop_times.clone();
+        // for stop_time in stop_times2 {
+        //     // when we arrive at a new section of trip_id's insert the index range into to map, update the current trip, and reset the range start index
+        //     if current_trip != stop_time.trip_id {
+        //         stop_time_range_from_trip_id
+        //             .insert(current_trip.clone(), (trip_start_index, trip_end_index));
+        //         current_trip = stop_time.trip_id.clone();
+        //         trip_start_index = trip_end_index;
+        //     }
+        //     trip_end_index += 1;
+        // }
+        // // insert final trip id
+        // stop_time_range_from_trip_id
+        //     .insert(current_trip.clone(), (trip_start_index, trip_end_index));
 
-        // hash map for getting a stop by stop_id
-        let mut stop_map = HashMap::new();
-        let stops2 = self.gtfs.stops.clone();
-        stops2.iter().for_each(|stop| {
-            stop_map.insert(stop.id.clone(), stop.clone());
-        });
-
-        let mut filtered_stop_ids = Vec::new();
+        // let mut filtered_stop_ids = Vec::new();
 
         self.trips
             .iter()
             .filter(|trip| trip.visible)
             .map(|trip| {
-                let (start_index, end_index) =
-                    stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
+                let (start_index, end_index) = self
+                    .stop_time_range_from_trip_id
+                    .get(&trip.id)
+                    .unwrap()
+                    .clone();
                 let mut stops = self.gtfs.stop_times[start_index..end_index]
                     .iter()
                     // .filter(|stop_time| stop_time.trip_id == trip.id)
                     .map(|stop_time| {
-                        let stop = stop_map.get(&stop_time.stop_id).unwrap();
-                        filtered_stop_ids.push(stop.id.clone());
+                        let stop = self
+                            .stops
+                            .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
+                            .unwrap();
+                        // filtered_stop_ids.push(stop.id.clone());
                         MyStopTime {
                             live: true,
                             selected: true,
@@ -895,6 +901,14 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
             .cmp(&route2.route.as_ref().unwrap().short_name)
     });
 
+    // TODO should proabably just store stops in an im hashmap not vector, since below is brittle and will break is a stop is added/removed from stops vector.
+    // hash map for getting a stop by stop_id
+    let mut stop_index_from_id = HashMap::new();
+    // let stops2 = self.gtfs.stops.clone();
+    my_gtfs.stops.iter().enumerate().for_each(|(i, stop)| {
+        stop_index_from_id.insert(stop.id.clone(), i);
+    });
+
     println!("{:?} make app_data with stops", Utc::now());
     let app_data = AppData {
         show_deleted: true,
@@ -911,6 +925,10 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         selected_stop_time_id: None,
         selected_stop_id: None,
         expanded: true,
+
+        stop_time_range_from_trip_id,
+        stop_index_from_id,
+
         agencies,
         routes,
         trips,
