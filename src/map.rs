@@ -19,6 +19,9 @@ use std::rc::Rc;
 use crate::app_delegate::*;
 use crate::data::*;
 
+// bitmaps large than 10,000 x 10,000 will crash
+const BITMAP_SIZE: usize = 10000;
+
 #[derive(Copy, Clone)]
 struct PathsRanges {
     longmin: f64,
@@ -133,14 +136,14 @@ impl MapWidget {
         ranges: PathsRanges,
         width: f64,
         height: f64,
-        zoomed_paint_width: f64,
-        zoomed_paint_height: f64,
-        focal_point: Point,
-        zoom: f64,
+        paint_width: f64,
+        paint_height: f64,
+        // focal_point: Point,
+        // zoom: f64,
     ) -> Point {
         let (long, lat) = point;
-        let x2 = (*long - ranges.longmin) * (zoomed_paint_width / width) - focal_point.x * zoom;
-        let y2 = (*lat - ranges.latmin) * (zoomed_paint_height / height) - focal_point.y * zoom;
+        let x2 = (*long - ranges.longmin) * (paint_width / width);
+        let y2 = (*lat - ranges.latmin) * (paint_height / height);
         Point::new(x2, y2)
     }
 
@@ -361,14 +364,14 @@ impl Widget<AppData> for MapWidget {
             //     ZoomLevel::Three => 3.,
             // };
             let zoom = 1.;
-            let new_zoom = match data.map_zoom_level {
-                ZoomLevel::One => 1.,
-                ZoomLevel::Two => 2.,
-                ZoomLevel::Three => 3.,
-            };
+            // let new_zoom = match data.map_zoom_level {
+            //     ZoomLevel::One => 1.,
+            //     ZoomLevel::Two => 2.,
+            //     ZoomLevel::Three => 3.,
+            // };
 
-            let (zoomed_paint_width, zoomed_paint_height) =
-                (paint_width * zoom, paint_height * zoom);
+            // let (zoomed_paint_width, zoomed_paint_height) =
+            //     (paint_width * zoom, paint_height * zoom);
 
             let long_lat_to_canvas_closure = |coord: &(f64, f64)| {
                 MapWidget::long_lat_to_canvas(
@@ -376,10 +379,10 @@ impl Widget<AppData> for MapWidget {
                     ranges,
                     width,
                     height,
-                    zoomed_paint_width,
-                    zoomed_paint_height,
-                    self.focal_point,
-                    zoom,
+                    // paint_width,
+                    // paint_height,
+                    BITMAP_SIZE as f64,
+                    BITMAP_SIZE as f64,
                 )
             };
 
@@ -437,59 +440,71 @@ impl Widget<AppData> for MapWidget {
             let mut cached_image;
             {
                 let mut device = Device::new().unwrap();
-                let mut target = device.bitmap_target(1000, 1000, 1.).unwrap();
+                // 0.1 makes the image very small
+                // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
+                let mut target = device.bitmap_target(BITMAP_SIZE, BITMAP_SIZE, 1.).unwrap();
                 let mut piet_context = target.render_context();
 
                 piet_context.save();
                 // piet_context.transform(Affine::scale(1000. / ctx.size().height));
 
                 // paint the map
+                let path_width = match data.map_zoom_level {
+                    ZoomLevel::One => BITMAP_SIZE as f64 / 400.,
+                    ZoomLevel::Two => BITMAP_SIZE as f64 / 1_000.,
+                    ZoomLevel::Three => BITMAP_SIZE as f64 / 50_000.,
+                };
                 for path in &self.all_trip_paths {
-                    piet_context.stroke(path, &Color::GREEN, 1.0);
+                    piet_context.stroke(path, &Color::GREEN, path_width);
                 }
-                for path in &self.highlighted_trip_paths {
-                    piet_context.stroke(path, &Color::NAVY, 3.);
-                }
-                for path in &self.selected_trip_paths {
-                    piet_context.stroke(path, &Color::YELLOW, 3.);
-                }
+                // for path in &self.highlighted_trip_paths {
+                //     piet_context.stroke(path, &Color::NAVY, 3.);
+                // }
+                // for path in &self.selected_trip_paths {
+                //     piet_context.stroke(path, &Color::YELLOW, 3.);
+                // }
 
                 // if let Some(mouse_position) = self.mouse_position {
                 //     let circle = Circle::new(mouse_position, 10.);
                 //     ctx.fill(circle, &Color::OLIVE);
                 // }
 
-                let mut selected_circle = None;
-                for (circle, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
-                    if stop.selected {
-                        selected_circle = Some(Circle::new(
-                            circle.center,
-                            if circle.radius < 2. {
-                                2. * 1.4
-                            } else {
-                                circle.radius * 1.4
-                            },
-                        ));
-                    } else {
-                        piet_context.fill(circle, &Color::BLUE);
-                    }
-                }
-                if let Some(selected_circle) = selected_circle {
-                    piet_context.fill(selected_circle, &Color::FUCHSIA);
-                }
+                // let mut selected_circle = None;
+                // for (circle, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+                //     if stop.selected {
+                //         selected_circle = Some(Circle::new(
+                //             circle.center,
+                //             if circle.radius < 2. {
+                //                 2. * 1.4
+                //             } else {
+                //                 circle.radius * 1.4
+                //             },
+                //         ));
+                //     } else {
+                //         piet_context.fill(circle, &Color::BLUE);
+                //     }
+                // }
+                // if let Some(selected_circle) = selected_circle {
+                //     piet_context.fill(selected_circle, &Color::FUCHSIA);
+                // }
 
-                if let Some(circle) = self.highlighted_stop_circle {
-                    let circle =
-                        Circle::new(circle.center, if zoom > 6. { 6. * 1.4 } else { zoom * 1.4 });
-                    piet_context.fill(circle, &Color::PURPLE);
-                }
+                // if let Some(circle) = self.highlighted_stop_circle {
+                //     let circle =
+                //         Circle::new(circle.center, if zoom > 6. { 6. * 1.4 } else { zoom * 1.4 });
+                //     piet_context.fill(circle, &Color::PURPLE);
+                // }
 
                 piet_context.restore();
 
                 piet_context.finish().unwrap();
                 let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
                 cached_image = ctx
-                    .make_image(1000, 1000, image_buf.raw_pixels(), ImageFormat::RgbaPremul)
+                    .make_image(
+                        BITMAP_SIZE,
+                        BITMAP_SIZE,
+                        image_buf.raw_pixels(),
+                        ImageFormat::RgbaPremul,
+                    )
                     .unwrap();
             }
             self.cached_image = Some(cached_image);

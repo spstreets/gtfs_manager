@@ -458,8 +458,8 @@ impl ZoomLevel {
     pub fn to_f64(&self) -> f64 {
         match self {
             ZoomLevel::One => 1.,
-            ZoomLevel::Two => 5.,
-            ZoomLevel::Three => 10.,
+            ZoomLevel::Two => 10.,
+            ZoomLevel::Three => 50.,
         }
     }
 }
@@ -900,7 +900,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // stops: Vector::new(),
         actions: Vector::new(),
         edits: Vector::new(),
-        map_zoom_level: ZoomLevel::Two,
+        map_zoom_level: ZoomLevel::One,
     };
     println!("{:?} finish make_initial_data", Utc::now());
     app_data
