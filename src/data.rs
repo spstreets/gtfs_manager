@@ -3,7 +3,7 @@ use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::{Data, Lens, Widget, WidgetExt};
 use gtfs_structures::{
     Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, Pathway,
-    PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Stop, StopTime,
+    PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Shape, Stop, StopTime,
     StopTransfer, TimepointType, Trip,
 };
 use rgb::RGB8;
@@ -434,6 +434,7 @@ pub struct MyGtfs {
     pub trips: Vec<RawTrip>,
     pub stop_times: Vec<RawStopTime>,
     pub stops: Vec<Stop>,
+    pub shapes: Vec<Shape>,
 }
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
@@ -535,57 +536,42 @@ impl AppData {
         self.trips
             .iter()
             .map(|trip| {
-                let (start_index, end_index) = self
-                    .stop_time_range_from_trip_id
-                    .get(&trip.id)
-                    .unwrap()
-                    .clone();
-                let mut stop_time_coords = self.gtfs.stop_times[start_index..end_index]
+                // let (start_index, end_index) = self
+                //     .stop_time_range_from_trip_id
+                //     .get(&trip.id)
+                //     .unwrap()
+                //     .clone();
+                // let mut stop_time_coords = self.gtfs.stop_times[start_index..end_index]
+                //     .iter()
+                //     .map(|stop_time| {
+                //         let stop = self
+                //             .stops
+                //             .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
+                //             .unwrap();
+
+                //         (
+                //             stop_time.stop_sequence.clone(),
+                //             (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                //         )
+                //     })
+                //     .collect::<Vector<_>>();
+                // stop_time_coords.sort_by(|stop_time1, stop_time2| stop_time1.0.cmp(&stop_time2.0));
+
+                // stop_time_coords
+                //     .iter()
+                //     .map(|(_stop_sequence, coords)| *coords)
+                //     .collect::<Vec<_>>()
+                let mut shapes = self
+                    .gtfs
+                    .shapes
                     .iter()
-                    .map(|stop_time| {
-                        let stop = self
-                            .stops
-                            .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
-                            .unwrap();
-                        // MyStopTime {
-                        //     live: true,
-                        //     selected: true,
-                        //     show_editing: true,
-
-                        //     trip_id: stop_time.trip_id.clone(),
-                        //     arrival_time: stop_time.arrival_time.clone(),
-                        //     departure_time: stop_time.departure_time.clone(),
-                        //     stop_id: stop_time.stop_id.clone(),
-                        //     stop_sequence: stop_time.stop_sequence.clone(),
-                        //     stop_headsign: stop_time.stop_headsign.clone(),
-                        //     pickup_type: MyPickupDropOffType(stop_time.pickup_type.clone()),
-                        //     drop_off_type: MyPickupDropOffType(stop_time.drop_off_type.clone()),
-                        //     continuous_pickup: MyContinuousPickupDropOff(
-                        //         stop_time.continuous_pickup.clone(),
-                        //     ),
-                        //     continuous_drop_off: MyContinuousPickupDropOff(
-                        //         stop_time.continuous_drop_off.clone(),
-                        //     ),
-                        //     shape_dist_traveled: stop_time.shape_dist_traveled.clone(),
-                        //     timepoint: MyTimepointType(stop_time.timepoint.clone()),
-
-                        //     stop_time: Some(Rc::new(stop_time.clone())),
-                        //     // stop_time: stop_time.clone(),
-                        //     stop_name: stop.name.clone(),
-                        //     stop: None,
-                        //     coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
-                        // }
-                        (
-                            stop_time.stop_sequence.clone(),
-                            (stop.longitude.unwrap(), stop.latitude.unwrap()),
-                        )
-                    })
-                    .collect::<Vector<_>>();
-                stop_time_coords.sort_by(|stop_time1, stop_time2| stop_time1.0.cmp(&stop_time2.0));
-
-                stop_time_coords
+                    .filter(|shape| &shape.id == trip.shape_id.as_ref().unwrap())
+                    .map(|shape| (shape.sequence, (shape.longitude, shape.latitude)))
+                    .collect::<Vec<_>>();
+                shapes.sort_by(|shape1, shape2| shape1.0.cmp(&shape2.0));
+                shapes
                     .iter()
-                    .map(|(_stop_sequence, coords)| *coords)
+                    .map(|(_sequence, coords)| *coords)
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>()
@@ -605,6 +591,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
     let trips = gtfs.trips.as_mut().unwrap();
     let stop_times = gtfs.stop_times.as_mut().unwrap();
     let stops = gtfs.stops.as_mut().unwrap();
+    let shapes = gtfs.shapes.as_mut().unwrap().as_ref().unwrap();
 
     println!("{:?} create my_gtfs", Utc::now());
     let my_gtfs = MyGtfs {
@@ -613,6 +600,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         trips: trips.clone(),
         stop_times: stop_times.clone(),
         stops: stops.clone(),
+        shapes: shapes.clone(),
     };
 
     println!("{:?} do stop_times stuff", Utc::now());
