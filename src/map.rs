@@ -63,6 +63,9 @@ pub struct MapWidget {
     cached_image: Option<CairoImage>,
     redraw_base: bool,
     redraw_highlights: bool,
+    // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
+    // vector of trips (selected, vector of stop coords)
+    pub trips_coords: Vec<Vec<(f64, f64)>>,
 }
 impl MapWidget {
     pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
@@ -82,6 +85,7 @@ impl MapWidget {
             cached_image: None,
             redraw_base: true,
             redraw_highlights: true,
+            trips_coords: Vec::new(),
         }
     }
 
@@ -313,13 +317,9 @@ impl Widget<AppData> for MapWidget {
             self.redraw_base = false;
             self.redraw_highlights = false;
 
-            // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
-            // vector of trips (selected, vector of stop coords)
-            let mut trips_coords = data.trips_coords();
-
             // find size of path data
             // TODO don't clone coord vecs
-            let ranges = min_max_trips_coords(&trips_coords);
+            let ranges = min_max_trips_coords(&self.trips_coords);
             let width = ranges.longmax - ranges.longmin;
             let height = ranges.latmax - ranges.latmin;
 
@@ -353,7 +353,8 @@ impl Widget<AppData> for MapWidget {
             };
 
             // make trips paths
-            self.all_trip_paths = trips_coords
+            self.all_trip_paths = self
+                .trips_coords
                 .iter()
                 .zip(data.trips.iter())
                 .filter(|(_coords, trip)| trip.visible)
@@ -379,7 +380,8 @@ impl Widget<AppData> for MapWidget {
             //         path
             //     })
             //     .collect::<Vec<_>>();
-            self.selected_trip_paths = trips_coords
+            self.selected_trip_paths = self
+                .trips_coords
                 .iter()
                 .zip(data.trips.iter())
                 .filter(|(_coords, trip)| trip.selected)
