@@ -1808,7 +1808,8 @@ fn list_stop_selected() -> Box<dyn Widget<AppData>> {
 pub fn main_widget() -> impl Widget<AppData> {
     // todo what's the difference between Point::ZERO and Point::ORIGIN?
     println!("make main widget");
-    let map_widget = (MapWidget::new(1., 1., Point::ZERO).on_added(
+    // let map_widget = (MapWidget::new(1., 1., Point::ZERO).on_added(
+    let map_widget = (MapWidget::new(1., Point::ZERO).on_added(
         |map: &mut MapWidget, _: &mut _, data: &AppData, _: &Env| {
             map.trips_coords = data.trips_coords()
         },

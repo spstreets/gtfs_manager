@@ -56,7 +56,7 @@ pub struct MapWidget {
     stop_circles: Vec<Circle>,
     highlighted_stop_circle: Option<Circle>,
     selected_stop_circle: Option<Circle>,
-    zoom_level: f64,
+    // zoom_level: f64,
     speed: f64,
     drag_start: Option<Point>,
     focal_point: Point,
@@ -68,7 +68,7 @@ pub struct MapWidget {
     pub trips_coords: Vec<Vec<(f64, f64)>>,
 }
 impl MapWidget {
-    pub fn new(zoom_level: f64, speed: f64, offset: Point) -> MapWidget {
+    pub fn new(speed: f64, offset: Point) -> MapWidget {
         println!("new widget");
         MapWidget {
             mouse_position: None,
@@ -78,7 +78,7 @@ impl MapWidget {
             stop_circles: Vec::new(),
             highlighted_stop_circle: None,
             selected_stop_circle: None,
-            zoom_level,
+            // zoom_level,
             speed,
             drag_start: None,
             focal_point: offset,
@@ -113,6 +113,21 @@ impl MapWidget {
         }
     }
 
+    // fn long_lat_to_canvas(
+    //     point: &(f64, f64),
+    //     ranges: PathsRanges,
+    //     width: f64,
+    //     height: f64,
+    //     zoomed_paint_width: f64,
+    //     zoomed_paint_height: f64,
+    //     focal_point: Point,
+    //     zoom: f64,
+    // ) -> Point {
+    //     let (long, lat) = point;
+    //     let x2 = (*long - ranges.longmin) * (zoomed_paint_width / width) - focal_point.x * zoom;
+    //     let y2 = (*lat - ranges.latmin) * (zoomed_paint_height / height) - focal_point.y * zoom;
+    //     Point::new(x2, y2)
+    // }
     fn long_lat_to_canvas(
         point: &(f64, f64),
         ranges: PathsRanges,
@@ -129,9 +144,11 @@ impl MapWidget {
         Point::new(x2, y2)
     }
 
-    fn draw_cache(&self, ctx: &mut PaintCtx, rect: Rect) {
+    fn draw_cache(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
-        ctx.transform(Affine::scale(self.zoom_level));
+        ctx.transform(Affine::scale(zoom));
+        dbg!(zoom);
+        ctx.stroke(rect, &Color::GREEN, 2.);
         ctx.draw_image(
             &self.cached_image.as_ref().unwrap(),
             rect,
@@ -159,18 +176,18 @@ where
 impl Widget<AppData> for MapWidget {
     fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppData, env: &Env) {
         match event {
-            Event::Wheel(mouse_event) => {
-                let mut change = mouse_event.wheel_delta.y;
-                let multiplier = 2000. / self.speed;
-                if change > 0. {
-                    // zoom out
-                    self.zoom_level *= multiplier / (change + multiplier);
-                } else if change < 0. {
-                    // zoom in
-                    self.zoom_level *= (change.abs() + multiplier) / multiplier;
-                }
-                ctx.request_paint();
-            }
+            // Event::Wheel(mouse_event) => {
+            //     let mut change = mouse_event.wheel_delta.y;
+            //     let multiplier = 2000. / self.speed;
+            //     if change > 0. {
+            //         // zoom out
+            //         self.zoom_level *= multiplier / (change + multiplier);
+            //     } else if change < 0. {
+            //         // zoom in
+            //         self.zoom_level *= (change.abs() + multiplier) / multiplier;
+            //     }
+            //     ctx.request_paint();
+            // }
             Event::MouseDown(mouse_event) => {
                 ctx.override_cursor(&Cursor::Pointer);
                 self.drag_start = Some(mouse_event.pos);
@@ -180,8 +197,10 @@ impl Widget<AppData> for MapWidget {
                     if mouse_event.buttons.has_left() {
                         let drag_end = mouse_event.pos;
                         self.focal_point = Point::new(
-                            self.focal_point.x - (drag_end.x - drag_start.x) / self.zoom_level,
-                            self.focal_point.y - (drag_end.y - drag_start.y) / self.zoom_level,
+                            // self.focal_point.x - (drag_end.x - drag_start.x) / self.zoom_level,
+                            // self.focal_point.y - (drag_end.y - drag_start.y) / self.zoom_level,
+                            self.focal_point.x - (drag_end.x - drag_start.x),
+                            self.focal_point.y - (drag_end.y - drag_start.y),
                         );
                         self.drag_start = Some(drag_end);
                     } else {
@@ -265,6 +284,11 @@ impl Widget<AppData> for MapWidget {
         }
         if !data.map_zoom_level.same(&&old_data.map_zoom_level) {
             println!("update: map_zoom_level: paint");
+            // self.zoom_level = match data.map_zoom_level {
+            //     ZoomLevel::One => 1.,
+            //     ZoomLevel::Two => 2.,
+            //     ZoomLevel::Three => 3.,
+            // };
             self.redraw_base = true;
             ctx.request_paint();
         }
@@ -331,11 +355,18 @@ impl Widget<AppData> for MapWidget {
             };
 
             // let zoom = self.zoom_level;
-            let zoom = match data.map_zoom_level {
+            // let zoom = match data.map_zoom_level {
+            //     ZoomLevel::One => 1.,
+            //     ZoomLevel::Two => 2.,
+            //     ZoomLevel::Three => 3.,
+            // };
+            let zoom = 1.;
+            let new_zoom = match data.map_zoom_level {
                 ZoomLevel::One => 1.,
                 ZoomLevel::Two => 2.,
                 ZoomLevel::Three => 3.,
             };
+
             let (zoomed_paint_width, zoomed_paint_height) =
                 (paint_width * zoom, paint_height * zoom);
 
@@ -410,7 +441,7 @@ impl Widget<AppData> for MapWidget {
                 let mut piet_context = target.render_context();
 
                 piet_context.save();
-                piet_context.transform(Affine::scale(1000. / ctx.size().height));
+                // piet_context.transform(Affine::scale(1000. / ctx.size().height));
 
                 // paint the map
                 for path in &self.all_trip_paths {
@@ -454,61 +485,45 @@ impl Widget<AppData> for MapWidget {
                 }
 
                 piet_context.restore();
-                // piet_context.with_save(|ctx| {
-                //     {}
-                //     Ok(())
-                // });
 
                 piet_context.finish().unwrap();
                 let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
-                // let cached_image = ctx
                 cached_image = ctx
-                    .make_image(
-                        1000,
-                        1000,
-                        // image_buf.to_image(piet_context),
-                        image_buf.raw_pixels(),
-                        ImageFormat::RgbaPremul,
-                    )
+                    .make_image(1000, 1000, image_buf.raw_pixels(), ImageFormat::RgbaPremul)
                     .unwrap();
             }
-            // std::mem::drop(piet_context);
-            // let cached_image = image_buf.to_image(ctx);
             self.cached_image = Some(cached_image);
-            ctx.draw_image(
-                &self.cached_image.as_ref().unwrap(),
-                rect,
-                InterpolationMode::Bilinear,
-            );
+            self.draw_cache(ctx, rect, data.map_zoom_level.to_f64());
         } else if self.redraw_highlights {
             println!("paint: redraw highlights");
-            self.draw_cache(ctx, rect);
-            ctx.fill(Circle::new(Point::new(100., 100.), 50.), &Color::FUCHSIA);
-            for path in &self.highlighted_trip_paths {
-                ctx.stroke(path, &Color::NAVY, 3.);
-            }
-            for path in &self.selected_trip_paths {
-                ctx.stroke(path, &Color::YELLOW, 3.);
-            }
-            if let Some(selected_circle) = self.selected_stop_circle {
-                ctx.fill(selected_circle, &Color::FUCHSIA);
-            }
+            self.draw_cache(ctx, rect, data.map_zoom_level.to_f64());
 
-            if let Some(circle) = self.highlighted_stop_circle {
-                let circle = Circle::new(
-                    circle.center,
-                    if self.zoom_level > 6. {
-                        6. * 1.4
-                    } else {
-                        self.zoom_level * 1.4
-                    },
-                );
-                ctx.fill(circle, &Color::PURPLE);
-            }
+            // ctx.fill(Circle::new(Point::new(100., 100.), 50.), &Color::FUCHSIA);
+            // for path in &self.highlighted_trip_paths {
+            //     ctx.stroke(path, &Color::NAVY, 3.);
+            // }
+            // for path in &self.selected_trip_paths {
+            //     ctx.stroke(path, &Color::YELLOW, 3.);
+            // }
+            // if let Some(selected_circle) = self.selected_stop_circle {
+            //     ctx.fill(selected_circle, &Color::FUCHSIA);
+            // }
+
+            // if let Some(circle) = self.highlighted_stop_circle {
+            //     let circle = Circle::new(
+            //         circle.center,
+            //         if self.zoom_level > 6. {
+            //             6. * 1.4
+            //         } else {
+            //             self.zoom_level * 1.4
+            //         },
+            //     );
+            //     ctx.fill(circle, &Color::PURPLE);
+            // }
             self.redraw_highlights = false;
         } else {
             println!("paint: use cache");
-            self.draw_cache(ctx, rect);
+            self.draw_cache(ctx, rect, data.map_zoom_level.to_f64());
         }
     }
 

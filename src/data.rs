@@ -455,6 +455,13 @@ impl ZoomLevel {
             ("3x".to_string(), ZoomLevel::Three),
         ]
     }
+    pub fn to_f64(&self) -> f64 {
+        match self {
+            ZoomLevel::One => 1.,
+            ZoomLevel::Two => 5.,
+            ZoomLevel::Three => 10.,
+        }
+    }
 }
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
