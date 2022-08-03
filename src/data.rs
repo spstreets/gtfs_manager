@@ -10,6 +10,7 @@ use rgb::RGB8;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::ops::Range;
 use std::rc::Rc;
 use uuid::Uuid;
 
@@ -497,6 +498,9 @@ pub struct AppData {
     #[data(ignore)]
     #[lens(ignore)]
     pub stop_index_from_id: HashMap<String, usize>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub shapes_from_trip_id: HashMap<String, Range<usize>>,
 
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
@@ -561,11 +565,21 @@ impl AppData {
                 //     .iter()
                 //     .map(|(_stop_sequence, coords)| *coords)
                 //     .collect::<Vec<_>>()
-                let mut shapes = self
-                    .gtfs
-                    .shapes
+
+                // let mut shapes = self
+                //     .gtfs
+                //     .shapes
+                //     .iter()
+                //     .filter(|shape| &shape.id == trip.shape_id.as_ref().unwrap())
+                //     .map(|shape| (shape.sequence, (shape.longitude, shape.latitude)))
+                //     .collect::<Vec<_>>();
+
+                let range = self
+                    .shapes_from_trip_id
+                    .get(trip.shape_id.as_ref().unwrap())
+                    .unwrap();
+                let mut shapes = self.gtfs.shapes[range.start..range.end]
                     .iter()
-                    .filter(|shape| &shape.id == trip.shape_id.as_ref().unwrap())
                     .map(|shape| (shape.sequence, (shape.longitude, shape.latitude)))
                     .collect::<Vec<_>>();
                 shapes.sort_by(|shape1, shape2| shape1.0.cmp(&shape2.0));
@@ -831,6 +845,23 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         stop_index_from_id.insert(stop.id.clone(), i);
     });
 
+    let mut shapes_from_trip_id = HashMap::new();
+    let mut start: usize = 0;
+    let mut end: usize = 0;
+    if let Some(first_item) = shapes.get(0) {
+        let mut current_id = first_item.id.clone();
+        // insert bound if entered new id section or is last item
+        for item in shapes {
+            if current_id != item.id {
+                shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
+                current_id = item.id.clone();
+                start = end;
+            }
+            end += 1;
+        }
+        shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
+    }
+
     println!("{:?} make app_data with stops", Utc::now());
     let app_data = AppData {
         show_deleted: true,
@@ -850,6 +881,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
 
         stop_time_range_from_trip_id,
         stop_index_from_id,
+        shapes_from_trip_id,
 
         agencies,
         routes,
