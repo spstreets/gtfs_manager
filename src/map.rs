@@ -154,6 +154,7 @@ impl MapWidget {
     }
 
     fn draw_cache(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+        // paint base
         ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
             ctx.transform(Affine::scale(zoom));
@@ -165,6 +166,7 @@ impl MapWidget {
                 InterpolationMode::Bilinear,
             );
         });
+        // paint minimap
         // let mini_map_rect = Rect::new(0., 0., 100., 100.);
         ctx.with_save(|ctx: &mut PaintCtx| {
             // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
@@ -178,14 +180,27 @@ impl MapWidget {
                 rect,
                 InterpolationMode::Bilinear,
             );
-        });
-        ctx.with_save(|ctx: &mut PaintCtx| {
-            ctx.transform(Affine::translate(self.focal_point.to_vec2() * 0.3 / zoom));
-            ctx.transform(Affine::scale(0.3 / zoom));
+
+            // paint minimap viewfinder
+            ctx.clip(rect);
+            ctx.transform(Affine::scale(1. / zoom));
+            // ctx.transform(Affine::translate(self.focal_point.to_vec2() * 0.3 / zoom));
+            ctx.transform(Affine::translate(self.focal_point.to_vec2()));
             // dbg!(zoom);
             // ctx.fill(mini_map_rect, &Color::WHITE);
             ctx.stroke(rect, &Color::RED, 4. * zoom);
         });
+        // paint minimap viewfinder
+        // ctx.with_save(|ctx: &mut PaintCtx| {
+        //     ctx.transform(Affine::scale(0.3));
+        //     ctx.clip(rect);
+        //     ctx.transform(Affine::scale(1. / zoom));
+        //     // ctx.transform(Affine::translate(self.focal_point.to_vec2() * 0.3 / zoom));
+        //     ctx.transform(Affine::translate(self.focal_point.to_vec2()));
+        //     // dbg!(zoom);
+        //     // ctx.fill(mini_map_rect, &Color::WHITE);
+        //     ctx.stroke(rect, &Color::RED, 4. * zoom);
+        // });
         // ctx.restore();
         // let mini_map_rect = rect.with_size((100., 100.));
     }
@@ -587,7 +602,6 @@ impl Widget<AppData> for MapWidget {
             println!("paint: redraw highlights");
             self.draw_cache(ctx, rect, data.map_zoom_level.to_f64());
 
-            ctx.fill(Circle::new(Point::new(100., 100.), 50.), &Color::FUCHSIA);
             for path in &self.highlighted_trip_paths {
                 ctx.stroke(path, &Color::NAVY, 3.);
             }
