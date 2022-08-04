@@ -447,21 +447,24 @@ pub struct Edit {
 pub enum ZoomLevel {
     One,
     Two,
-    Three,
+    Ten,
+    Fifty,
 }
 impl ZoomLevel {
     pub fn radio_group_vec() -> Vec<(String, ZoomLevel)> {
         vec![
             ("1x".to_string(), ZoomLevel::One),
             ("2x".to_string(), ZoomLevel::Two),
-            ("3x".to_string(), ZoomLevel::Three),
+            ("10x".to_string(), ZoomLevel::Ten),
+            ("50x".to_string(), ZoomLevel::Fifty),
         ]
     }
     pub fn to_f64(&self) -> f64 {
         match self {
             ZoomLevel::One => 1.,
-            ZoomLevel::Two => 10.,
-            ZoomLevel::Three => 50.,
+            ZoomLevel::Two => 2.,
+            ZoomLevel::Ten => 10.,
+            ZoomLevel::Fifty => 50.,
         }
     }
 }

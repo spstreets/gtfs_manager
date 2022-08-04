@@ -21,8 +21,6 @@ use crate::data::*;
 
 // bitmaps large than 10,000 x 10,000 will crash
 const BITMAP_SIZE: usize = 1000;
-// not sure why 1000 us causing refresh on mouse move, even with path width derived from BITMAP_SIZE
-// const BITMAP_SIZE: usize = 1000;
 
 #[derive(Copy, Clone)]
 struct PathsRanges {
@@ -55,8 +53,9 @@ fn min_max_trips_coords(trips: &Vec<Vec<(f64, f64)>>) -> PathsRanges {
 
 pub struct MapWidget {
     mouse_position: Option<Point>,
-    all_trip_paths_base: Vec<BezPath>,
-    all_trip_paths_highlights: Vec<BezPath>,
+    all_trip_paths_bitmap: Vec<BezPath>,
+    all_trip_paths_canvas: Vec<BezPath>,
+    all_trip_paths_canvas_translated: Vec<BezPath>,
     highlighted_trip_paths: Vec<BezPath>,
     selected_trip_paths: Vec<BezPath>,
     stop_circles: Vec<Circle>,
@@ -79,8 +78,9 @@ impl MapWidget {
         println!("new widget");
         MapWidget {
             mouse_position: None,
-            all_trip_paths_base: Vec::new(),
-            all_trip_paths_highlights: Vec::new(),
+            all_trip_paths_bitmap: Vec::new(),
+            all_trip_paths_canvas_translated: Vec::new(),
+            all_trip_paths_canvas: Vec::new(),
             highlighted_trip_paths: Vec::new(),
             selected_trip_paths: Vec::new(),
             stop_circles: Vec::new(),
@@ -153,12 +153,10 @@ impl MapWidget {
         Point::new(x2, y2)
     }
 
-    fn draw_cache(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
-        // paint base
+    fn draw_base_from_cache(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
             ctx.transform(Affine::scale(zoom));
-            // dbg!(zoom);
             ctx.stroke(rect, &Color::GREEN, 2.);
             ctx.draw_image(
                 &self.cached_image.as_ref().unwrap(),
@@ -166,15 +164,23 @@ impl MapWidget {
                 InterpolationMode::Bilinear,
             );
         });
-        // paint minimap
-        // let mini_map_rect = Rect::new(0., 0., 100., 100.);
+    }
+    fn draw_highlights(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
-            // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+            ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+            ctx.transform(Affine::scale(zoom));
+            for path in &self.highlighted_trip_paths {
+                ctx.stroke(path, &Color::NAVY, 3.);
+            }
+            for path in &self.selected_trip_paths {
+                ctx.stroke(path, &Color::YELLOW, 3.);
+            }
+        });
+    }
+    fn draw_minimap(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+        ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::scale(0.3));
-            // dbg!(zoom);
-            // ctx.fill(mini_map_rect, &Color::WHITE);
             ctx.fill(rect, &Color::WHITE);
-            // ctx.stroke(rect, &Color::BLUE, 2.);
             ctx.draw_image(
                 &self.minimap_image.as_ref().unwrap(),
                 rect,
@@ -184,25 +190,9 @@ impl MapWidget {
             // paint minimap viewfinder
             ctx.clip(rect);
             ctx.transform(Affine::scale(1. / zoom));
-            // ctx.transform(Affine::translate(self.focal_point.to_vec2() * 0.3 / zoom));
             ctx.transform(Affine::translate(self.focal_point.to_vec2()));
-            // dbg!(zoom);
-            // ctx.fill(mini_map_rect, &Color::WHITE);
             ctx.stroke(rect, &Color::RED, 4. * zoom);
         });
-        // paint minimap viewfinder
-        // ctx.with_save(|ctx: &mut PaintCtx| {
-        //     ctx.transform(Affine::scale(0.3));
-        //     ctx.clip(rect);
-        //     ctx.transform(Affine::scale(1. / zoom));
-        //     // ctx.transform(Affine::translate(self.focal_point.to_vec2() * 0.3 / zoom));
-        //     ctx.transform(Affine::translate(self.focal_point.to_vec2()));
-        //     // dbg!(zoom);
-        //     // ctx.fill(mini_map_rect, &Color::WHITE);
-        //     ctx.stroke(rect, &Color::RED, 4. * zoom);
-        // });
-        // ctx.restore();
-        // let mini_map_rect = rect.with_size((100., 100.));
     }
 }
 
@@ -260,18 +250,28 @@ impl Widget<AppData> for MapWidget {
                     ctx.request_paint();
                 } else {
                     self.mouse_position = Some(mouse_event.pos);
-                    let mut highlighted_trip_paths = Vec::new();
 
+                    // find and save all hovered paths
+                    let mut highlighted_trip_paths = Vec::new();
                     let path_width = match data.map_zoom_level {
                         ZoomLevel::One => BITMAP_SIZE as f64 / 400.,
-                        ZoomLevel::Two => BITMAP_SIZE as f64 / 1_000.,
-                        ZoomLevel::Three => BITMAP_SIZE as f64 / 50_000.,
+                        ZoomLevel::Two => BITMAP_SIZE as f64 / 800.,
+                        ZoomLevel::Ten => BITMAP_SIZE as f64 / 1_000.,
+                        ZoomLevel::Fifty => BITMAP_SIZE as f64 / 50_000.,
                     };
-                    for (i, trip_path) in self.all_trip_paths_highlights.iter().enumerate() {
+
+                    // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+                    // ctx.transform(Affine::scale(zoom));
+                    let translated_mouse_position = (mouse_event.pos.to_vec2()
+                        + self.focal_point.to_vec2())
+                        / data.map_zoom_level.to_f64();
+                    for (i, trip_path) in self.all_trip_paths_canvas.iter().enumerate() {
                         for seg in trip_path.segments() {
                             // NOTE accuracy arg in .nearest() isn't used for lines
                             // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
-                            if seg.nearest(mouse_event.pos, 1.).distance_sq
+                            if seg
+                                .nearest(translated_mouse_position.to_point(), 1.)
+                                .distance_sq
                                 < path_width * path_width
                             {
                                 dbg!(i);
@@ -448,7 +448,7 @@ impl Widget<AppData> for MapWidget {
             } else {
                 (size.width * width / height, size.height)
             };
-            let long_lat_to_canvas_closure_highlights = |coord: &(f64, f64)| {
+            let long_lat_to_canvas_closure_canvas = |coord: &(f64, f64)| {
                 MapWidget::long_lat_to_canvas(
                     coord,
                     ranges,
@@ -460,7 +460,7 @@ impl Widget<AppData> for MapWidget {
             };
 
             // make trips paths
-            self.all_trip_paths_base = self
+            self.all_trip_paths_bitmap = self
                 .trips_coords
                 .iter()
                 .zip(data.trips.iter())
@@ -474,7 +474,7 @@ impl Widget<AppData> for MapWidget {
                 })
                 .collect::<Vec<_>>();
 
-            self.all_trip_paths_highlights = self
+            self.all_trip_paths_canvas = self
                 .trips_coords
                 .iter()
                 .zip(data.trips.iter())
@@ -483,10 +483,16 @@ impl Widget<AppData> for MapWidget {
                     bez_path_from_coords_iter(
                         coords
                             .iter()
-                            .map(|coord| long_lat_to_canvas_closure_highlights(coord)),
+                            .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
                     )
                 })
                 .collect::<Vec<_>>();
+
+            self.all_trip_paths_canvas_translated = self.all_trip_paths_canvas.clone();
+            for trip_path in &mut self.all_trip_paths_canvas_translated {
+                trip_path.apply_affine(Affine::translate(self.focal_point.to_vec2() * -1.));
+                trip_path.apply_affine(Affine::scale(data.map_zoom_level.to_f64()));
+            }
 
             // self.selected_trip_paths = trips_coords
             //     .iter()
@@ -512,7 +518,7 @@ impl Widget<AppData> for MapWidget {
                     bez_path_from_coords_iter(
                         coords
                             .iter()
-                            .map(|coord| long_lat_to_canvas_closure_highlights(coord)),
+                            .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -542,17 +548,12 @@ impl Widget<AppData> for MapWidget {
                 // paint the map
                 let path_width = match data.map_zoom_level {
                     ZoomLevel::One => BITMAP_SIZE as f64 / 400.,
-                    ZoomLevel::Two => BITMAP_SIZE as f64 / 1_000.,
-                    ZoomLevel::Three => BITMAP_SIZE as f64 / 50_000.,
+                    ZoomLevel::Two => BITMAP_SIZE as f64 / 800.,
+                    ZoomLevel::Ten => BITMAP_SIZE as f64 / 1_000.,
+                    ZoomLevel::Fifty => BITMAP_SIZE as f64 / 50_000.,
                 };
-                for path in &self.all_trip_paths_base {
+                for path in &self.all_trip_paths_bitmap {
                     piet_context.stroke(path, &Color::GREEN, path_width);
-                }
-                for path in &self.highlighted_trip_paths {
-                    piet_context.stroke(path, &Color::NAVY, 3.);
-                }
-                for path in &self.selected_trip_paths {
-                    piet_context.stroke(path, &Color::YELLOW, 3.);
                 }
 
                 // let mut selected_circle = None;
@@ -597,17 +598,15 @@ impl Widget<AppData> for MapWidget {
                 self.minimap_image = Some(cached_image.clone());
             }
             self.cached_image = Some(cached_image);
-            self.draw_cache(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
         } else if self.redraw_highlights {
             println!("paint: redraw highlights");
-            self.draw_cache(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
 
-            for path in &self.highlighted_trip_paths {
-                ctx.stroke(path, &Color::NAVY, 3.);
-            }
-            for path in &self.selected_trip_paths {
-                ctx.stroke(path, &Color::YELLOW, 3.);
-            }
+            self.draw_highlights(ctx, rect, data.map_zoom_level.to_f64());
+
+            self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
             // if let Some(selected_circle) = self.selected_stop_circle {
             //     ctx.fill(selected_circle, &Color::FUCHSIA);
             // }
@@ -626,7 +625,8 @@ impl Widget<AppData> for MapWidget {
             self.redraw_highlights = false;
         } else {
             println!("paint: use cache");
-            self.draw_cache(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
         }
     }
 
