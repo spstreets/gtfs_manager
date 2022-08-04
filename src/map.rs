@@ -55,6 +55,7 @@ pub struct MapWidget {
     mouse_position: Option<Point>,
     all_trip_paths_bitmap: Vec<BezPath>,
     all_trip_paths_canvas: Vec<BezPath>,
+    all_trip_paths_canvas_grouped: Vec<(Rect, Vec<BezPath>)>,
     all_trip_paths_canvas_translated: Vec<BezPath>,
     highlighted_trip_paths: Vec<BezPath>,
     selected_trip_paths: Vec<BezPath>,
@@ -79,8 +80,9 @@ impl MapWidget {
         MapWidget {
             mouse_position: None,
             all_trip_paths_bitmap: Vec::new(),
-            all_trip_paths_canvas_translated: Vec::new(),
             all_trip_paths_canvas: Vec::new(),
+            all_trip_paths_canvas_grouped: Vec::new(),
+            all_trip_paths_canvas_translated: Vec::new(),
             highlighted_trip_paths: Vec::new(),
             selected_trip_paths: Vec::new(),
             stop_circles: Vec::new(),
@@ -233,6 +235,7 @@ impl Widget<AppData> for MapWidget {
             }
             Event::MouseMove(mouse_event) => {
                 if let Some(drag_start) = self.drag_start {
+                    println!("mouse move: drag");
                     if mouse_event.buttons.has_left() {
                         let drag_end = mouse_event.pos;
                         self.focal_point = Point::new(
@@ -249,6 +252,7 @@ impl Widget<AppData> for MapWidget {
                     }
                     ctx.request_paint();
                 } else {
+                    println!("mouse move: check for highlight");
                     self.mouse_position = Some(mouse_event.pos);
 
                     // find and save all hovered paths
@@ -262,24 +266,45 @@ impl Widget<AppData> for MapWidget {
 
                     // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
                     // ctx.transform(Affine::scale(zoom));
-                    let translated_mouse_position = (mouse_event.pos.to_vec2()
+                    let translated_mouse_position = ((mouse_event.pos.to_vec2()
                         + self.focal_point.to_vec2())
-                        / data.map_zoom_level.to_f64();
-                    for (i, trip_path) in self.all_trip_paths_canvas.iter().enumerate() {
-                        for seg in trip_path.segments() {
-                            // NOTE accuracy arg in .nearest() isn't used for lines
-                            // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
-                            if seg
-                                .nearest(translated_mouse_position.to_point(), 1.)
-                                .distance_sq
-                                < path_width * path_width
-                            {
-                                dbg!(i);
-                                highlighted_trip_paths.push(trip_path.clone());
+                        / data.map_zoom_level.to_f64())
+                    .to_point();
+
+                    let path_width2 = path_width * path_width;
+                    for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
+                        let (rect, paths) = box_group;
+                        if rect.contains(mouse_event.pos) {
+                            // println!("in box: {}", i);
+                            for (i, trip_path) in paths.iter().enumerate() {
+                                for seg in trip_path.segments() {
+                                    // NOTE accuracy arg in .nearest() isn't used for lines
+                                    // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
+                                    if seg.nearest(translated_mouse_position, 1.).distance_sq
+                                        < path_width2
+                                    {
+                                        dbg!(i);
+                                        highlighted_trip_paths.push(trip_path.clone());
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
+                    // for (i, trip_path) in self.all_trip_paths_canvas.iter().enumerate() {
+                    //     for seg in trip_path.segments() {
+                    //         // NOTE accuracy arg in .nearest() isn't used for lines
+                    //         // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
+                    //         if seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2
+                    //         {
+                    //             dbg!(i);
+                    //             highlighted_trip_paths.push(trip_path.clone());
+                    //             break;
+                    //         }
+                    //     }
+                    // }
                     if self.highlighted_trip_paths != highlighted_trip_paths {
+                        println!("mouse move: highlights changed");
                         self.highlighted_trip_paths = highlighted_trip_paths;
                         self.redraw_highlights = true;
                     }
@@ -488,11 +513,36 @@ impl Widget<AppData> for MapWidget {
                 })
                 .collect::<Vec<_>>();
 
-            self.all_trip_paths_canvas_translated = self.all_trip_paths_canvas.clone();
-            for trip_path in &mut self.all_trip_paths_canvas_translated {
-                trip_path.apply_affine(Affine::translate(self.focal_point.to_vec2() * -1.));
-                trip_path.apply_affine(Affine::scale(data.map_zoom_level.to_f64()));
+            for m in 0..10 {
+                for n in 0..10 {
+                    let rect = Rect::from_origin_size(
+                        (
+                            ctx.size().width * m as f64 / 10.,
+                            ctx.size().height * n as f64 / 10.,
+                        ),
+                        (ctx.size().width / 10., ctx.size().height / 10.),
+                    );
+                    let mut group_paths = Vec::new();
+                    // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
+                    for trip_path in &self.all_trip_paths_canvas {
+                        for seg in trip_path.segments() {
+                            if rect.contains(seg.as_line().unwrap().p0)
+                                || rect.contains(seg.as_line().unwrap().p1)
+                            {
+                                group_paths.push(trip_path.clone());
+                                break;
+                            }
+                        }
+                    }
+                    self.all_trip_paths_canvas_grouped.push((rect, group_paths));
+                }
             }
+
+            // self.all_trip_paths_canvas_translated = self.all_trip_paths_canvas.clone();
+            // for trip_path in &mut self.all_trip_paths_canvas_translated {
+            //     trip_path.apply_affine(Affine::translate(self.focal_point.to_vec2() * -1.));
+            //     trip_path.apply_affine(Affine::scale(data.map_zoom_level.to_f64()));
+            // }
 
             // self.selected_trip_paths = trips_coords
             //     .iter()

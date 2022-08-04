@@ -1808,13 +1808,6 @@ fn list_stop_selected() -> Box<dyn Widget<AppData>> {
 pub fn main_widget() -> impl Widget<AppData> {
     // todo what's the difference between Point::ZERO and Point::ORIGIN?
     println!("make main widget");
-    // let map_widget = (MapWidget::new(1., 1., Point::ZERO).on_added(
-    let map_widget = (MapWidget::new(1., Point::ZERO).on_added(
-        |map: &mut MapWidget, _: &mut _, data: &AppData, _: &Env| {
-            map.trips_coords = data.trips_coords()
-        },
-    ))
-    .expand();
 
     // let agencies_header = Flex::row()
     //     .with_child(Expander::new("Agencies").lens(AppData::expanded))
@@ -1886,6 +1879,13 @@ pub fn main_widget() -> impl Widget<AppData> {
     .fix_width(NARROW_LIST_WIDTH);
 
     let zoom_level = RadioGroup::row(ZoomLevel::radio_group_vec()).lens(AppData::map_zoom_level);
+    // let map_widget = (MapWidget::new(1., 1., Point::ZERO).on_added(
+    let map_widget = (MapWidget::new(1., Point::ZERO).on_added(
+        |map: &mut MapWidget, _: &mut _, data: &AppData, _: &Env| {
+            map.trips_coords = data.trips_coords()
+        },
+    ))
+    .expand();
 
     Flex::row()
         .with_flex_child(all_together_now, 1.)
