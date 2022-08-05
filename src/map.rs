@@ -55,17 +55,19 @@ fn min_max_trips_coords(trips: &Vec<Vec<(f64, f64)>>) -> PathsRanges {
 pub struct MapWidget {
     mouse_position: Option<Point>,
     all_trip_paths_bitmap: Vec<BezPath>,
-    all_trip_paths_canvas: Vec<BezPath>,
-    all_trip_paths_canvas_grouped: Vec<(Rect, Vec<BezPath>)>,
+    all_trip_paths_canvas: Vec<(String, BezPath)>,
+    all_trip_paths_canvas_grouped: Vec<(Rect, Vec<(String, BezPath)>)>,
     all_trip_paths_canvas_translated: Vec<BezPath>,
-    highlighted_trip_paths: Vec<BezPath>,
-    selected_trip_paths: Vec<BezPath>,
+    highlighted_trip_paths: Vec<(String, BezPath)>,
+    // selected_trip_paths: Vec<BezPath>,
+    selected_trip_path: Option<(String, BezPath)>,
     stop_circles: Vec<Circle>,
     highlighted_stop_circle: Option<Circle>,
     selected_stop_circle: Option<Circle>,
     // zoom_level: f64,
     speed: f64,
-    drag_start: Option<Point>,
+    click_down_pos: Option<Point>,
+    drag_last_pos: Option<Point>,
     focal_point: Point,
     minimap_image: Option<CairoImage>,
     cached_image: Option<CairoImage>,
@@ -85,13 +87,14 @@ impl MapWidget {
             all_trip_paths_canvas_grouped: Vec::new(),
             all_trip_paths_canvas_translated: Vec::new(),
             highlighted_trip_paths: Vec::new(),
-            selected_trip_paths: Vec::new(),
+            selected_trip_path: None,
             stop_circles: Vec::new(),
             highlighted_stop_circle: None,
             selected_stop_circle: None,
             // zoom_level,
             speed,
-            drag_start: None,
+            click_down_pos: None,
+            drag_last_pos: None,
             focal_point: offset,
             minimap_image: None,
             cached_image: None,
@@ -156,6 +159,7 @@ impl MapWidget {
         Point::new(x2, y2)
     }
 
+    // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
     fn draw_base_from_cache(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
@@ -172,10 +176,10 @@ impl MapWidget {
         ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
             ctx.transform(Affine::scale(zoom));
-            for path in &self.highlighted_trip_paths {
+            for (_, path) in &self.highlighted_trip_paths {
                 ctx.stroke(path, &Color::NAVY, 3.);
             }
-            for path in &self.selected_trip_paths {
+            if let Some((id, path)) = &self.selected_trip_path {
                 ctx.stroke(path, &Color::YELLOW, 3.);
             }
         });
@@ -232,10 +236,11 @@ impl Widget<AppData> for MapWidget {
             // }
             Event::MouseDown(mouse_event) => {
                 ctx.override_cursor(&Cursor::Pointer);
-                self.drag_start = Some(mouse_event.pos);
+                self.click_down_pos = Some(mouse_event.pos);
+                self.drag_last_pos = Some(mouse_event.pos);
             }
             Event::MouseMove(mouse_event) => {
-                if let Some(drag_start) = self.drag_start {
+                if let Some(drag_start) = self.drag_last_pos {
                     println!("mouse move: drag");
                     if mouse_event.buttons.has_left() {
                         let drag_end = mouse_event.pos;
@@ -245,10 +250,10 @@ impl Widget<AppData> for MapWidget {
                             self.focal_point.x - (drag_end.x - drag_start.x),
                             self.focal_point.y - (drag_end.y - drag_start.y),
                         );
-                        self.drag_start = Some(drag_end);
+                        self.drag_last_pos = Some(drag_end);
                     } else {
                         // we keep drag_start.is_some() even if the mouse has left the viewport, otherwise it is annoying if you slightly move your mouse outside the viewport and you loose your drag and have to click again
-                        self.drag_start = None;
+                        self.drag_last_pos = None;
                         ctx.clear_cursor();
                     }
                     ctx.request_paint();
@@ -277,15 +282,15 @@ impl Widget<AppData> for MapWidget {
                         let (rect, paths) = box_group;
                         if rect.contains(translated_mouse_position) {
                             // println!("in box: {}", i);
-                            for (i, trip_path) in paths.iter().enumerate() {
-                                for seg in trip_path.segments() {
+                            for (id, path) in paths {
+                                for seg in path.segments() {
                                     // NOTE accuracy arg in .nearest() isn't used for lines
                                     // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
                                     if seg.nearest(translated_mouse_position, 1.).distance_sq
                                         < path_width2
                                     {
-                                        dbg!(i);
-                                        highlighted_trip_paths.push(trip_path.clone());
+                                        // dbg!(id);
+                                        highlighted_trip_paths.push((id.clone(), path.clone()));
                                         break;
                                     }
                                 }
@@ -324,19 +329,42 @@ impl Widget<AppData> for MapWidget {
                 }
             }
             Event::MouseUp(me) => {
-                if let Some(drag_start) = self.drag_start {
-                    if me.pos == drag_start {
+                if let Some(click_down_pos) = self.click_down_pos {
+                    if me.pos == click_down_pos {
+                        println!("mouse_up: same pos");
                         // TODO differentiate between stop click and path click
                         // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
-                        for (stop_circle, stop) in
-                            self.stop_circles.iter().zip(data.stops.iter_mut())
-                        {
-                            if stop_circle.contains(me.pos) {
-                                self.redraw_highlights = true;
-                                self.selected_stop_circle = Some(*stop_circle);
-                                ctx.submit_command(SELECT_STOP_LIST.with(stop.id.clone()));
-                            }
+
+                        if let Some((id, path)) = self.highlighted_trip_paths.get(0) {
+                            let route_id = data
+                                .trips
+                                .iter()
+                                .find(|trip| &trip.id == id)
+                                .unwrap()
+                                .route_id
+                                .clone();
+                            let agency_id = data
+                                .routes
+                                .iter()
+                                .find(|route| route.id == route_id)
+                                .unwrap()
+                                .agency_id
+                                .clone();
+                            data.selected_agency_id = Some(agency_id);
+                            data.selected_route_id = Some(route_id);
+                            data.selected_trip_id = Some(id.clone());
+                            self.selected_trip_path = Some((id.clone(), path.clone()));
                         }
+                        // for (stop_circle, stop) in
+                        //     self.stop_circles.iter().zip(data.stops.iter_mut())
+                        // {
+                        //     if stop_circle.contains(me.pos) {
+                        //         self.redraw_highlights = true;
+                        //         self.selected_stop_circle = Some(*stop_circle);
+                        //         ctx.submit_command(SELECT_STOP_LIST.with(stop.id.clone()));
+                        //     }
+                        // }
+
                         // for (path, trip) in
                         //     self.all_trip_paths.iter().zip(data.stops.iter_mut())
                         // {
@@ -344,10 +372,15 @@ impl Widget<AppData> for MapWidget {
                         //         ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
                         //     }
                         // }
+
+                        self.click_down_pos = None;
+                        self.redraw_highlights = true;
+                        // NOTE don't need to call ctx.paint() since we are updating data which will trigger a paint
                     } else {
                         // todo understand why .clear_cursor() doesn't work here
                         ctx.override_cursor(&Cursor::Arrow);
-                        self.drag_start = None;
+                        self.click_down_pos = None;
+                        self.drag_last_pos = None;
                     }
                 }
             }
@@ -366,7 +399,17 @@ impl Widget<AppData> for MapWidget {
         println!("update");
         if !data.trips.same(&old_data.trips) {
             println!("update: trips: paint");
-            self.redraw_base = true;
+            self.selected_trip_path = self.all_trip_paths_canvas.iter().cloned().find(|path| {
+                if let Some(trip_id) = &data.selected_trip_id {
+                    &path.0 == trip_id
+                } else {
+                    false
+                }
+            });
+
+            // only want to redraw base when a new trip is added, so leave for now
+            // self.redraw_base = true;
+            self.redraw_highlights = true;
             ctx.request_paint();
         }
         if !data.map_zoom_level.same(&&old_data.map_zoom_level) {
@@ -485,6 +528,7 @@ impl Widget<AppData> for MapWidget {
                 )
             };
 
+            // TODO should be making data in update or on_added, not paint
             // make trips paths
             self.all_trip_paths_bitmap = self
                 .trips_coords
@@ -505,11 +549,14 @@ impl Widget<AppData> for MapWidget {
                 .iter()
                 .zip(data.trips.iter())
                 .filter(|(_coords, trip)| trip.visible)
-                .map(|(coords, _)| {
-                    bez_path_from_coords_iter(
-                        coords
-                            .iter()
-                            .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
+                .map(|(coords, trip)| {
+                    (
+                        trip.id.clone(),
+                        bez_path_from_coords_iter(
+                            coords
+                                .iter()
+                                .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
+                        ),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -528,12 +575,12 @@ impl Widget<AppData> for MapWidget {
                     );
                     let mut group_paths = Vec::new();
                     // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                    for trip_path in &self.all_trip_paths_canvas {
+                    for (id, trip_path) in &self.all_trip_paths_canvas {
                         for seg in trip_path.segments() {
                             if rect.contains(seg.as_line().unwrap().p0)
                                 || rect.contains(seg.as_line().unwrap().p1)
                             {
-                                group_paths.push(trip_path.clone());
+                                group_paths.push((id.clone(), trip_path.clone()));
                                 break;
                             }
                         }
@@ -563,19 +610,22 @@ impl Widget<AppData> for MapWidget {
             //         path
             //     })
             //     .collect::<Vec<_>>();
-            self.selected_trip_paths = self
-                .trips_coords
-                .iter()
-                .zip(data.trips.iter())
-                .filter(|(_coords, trip)| trip.selected)
-                .map(|(coords, _)| {
-                    bez_path_from_coords_iter(
-                        coords
-                            .iter()
-                            .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
-                    )
-                })
-                .collect::<Vec<_>>();
+
+            // don't need to set selected path here - should be done in update
+            // self.selected_trip_path = self
+            //     .trips_coords
+            //     .iter()
+            //     .zip(data.trips.iter())
+            //     .filter(|(_coords, trip)| trip.selected)
+            //     .map(|(coords, _)| {
+            //         bez_path_from_coords_iter(
+            //             coords
+            //                 .iter()
+            //                 .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
+            //         )
+            //     })
+            //     .get(0)
+            //     .unwrap();
 
             self.stop_circles = data
                 .stops
@@ -659,19 +709,19 @@ impl Widget<AppData> for MapWidget {
             self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
 
             self.draw_highlights(ctx, rect, data.map_zoom_level.to_f64());
-
+            
             self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
             // if let Some(selected_circle) = self.selected_stop_circle {
             //     ctx.fill(selected_circle, &Color::FUCHSIA);
             // }
-
+            
             // if let Some(circle) = self.highlighted_stop_circle {
-            //     let circle = Circle::new(
-            //         circle.center,
-            //         if data.map_zoom_level.to_f64() > 6. {
+                //     let circle = Circle::new(
+                    //         circle.center,
+                    //         if data.map_zoom_level.to_f64() > 6. {
             //             6. * 1.4
             //         } else {
-            //             data.map_zoom_level.to_f64() * 1.4
+                //             data.map_zoom_level.to_f64() * 1.4
             //         },
             //     );
             //     ctx.fill(circle, &Color::PURPLE);
@@ -680,6 +730,8 @@ impl Widget<AppData> for MapWidget {
         } else {
             println!("paint: use cache");
             self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
+            // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
+            self.draw_highlights(ctx, rect, data.map_zoom_level.to_f64());
             self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
         }
     }
