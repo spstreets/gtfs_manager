@@ -58,7 +58,9 @@ pub struct MapWidget {
     all_trip_paths_canvas: Vec<(String, BezPath)>,
     all_trip_paths_canvas_grouped: Vec<(Rect, Vec<(String, BezPath)>)>,
     all_trip_paths_canvas_translated: Vec<BezPath>,
-    highlighted_trip_paths: Vec<(String, BezPath)>,
+    hovered_trip_paths: Vec<(String, BezPath)>,
+    filtered_trip_paths: Vec<(String, BezPath)>,
+    deleted_trip_paths: Vec<(String, BezPath)>,
     // selected_trip_paths: Vec<BezPath>,
     selected_trip_path: Option<(String, BezPath)>,
     stop_circles: Vec<Circle>,
@@ -86,7 +88,9 @@ impl MapWidget {
             all_trip_paths_canvas: Vec::new(),
             all_trip_paths_canvas_grouped: Vec::new(),
             all_trip_paths_canvas_translated: Vec::new(),
-            highlighted_trip_paths: Vec::new(),
+            hovered_trip_paths: Vec::new(),
+            filtered_trip_paths: Vec::new(),
+            deleted_trip_paths: Vec::new(),
             selected_trip_path: None,
             stop_circles: Vec::new(),
             highlighted_stop_circle: None,
@@ -176,9 +180,13 @@ impl MapWidget {
         ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
             ctx.transform(Affine::scale(zoom));
-            for (_, path) in &self.highlighted_trip_paths {
+            for (_, path) in &self.filtered_trip_paths {
+                ctx.stroke(path, &Color::RED, 3.);
+            }
+            for (_, path) in &self.hovered_trip_paths {
                 ctx.stroke(path, &Color::NAVY, 3.);
             }
+            dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
             if let Some((id, path)) = &self.selected_trip_path {
                 ctx.stroke(path, &Color::YELLOW, 3.);
             }
@@ -258,7 +266,7 @@ impl Widget<AppData> for MapWidget {
                     }
                     ctx.request_paint();
                 } else {
-                    println!("mouse move: check for highlight");
+                    // println!("mouse move: check for highlight");
                     self.mouse_position = Some(mouse_event.pos);
 
                     // find and save all hovered paths
@@ -309,9 +317,9 @@ impl Widget<AppData> for MapWidget {
                     //         }
                     //     }
                     // }
-                    if self.highlighted_trip_paths != highlighted_trip_paths {
+                    if self.hovered_trip_paths != highlighted_trip_paths {
                         println!("mouse move: highlights changed");
-                        self.highlighted_trip_paths = highlighted_trip_paths;
+                        self.hovered_trip_paths = highlighted_trip_paths;
                         self.redraw_highlights = true;
                     }
 
@@ -335,7 +343,7 @@ impl Widget<AppData> for MapWidget {
                         // TODO differentiate between stop click and path click
                         // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
 
-                        if let Some((id, path)) = self.highlighted_trip_paths.get(0) {
+                        if let Some((id, path)) = self.hovered_trip_paths.get(0) {
                             let route_id = data
                                 .trips
                                 .iter()
@@ -397,15 +405,65 @@ impl Widget<AppData> for MapWidget {
         // TODO is this ok or need to loop through and compare items?
         // need to differentiate between visible/selected/zoomed to determine whether we need to set self.redraw_base
         println!("update");
+        // if selected trip changes
+        if !data.selected_trip_id.same(&old_data.selected_trip_id) {
+            println!("update: selected_trip: paint");
+            self.selected_trip_path = self
+                .all_trip_paths_canvas
+                .iter()
+                .find(|path| {
+                    if let Some(trip_id) = &data.selected_trip_id {
+                        &path.0 == trip_id
+                    } else {
+                        false
+                    }
+                })
+                .cloned();
+            // if trip is deselected and route is selected
+            if self.selected_trip_path.is_none() {
+                if let Some(route_id) = &data.selected_route_id {
+                    let trip_ids = data
+                        .trips
+                        .iter()
+                        .filter(|trip| &trip.route_id == route_id)
+                        .map(|trip| trip.id.clone())
+                        .collect::<Vec<_>>();
+                    self.filtered_trip_paths = self
+                        .all_trip_paths_canvas
+                        .iter()
+                        .filter(|(id, path)| trip_ids.contains(id))
+                        .cloned()
+                        .collect::<Vec<_>>();
+                }
+            }
+            self.redraw_highlights = true;
+            ctx.request_paint();
+        }
+        // if new route is selected
+        if !data.selected_route_id.same(&old_data.selected_route_id)
+            && data.selected_trip_id.is_none()
+        {
+            if let Some(route_id) = &data.selected_route_id {
+                let trip_ids = data
+                    .trips
+                    .iter()
+                    .filter(|trip| &trip.route_id == route_id)
+                    .map(|trip| trip.id.clone())
+                    .collect::<Vec<_>>();
+                self.filtered_trip_paths = self
+                    .all_trip_paths_canvas
+                    .iter()
+                    .filter(|(id, path)| trip_ids.contains(id))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                self.redraw_highlights = true;
+                ctx.request_paint();
+            }
+        }
+        // TODO should also check if agency is selected and highlight it's paths, but this will kill performance everytime we select SPTRANS in order to select a different route... also app should start with SPTRANS unselected
+
         if !data.trips.same(&old_data.trips) {
             println!("update: trips: paint");
-            self.selected_trip_path = self.all_trip_paths_canvas.iter().cloned().find(|path| {
-                if let Some(trip_id) = &data.selected_trip_id {
-                    &path.0 == trip_id
-                } else {
-                    false
-                }
-            });
 
             // only want to redraw base when a new trip is added, so leave for now
             // self.redraw_base = true;
@@ -419,7 +477,8 @@ impl Widget<AppData> for MapWidget {
             //     ZoomLevel::Two => 2.,
             //     ZoomLevel::Three => 3.,
             // };
-            self.redraw_base = true;
+            // self.redraw_base = true;
+            self.redraw_highlights = true;
             ctx.request_paint();
         }
 
@@ -709,19 +768,19 @@ impl Widget<AppData> for MapWidget {
             self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
 
             self.draw_highlights(ctx, rect, data.map_zoom_level.to_f64());
-            
+
             self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
             // if let Some(selected_circle) = self.selected_stop_circle {
             //     ctx.fill(selected_circle, &Color::FUCHSIA);
             // }
-            
+
             // if let Some(circle) = self.highlighted_stop_circle {
-                //     let circle = Circle::new(
-                    //         circle.center,
-                    //         if data.map_zoom_level.to_f64() > 6. {
+            //     let circle = Circle::new(
+            //         circle.center,
+            //         if data.map_zoom_level.to_f64() > 6. {
             //             6. * 1.4
             //         } else {
-                //             data.map_zoom_level.to_f64() * 1.4
+            //             data.map_zoom_level.to_f64() * 1.4
             //         },
             //     );
             //     ctx.fill(circle, &Color::PURPLE);
