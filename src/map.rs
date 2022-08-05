@@ -21,6 +21,7 @@ use crate::data::*;
 
 // bitmaps large than 10,000 x 10,000 will crash
 const BITMAP_SIZE: usize = 1000;
+const NUMBER_TILES_WIDTH: usize = 20;
 
 #[derive(Copy, Clone)]
 struct PathsRanges {
@@ -274,7 +275,7 @@ impl Widget<AppData> for MapWidget {
                     let path_width2 = path_width * path_width;
                     for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
                         let (rect, paths) = box_group;
-                        if rect.contains(mouse_event.pos) {
+                        if rect.contains(translated_mouse_position) {
                             // println!("in box: {}", i);
                             for (i, trip_path) in paths.iter().enumerate() {
                                 for seg in trip_path.segments() {
@@ -513,14 +514,17 @@ impl Widget<AppData> for MapWidget {
                 })
                 .collect::<Vec<_>>();
 
-            for m in 0..10 {
-                for n in 0..10 {
+            for m in 0..NUMBER_TILES_WIDTH {
+                for n in 0..NUMBER_TILES_WIDTH {
                     let rect = Rect::from_origin_size(
                         (
-                            ctx.size().width * m as f64 / 10.,
-                            ctx.size().height * n as f64 / 10.,
+                            ctx.size().width * m as f64 / NUMBER_TILES_WIDTH as f64,
+                            ctx.size().height * n as f64 / NUMBER_TILES_WIDTH as f64,
                         ),
-                        (ctx.size().width / 10., ctx.size().height / 10.),
+                        (
+                            ctx.size().width / NUMBER_TILES_WIDTH as f64,
+                            ctx.size().height / NUMBER_TILES_WIDTH as f64,
+                        ),
                     );
                     let mut group_paths = Vec::new();
                     // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
