@@ -64,9 +64,12 @@ pub struct MapWidget {
     deleted_trip_paths: Vec<(String, Color, Color, BezPath)>,
     selected_trip_path: Option<(String, Color, Color, BezPath)>,
     // selected_trip_paths: Vec<BezPath>,
-    stop_circles: Vec<Circle>,
-    highlighted_stop_circle: Option<Circle>,
-    selected_stop_circle: Option<Circle>,
+    // stop_circles: Vec<Circle>,
+    // highlighted_stop_circle: Option<Circle>,
+    // selected_stop_circle: Option<Circle>,
+    stop_circles: Vec<Point>,
+    highlighted_stop_circle: Option<Point>,
+    selected_stop_circle: Option<Point>,
     // zoom_level: f64,
     speed: f64,
     click_down_pos: Option<Point>,
@@ -275,12 +278,7 @@ impl Widget<AppData> for MapWidget {
 
                     // find and save all hovered paths
                     let mut highlighted_trip_paths = Vec::new();
-                    let path_width = match data.map_zoom_level {
-                        ZoomLevel::One => BITMAP_SIZE as f64 / 400.,
-                        ZoomLevel::Two => BITMAP_SIZE as f64 / 800.,
-                        ZoomLevel::Ten => BITMAP_SIZE as f64 / 1_000.,
-                        ZoomLevel::Fifty => BITMAP_SIZE as f64 / 50_000.,
-                    };
+                    let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
 
                     // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
                     // ctx.transform(Affine::scale(zoom));
@@ -731,10 +729,12 @@ impl Widget<AppData> for MapWidget {
                 .stops
                 .iter()
                 .map(|stop| {
-                    Circle::new(
-                        long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1)),
-                        if zoom > 6. { 6. } else { zoom },
-                    )
+                    // Circle::new(
+                    //     long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1)),
+                    //     // if zoom > 6. { 6. } else { zoom },
+                    //     1.,
+                    // )
+                    long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1))
                 })
                 .collect::<Vec<_>>();
 
@@ -750,16 +750,15 @@ impl Widget<AppData> for MapWidget {
                 // piet_context.transform(Affine::scale(1000. / ctx.size().height));
 
                 // paint the map
-                let path_width = match data.map_zoom_level {
-                    ZoomLevel::One => BITMAP_SIZE as f64 / 400.,
-                    ZoomLevel::Two => BITMAP_SIZE as f64 / 800.,
-                    ZoomLevel::Ten => BITMAP_SIZE as f64 / 1_000.,
-                    ZoomLevel::Fifty => BITMAP_SIZE as f64 / 50_000.,
-                };
+                let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
                 for (color, _text_color, path) in &self.all_trip_paths_bitmap {
                     piet_context.stroke(path, color, path_width);
                 }
 
+                for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+                    piet_context.fill(Circle::new(*point, 1.), &Color::BLACK);
+                    piet_context.fill(Circle::new(*point, 0.5), &Color::WHITE);
+                }
                 // let mut selected_circle = None;
                 // for (circle, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
                 //     if stop.selected {

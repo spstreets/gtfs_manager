@@ -467,6 +467,14 @@ impl ZoomLevel {
             ZoomLevel::Fifty => 50.,
         }
     }
+    pub fn path_width(&self, canvas_size: usize) -> f64 {
+        match self {
+            ZoomLevel::One => canvas_size as f64 / 400.,
+            ZoomLevel::Two => canvas_size as f64 / 800.,
+            ZoomLevel::Ten => canvas_size as f64 / 1_000.,
+            ZoomLevel::Fifty => canvas_size as f64 / 50_000.,
+        }
+    }
 }
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
