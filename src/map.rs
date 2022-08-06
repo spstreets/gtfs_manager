@@ -312,6 +312,7 @@ impl Widget<AppData> for MapWidget {
                         / data.map_zoom_level.to_f64())
                     .to_point();
 
+                    // check if hovering a path
                     let path_width2 = path_width * path_width;
                     for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
                         let (rect, paths) = box_group;
@@ -337,6 +338,7 @@ impl Widget<AppData> for MapWidget {
                             }
                         }
                     }
+
                     // for (i, trip_path) in self.all_trip_paths_canvas.iter().enumerate() {
                     //     for seg in trip_path.segments() {
                     //         // NOTE accuracy arg in .nearest() isn't used for lines
@@ -368,12 +370,52 @@ impl Widget<AppData> for MapWidget {
                     }
                 }
             }
-            Event::MouseUp(me) => {
+            Event::MouseUp(mouse_event) => {
                 if let Some(click_down_pos) = self.click_down_pos {
-                    if me.pos == click_down_pos {
+                    if mouse_event.pos == click_down_pos {
                         println!("mouse_up: same pos");
                         // TODO differentiate between stop click and path click
                         // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
+
+                        // // check if hovering a stop on selected trip
+                        if let Some((trip_id, color, text_color, path)) = &self.selected_trip_path {
+                            // drawing larger stops on top of path selection
+                            if let Some(stop_times_range) =
+                                data.stop_time_range_from_trip_id.get(trip_id)
+                            {
+                                // im slice requires mut borrow
+                                // let stop_ids = data
+                                //     .stop_times
+                                //     .slice(stop_times_range.0..stop_times_range.1)
+                                let stop_ids = data.gtfs.stop_times
+                                    [stop_times_range.0..stop_times_range.1]
+                                    .iter()
+                                    .map(|stop_time| stop_time.stop_id.clone())
+                                    .collect::<Vec<_>>();
+                                let stop_points = self
+                                    .stop_circles_canvas
+                                    .iter()
+                                    .zip(data.stops.iter())
+                                    .filter(|(_point, stop)| stop_ids.contains(&stop.id))
+                                    .map(|(point, stop)| (point.clone(), stop.id.clone()))
+                                    .collect::<Vec<_>>();
+                                for stop_time in data.gtfs.stop_times
+                                    [stop_times_range.0..stop_times_range.1]
+                                    .iter()
+                                {
+                                    let (stop_point, stop_id) = stop_points
+                                        .iter()
+                                        .find(|(point, stop_id)| &stop_time.stop_id == stop_id)
+                                        .unwrap();
+                                    if Circle::new(*stop_point, 5.).contains(mouse_event.pos) {
+                                        ctx.submit_command(
+                                            SELECT_STOP_TIME
+                                                .with((trip_id.clone(), stop_time.stop_sequence)),
+                                        );
+                                    }
+                                }
+                            }
+                        }
 
                         if let Some((id, color, text_color, path)) = self.hovered_trip_paths.get(0)
                         {

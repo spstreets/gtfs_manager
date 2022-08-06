@@ -399,9 +399,14 @@ impl AppDelegate<AppData> for Delegate {
 
             druid::Handled::Yes
         } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {
-            if data.selected_stop_time_id != Some(stop_time_pk.clone()) {
-                data.selected_stop_time_id = Some(stop_time_pk.clone());
-            }
+            println!("select stop_time");
+            data.selected_stop_time_id = Some(stop_time_pk.clone());
+            // These below will already be set when navigating the list, but won't necessarily be when selecting the map?? No...
+            // data.selected_route_id
+            dbg!(&data.selected_stop_time_id);
+            dbg!(&data.selected_trip_id);
+            dbg!(&data.selected_route_id);
+            dbg!(&data.selected_agency_id);
 
             data.selected_stop_id = None;
 
