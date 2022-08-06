@@ -85,6 +85,7 @@ pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
     pub show_editing: bool,
+    pub hover: bool,
 
     pub trip_id: String,
     // pub arrival_time: Option<u32>,
@@ -501,6 +502,7 @@ pub struct AppData {
     pub selected_route_id: Option<String>,
     pub selected_trip_id: Option<String>,
     pub selected_stop_time_id: Option<(String, u16)>,
+    pub hovered_stop_time_id: Option<(String, u16)>,
     pub selected_stop_id: Option<String>,
 
     #[data(ignore)]
@@ -610,6 +612,7 @@ impl AppData {
 }
 
 pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
+    // NOTE: must pay attention to when Vector<x> and gtfs.x are being sorted and ensure they are the same
     println!("{:?} start make_initial_data", Utc::now());
     let agencies = gtfs.agencies.as_mut().unwrap();
     let routes = gtfs.routes.as_mut().unwrap();
@@ -618,16 +621,6 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
     let stops = gtfs.stops.as_mut().unwrap();
     let shapes = gtfs.shapes.as_mut().unwrap().as_ref().unwrap();
 
-    println!("{:?} create my_gtfs", Utc::now());
-    let my_gtfs = MyGtfs {
-        agencies: agencies.clone(),
-        routes: routes.clone(),
-        trips: trips.clone(),
-        stop_times: stop_times.clone(),
-        stops: stops.clone(),
-        shapes: shapes.clone(),
-    };
-
     println!("{:?} do stop_times stuff", Utc::now());
     // creates stop_time_range_from_trip_id which is a hashmap where each key is a trip_id pointing to the index range of it's stop times in the sorted stop_times below
     // need to be able to grab a slice of stop times by trip id to avoid doing the below loads of times:
@@ -635,6 +628,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
     //     .iter()
     //     .filter(|stop_time| stop_time.trip_id == trip.id);
     trips.sort_by(|x1, x2| x1.id.cmp(&x2.id));
+    stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
     stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
     let mut stop_time_range_from_trip_id = HashMap::new();
     let mut trip_start_index = 0;
@@ -665,18 +659,57 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
 
     // let mut filtered_stop_ids = Vec::new();
 
-    let stop_times_other2 = stop_times.clone();
-    let trips_other2 = trips.clone();
-    let stops_other2 = stops.clone();
+    // let stop_times_other2 = stop_times.clone();
+    // let trips_other2 = trips.clone();
+    // let stops_other2 = stops.clone();
 
-    let limited = true;
+    // TODO should proabably just store stops in an im hashmap not vector, since below is brittle and will break is a stop is added/removed from stops vector.
+    // hash map for getting a stop by stop_id
+    let mut stop_index_from_id = HashMap::new();
+    // let stops2 = self.gtfs.stops.clone();
+    stops.iter().enumerate().for_each(|(i, stop)| {
+        stop_index_from_id.insert(stop.id.clone(), i);
+    });
+
+    let mut shapes_from_trip_id = HashMap::new();
+    let mut start: usize = 0;
+    let mut end: usize = 0;
+    if let Some(first_item) = shapes.get(0) {
+        let mut current_id = first_item.id.clone();
+        // insert bound if entered new id section or is last item
+        for item in shapes {
+            if current_id != item.id {
+                shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
+                current_id = item.id.clone();
+                start = end;
+            }
+            end += 1;
+        }
+        shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
+    }
+
+    
+    routes.sort_by(|route1, route2| route1.short_name.cmp(&route2.short_name));
+
+    println!("{:?} create my_gtfs", Utc::now());
+    // NOTE must make my_gtfs after doing sorting otherwise indexes/mappings/lookups will not be correct
+    let my_gtfs = MyGtfs {
+        agencies: agencies.clone(),
+        routes: routes.clone(),
+        trips: trips.clone(),
+        stop_times: stop_times.clone(),
+        stops: stops.clone(),
+        shapes: shapes.clone(),
+    };
+
+    // let limited = true;
     println!("{:?} make agencies", Utc::now());
     let agencies = agencies
         .iter()
         // <limiting
-        .enumerate()
-        .filter(|(i, _)| if limited { *i < 5 } else { true })
-        .map(|(_, x)| x)
+        // .enumerate()
+        // .filter(|(i, _)| if limited { *i < 5 } else { true })
+        // .map(|(_, x)| x)
         // limiting>
         .map(|agency| MyAgency {
             show_deleted: true,
@@ -722,6 +755,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                 live: true,
                 selected: false,
                 show_editing: false,
+                hover: false,
 
                 trip_id: stop_time.trip_id.clone(),
                 arrival_time: stop_time.arrival_time.clone(),
@@ -754,7 +788,6 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
             }
         })
         .collect::<Vector<_>>();
-    stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
 
     println!("{:?} make trips", Utc::now());
     let trips = trips
@@ -839,39 +872,6 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                 .count(),
         })
         .collect::<Vector<_>>();
-    routes.sort_by(|route1, route2| {
-        route1
-            .route
-            .as_ref()
-            .unwrap()
-            .short_name
-            .cmp(&route2.route.as_ref().unwrap().short_name)
-    });
-
-    // TODO should proabably just store stops in an im hashmap not vector, since below is brittle and will break is a stop is added/removed from stops vector.
-    // hash map for getting a stop by stop_id
-    let mut stop_index_from_id = HashMap::new();
-    // let stops2 = self.gtfs.stops.clone();
-    my_gtfs.stops.iter().enumerate().for_each(|(i, stop)| {
-        stop_index_from_id.insert(stop.id.clone(), i);
-    });
-
-    let mut shapes_from_trip_id = HashMap::new();
-    let mut start: usize = 0;
-    let mut end: usize = 0;
-    if let Some(first_item) = shapes.get(0) {
-        let mut current_id = first_item.id.clone();
-        // insert bound if entered new id section or is last item
-        for item in shapes {
-            if current_id != item.id {
-                shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
-                current_id = item.id.clone();
-                start = end;
-            }
-            end += 1;
-        }
-        shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
-    }
 
     println!("{:?} make app_data with stops", Utc::now());
     let app_data = AppData {
@@ -887,6 +887,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         selected_route_id: None,
         selected_trip_id: None,
         selected_stop_time_id: None,
+        hovered_stop_time_id: None,
         selected_stop_id: None,
         expanded: true,
 
