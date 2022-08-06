@@ -68,7 +68,8 @@ pub struct MapWidget {
     // stop_circles: Vec<Circle>,
     // highlighted_stop_circle: Option<Circle>,
     // selected_stop_circle: Option<Circle>,
-    stop_circles: Vec<Point>,
+    stop_circles_base: Vec<Point>,
+    stop_circles_canvas: Vec<Point>,
     highlighted_stop_circle: Option<Point>,
     selected_stop_circle: Option<Point>,
     // zoom_level: f64,
@@ -98,7 +99,8 @@ impl MapWidget {
             filtered_trip_paths: Vec::new(),
             deleted_trip_paths: Vec::new(),
             selected_trip_path: None,
-            stop_circles: Vec::new(),
+            stop_circles_base: Vec::new(),
+            stop_circles_canvas: Vec::new(),
             highlighted_stop_circle: None,
             selected_stop_circle: None,
             // zoom_level,
@@ -183,24 +185,44 @@ impl MapWidget {
             );
         });
     }
-    fn draw_highlights(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
-        ctx.with_save(|ctx: &mut PaintCtx| {
-            ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
-            ctx.transform(Affine::scale(zoom));
-            for (_, color, text_color, path) in &self.filtered_trip_paths {
-                ctx.stroke(path, &Color::NAVY, 5.);
-                ctx.stroke(path, color, 3.);
+    fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+        // ctx.with_save(|ctx: &mut PaintCtx| {
+        ctx.save();
+        ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+        ctx.transform(Affine::scale(zoom));
+        for (_, color, text_color, path) in &self.filtered_trip_paths {
+            ctx.stroke(path, &Color::BLACK, 5.);
+            ctx.stroke(path, color, 3.);
+        }
+        for (_, color, text_color, path) in &self.hovered_trip_paths {
+            ctx.stroke(path, &Color::BLACK, 5.);
+            ctx.stroke(path, color, 3.);
+        }
+        dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
+        if let Some((id, color, text_color, path)) = &self.selected_trip_path {
+            ctx.stroke(path, &Color::WHITE, 9.);
+            ctx.stroke(path, &Color::BLACK, 7.);
+            ctx.stroke(path, color, 5.);
+            // drawing larger stops on top of path selection
+            if let Some(stop_times_range) = data.stop_time_range_from_trip_id.get(id) {
+                // im slice requires mut borrow
+                // let stop_ids = data
+                //     .stop_times
+                //     .slice(stop_times_range.0..stop_times_range.1)
+                let stop_ids = data.gtfs.stop_times[stop_times_range.0..stop_times_range.1]
+                    .iter()
+                    .map(|stop_time| stop_time.stop_id.clone())
+                    .collect::<Vec<_>>();
+                for (point, stop) in self.stop_circles_canvas.iter().zip(data.stops.iter()) {
+                    if stop_ids.contains(&stop.id) {
+                        ctx.fill(Circle::new(point.clone(), 2.), &Color::BLACK);
+                        ctx.fill(Circle::new(point.clone(), 1.), &Color::WHITE);
+                    }
+                }
             }
-            for (_, color, text_color, path) in &self.hovered_trip_paths {
-                ctx.stroke(path, &Color::RED, 5.);
-                ctx.stroke(path, color, 3.);
-            }
-            dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
-            if let Some((id, color, text_color, path)) = &self.selected_trip_path {
-                ctx.stroke(path, &Color::YELLOW, 5.);
-                ctx.stroke(path, color, 3.);
-            }
-        });
+        }
+        // });
+        ctx.restore();
     }
     fn draw_minimap(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
@@ -551,19 +573,6 @@ impl Widget<AppData> for MapWidget {
 
             // calculate size of maximum properly propotioned box we can paint in
 
-            // let zoom = self.zoom_level;
-            // let zoom = match data.map_zoom_level {
-            //     ZoomLevel::One => 1.,
-            //     ZoomLevel::Two => 2.,
-            //     ZoomLevel::Three => 3.,
-            // };
-            let zoom = 1.;
-            // let new_zoom = match data.map_zoom_level {
-            //     ZoomLevel::One => 1.,
-            //     ZoomLevel::Two => 2.,
-            //     ZoomLevel::Three => 3.,
-            // };
-
             // let (zoomed_paint_width, zoomed_paint_height) =
             //     (paint_width * zoom, paint_height * zoom);
 
@@ -732,7 +741,7 @@ impl Widget<AppData> for MapWidget {
                 //     .get(0)
                 //     .unwrap();
 
-                self.stop_circles = data
+                self.stop_circles_base = data
                     .stops
                     .iter()
                     .map(|stop| {
@@ -742,6 +751,18 @@ impl Widget<AppData> for MapWidget {
                         //     1.,
                         // )
                         long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1))
+                    })
+                    .collect::<Vec<_>>();
+                self.stop_circles_canvas = data
+                    .stops
+                    .iter()
+                    .map(|stop| {
+                        // Circle::new(
+                        //     long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1)),
+                        //     // if zoom > 6. { 6. } else { zoom },
+                        //     1.,
+                        // )
+                        long_lat_to_canvas_closure_canvas(&(stop.coord.0, stop.coord.1))
                     })
                     .collect::<Vec<_>>();
             }
@@ -764,7 +785,7 @@ impl Widget<AppData> for MapWidget {
                     piet_context.stroke(path, color, path_width);
                 }
 
-                for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+                for (point, stop) in self.stop_circles_base.iter().zip(data.stops.iter()) {
                     piet_context.fill(Circle::new(*point, 1.), &Color::BLACK);
                     piet_context.fill(Circle::new(*point, 0.5), &Color::WHITE);
                 }
@@ -817,7 +838,7 @@ impl Widget<AppData> for MapWidget {
             println!("paint: redraw highlights");
             self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
 
-            self.draw_highlights(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_highlights(data, ctx, rect, data.map_zoom_level.to_f64());
 
             self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
             // if let Some(selected_circle) = self.selected_stop_circle {
@@ -840,7 +861,7 @@ impl Widget<AppData> for MapWidget {
             println!("paint: use cache");
             self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
             // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
-            self.draw_highlights(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_highlights(data, ctx, rect, data.map_zoom_level.to_f64());
             self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
         }
     }
