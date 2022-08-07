@@ -23,7 +23,7 @@ use crate::app_delegate::*;
 use crate::data::*;
 
 // bitmaps large than 10,000 x 10,000 will crash
-const BITMAP_SIZE: usize = 1000;
+const BITMAP_SIZE: usize = 5000;
 const NUMBER_TILES_WIDTH: usize = 20;
 
 #[derive(Copy, Clone)]
@@ -185,8 +185,8 @@ impl MapWidget {
         }
 
         for (point, stop) in self.stop_circles_base.iter().zip(data.stops.iter()) {
-            ctx.fill(Circle::new(*point, 1.), &Color::BLACK);
-            ctx.fill(Circle::new(*point, 0.5), &Color::WHITE);
+            ctx.fill(Circle::new(*point, path_width * 0.4), &Color::BLACK);
+            ctx.fill(Circle::new(*point, path_width * 0.2), &Color::WHITE);
         }
 
         // draw paths
@@ -211,22 +211,33 @@ impl MapWidget {
         // tranform
         ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
         ctx.transform(Affine::scale(zoom));
+        // TODO don't cast f64 to usize here
+        let path_width = data.map_zoom_level.path_width(ctx.size().height as usize);
+        let path_bb = path_width * 1.5;
+        let path_wb = path_width * 2.;
+
+        let s_circle_bb = path_width * 0.8;
+        let s_circle = path_width * 0.6;
+
+        let l_circle_wb = path_width * 3.;
+        let l_circle_bb = path_width * 2.5;
+        let l_circle = path_width * 2.;
 
         // draw paths
         for (_, color, text_color, path) in &self.filtered_trip_paths {
-            ctx.stroke(path, &Color::BLACK, 5.);
-            ctx.stroke(path, color, 3.);
+            ctx.stroke(path, &Color::BLACK, path_bb);
+            ctx.stroke(path, color, path_width);
         }
         for (_, color, text_color, path) in &self.hovered_trip_paths {
-            ctx.stroke(path, &Color::BLACK, 5.);
-            ctx.stroke(path, color, 3.);
+            ctx.stroke(path, &Color::BLACK, path_bb);
+            ctx.stroke(path, color, path_width);
         }
         dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
 
         if let Some((id, color, text_color, path)) = &self.selected_trip_path {
-            ctx.stroke(path, &Color::WHITE, 9.);
-            ctx.stroke(path, &Color::BLACK, 7.);
-            ctx.stroke(path, color, 5.);
+            ctx.stroke(path, &Color::WHITE, path_wb);
+            ctx.stroke(path, &Color::BLACK, path_bb);
+            ctx.stroke(path, color, path_width);
             // drawing larger stops on top of path selection
             if let Some(stop_times_range) = data.stop_time_range_from_trip_id.get(id) {
                 for i in stop_times_range.0..stop_times_range.1 {
@@ -234,23 +245,23 @@ impl MapWidget {
                     let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
                     let point = self.stop_circles_canvas[stop_index];
                     let stop = data.stops.get(stop_index).unwrap();
-                    ctx.fill(Circle::new(point.clone(), 2.), &Color::BLACK);
-                    ctx.fill(Circle::new(point.clone(), 1.), &Color::WHITE);
+                    ctx.fill(Circle::new(point.clone(), s_circle_bb), &Color::BLACK);
+                    ctx.fill(Circle::new(point.clone(), s_circle), &Color::WHITE);
                     if let Some(hovered_stop_time_id) = &data.hovered_stop_time_id {
                         if stop_time.trip_id == hovered_stop_time_id.0
                             && stop_time.stop_sequence == hovered_stop_time_id.1
                         {
-                            ctx.fill(Circle::new(point.clone(), 5.), &Color::BLACK);
-                            ctx.fill(Circle::new(point.clone(), 4.), &Color::WHITE);
+                            ctx.fill(Circle::new(point.clone(), l_circle_bb), &Color::BLACK);
+                            ctx.fill(Circle::new(point.clone(), l_circle), &Color::RED);
                         }
                     }
                     if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
                         if stop_time.trip_id == selected_stop_time_id.0
                             && stop_time.stop_sequence == selected_stop_time_id.1
                         {
-                            ctx.fill(Circle::new(point.clone(), 7.), &Color::WHITE);
-                            ctx.fill(Circle::new(point.clone(), 5.), &Color::BLACK);
-                            ctx.fill(Circle::new(point.clone(), 4.), &Color::WHITE);
+                            ctx.fill(Circle::new(point.clone(), l_circle_wb), &Color::WHITE);
+                            ctx.fill(Circle::new(point.clone(), l_circle_bb), &Color::BLACK);
+                            ctx.fill(Circle::new(point.clone(), l_circle), &Color::WHITE);
                         }
                     }
                 }

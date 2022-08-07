@@ -469,12 +469,13 @@ impl ZoomLevel {
         }
     }
     pub fn path_width(&self, canvas_size: usize) -> f64 {
-        match self {
-            ZoomLevel::One => canvas_size as f64 / 400.,
-            ZoomLevel::Two => canvas_size as f64 / 800.,
-            ZoomLevel::Ten => canvas_size as f64 / 1_000.,
-            ZoomLevel::Fifty => canvas_size as f64 / 50_000.,
-        }
+        // match self {
+        //     ZoomLevel::One => canvas_size as f64 / 400.,
+        //     ZoomLevel::Two => canvas_size as f64 / 800.,
+        //     ZoomLevel::Ten => canvas_size as f64 / 1_000.,
+        //     ZoomLevel::Fifty => canvas_size as f64 / 50_000.,
+        // }
+        canvas_size as f64 / (self.to_f64() * 300.)
     }
 }
 
@@ -688,7 +689,6 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
     }
 
-    
     routes.sort_by(|route1, route2| route1.short_name.cmp(&route2.short_name));
 
     println!("{:?} create my_gtfs", Utc::now());
