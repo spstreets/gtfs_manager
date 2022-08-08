@@ -77,7 +77,9 @@ pub struct MapWidget {
     speed: f64,
     click_down_pos: Option<Point>,
     drag_last_pos: Option<Point>,
-    focal_point: Point,
+    // focal_point should be a lat long coord which is then converted as required, in order to preserve focus between zoom levels. but then we have to dertmine what the ORIGIN coord is. better to just have focal point as a point in [0,1] space.
+    // focal_point: Point,
+    focal_point: (f64, f64),
     minimap_image: Option<CairoImage>,
     cached_image: Option<CairoImage>,
     redraw_base: bool,
@@ -88,7 +90,7 @@ pub struct MapWidget {
     pub trips_coords: Vec<Vec<(f64, f64)>>,
 }
 impl MapWidget {
-    pub fn new(speed: f64, offset: Point) -> MapWidget {
+    pub fn new(speed: f64) -> MapWidget {
         println!("new widget");
         MapWidget {
             mouse_position: None,
@@ -108,7 +110,8 @@ impl MapWidget {
             speed,
             click_down_pos: None,
             drag_last_pos: None,
-            focal_point: offset,
+            // focal_point: offset,
+            focal_point: (0., 0.),
             minimap_image: None,
             cached_image: None,
             redraw_base: true,
@@ -193,9 +196,13 @@ impl MapWidget {
         ctx.restore();
     }
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
-    fn draw_base_from_cache(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+    fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
-            ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+            let transformed_focal_point = Point::new(
+                self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+                self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+            );
+            ctx.transform(Affine::translate(transformed_focal_point.to_vec2() * -1.));
             ctx.transform(Affine::scale(zoom));
             ctx.stroke(rect, &Color::GRAY, 2.);
             ctx.draw_image(
@@ -209,7 +216,11 @@ impl MapWidget {
         // ctx.with_save(|ctx: &mut PaintCtx| {
         ctx.save();
         // tranform
-        ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+        let transformed_focal_point = Point::new(
+            self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+            self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+        );
+        ctx.transform(Affine::translate(transformed_focal_point.to_vec2() * -1.));
         ctx.transform(Affine::scale(zoom));
         // TODO don't cast f64 to usize here
         let path_width = data.map_zoom_level.path_width(ctx.size().height as usize);
@@ -299,7 +310,7 @@ impl MapWidget {
         // });
         ctx.restore();
     }
-    fn draw_minimap(&self, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+    fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::scale(0.3));
             ctx.fill(rect, &Color::WHITE);
@@ -312,7 +323,11 @@ impl MapWidget {
             // paint minimap viewfinder
             ctx.clip(rect);
             ctx.transform(Affine::scale(1. / zoom));
-            ctx.transform(Affine::translate(self.focal_point.to_vec2()));
+            let transformed_focal_point = Point::new(
+                self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+                self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+            );
+            ctx.transform(Affine::translate(transformed_focal_point.to_vec2()));
             ctx.stroke(rect, &Color::GRAY, 4. * zoom);
         });
     }
@@ -393,11 +408,11 @@ impl Widget<AppData> for MapWidget {
                     println!("mouse move: drag");
                     if mouse_event.buttons.has_left() {
                         let drag_end = mouse_event.pos;
-                        self.focal_point = Point::new(
-                            // self.focal_point.x - (drag_end.x - drag_start.x) / self.zoom_level,
-                            // self.focal_point.y - (drag_end.y - drag_start.y) / self.zoom_level,
-                            self.focal_point.x - (drag_end.x - drag_start.x),
-                            self.focal_point.y - (drag_end.y - drag_start.y),
+                        // need to normalise drag_end and drag_start
+                        let size = ctx.size().height;
+                        self.focal_point = (
+                            self.focal_point.0 - (drag_end.x / size - drag_start.x / size),
+                            self.focal_point.1 - (drag_end.y / size - drag_start.y / size),
                         );
                         self.drag_last_pos = Some(drag_end);
                     } else {
@@ -413,8 +428,12 @@ impl Widget<AppData> for MapWidget {
                     // find and save all hovered paths
                     let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
 
+                    let transformed_focal_point = Point::new(
+                        self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+                        self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+                    );
                     let translated_mouse_position = ((mouse_event.pos.to_vec2()
-                        + self.focal_point.to_vec2())
+                        + transformed_focal_point.to_vec2())
                         / data.map_zoom_level.to_f64())
                     .to_point();
 
@@ -496,8 +515,12 @@ impl Widget<AppData> for MapWidget {
                 }
             }
             Event::MouseUp(mouse_event) => {
+                let transformed_focal_point = Point::new(
+                    self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+                    self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+                );
                 let translated_mouse_position = ((mouse_event.pos.to_vec2()
-                    + self.focal_point.to_vec2())
+                    + transformed_focal_point.to_vec2())
                     / data.map_zoom_level.to_f64())
                 .to_point();
 
@@ -940,15 +963,15 @@ impl Widget<AppData> for MapWidget {
             }
 
             println!("{} paint: redraw base: draw map", Utc::now());
-            self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
-            self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(data, ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_minimap(data, ctx, rect, data.map_zoom_level.to_f64());
         } else if self.redraw_highlights {
             println!("paint: redraw highlights");
-            self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(data, ctx, rect, data.map_zoom_level.to_f64());
 
             self.draw_highlights(data, ctx, rect, data.map_zoom_level.to_f64());
 
-            self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_minimap(data, ctx, rect, data.map_zoom_level.to_f64());
             // if let Some(selected_circle) = self.selected_stop_circle {
             //     ctx.fill(selected_circle, &Color::FUCHSIA);
             // }
@@ -967,10 +990,10 @@ impl Widget<AppData> for MapWidget {
             self.redraw_highlights = false;
         } else {
             println!("paint: use cache");
-            self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(data, ctx, rect, data.map_zoom_level.to_f64());
             // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
             self.draw_highlights(data, ctx, rect, data.map_zoom_level.to_f64());
-            self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_minimap(data, ctx, rect, data.map_zoom_level.to_f64());
         }
     }
 
