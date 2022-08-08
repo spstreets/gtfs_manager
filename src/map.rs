@@ -702,6 +702,7 @@ impl Widget<AppData> for MapWidget {
             //     ZoomLevel::Two => 2.,
             //     ZoomLevel::Three => 3.,
             // };
+            self.remake_paths = true;
             self.redraw_base = true;
             // self.redraw_highlights = true;
             ctx.request_paint();
@@ -727,7 +728,9 @@ impl Widget<AppData> for MapWidget {
         //     bc.constrain(size)
         // }
         println!("layout");
-        let size = Size::new(300.0, 300.0);
+        self.redraw_highlights = true;
+        self.remake_paths = true;
+        let size = Size::new(100.0, 100.0);
         bc.constrain(size);
         let max = bc.max().height.min(bc.max().width);
         // Size::new(300.0, 300.0)
@@ -751,9 +754,9 @@ impl Widget<AppData> for MapWidget {
         // ctx.fill(rect, &Color::grey(0.6));
         ctx.fill(rect, &Color::WHITE);
 
-        if self.redraw_base {
+        if self.remake_paths {
             println!("paint: redraw");
-            self.redraw_base = false;
+            self.remake_paths = false;
             self.redraw_highlights = false;
 
             // find size of path data
@@ -800,229 +803,142 @@ impl Widget<AppData> for MapWidget {
                 )
             };
 
-            if self.remake_paths {
-                self.remake_paths = false;
-                // TODO should be making data in update or on_added, not paint
-                // make trips paths
-                println!("{} paint: redraw base: make paths", Utc::now());
-                self.all_trip_paths_bitmap = self
-                    .trips_coords
-                    .iter()
-                    .zip(data.trips.iter())
-                    .filter(|(_coords, trip)| trip.visible)
-                    .map(|(coords, trip)| {
-                        let route = data
-                            .routes
-                            .iter()
-                            .find(|route| route.id == trip.route_id)
-                            .unwrap();
-                        let RGB { r, g, b } = route.color.0;
-                        let color = Color::rgb8(r, g, b);
-                        let RGB { r, g, b } = route.text_color.0;
-                        let text_color = Color::rgb8(r, g, b);
-                        (
-                            color,
-                            text_color,
-                            bez_path_from_coords_iter(
-                                coords
-                                    .iter()
-                                    .map(|coord| long_lat_to_canvas_closure_base(coord)),
-                            ),
-                        )
-                    })
-                    .collect::<Vec<_>>();
+            // TODO should be making data in update or on_added, not paint
+            // make trips paths
+            println!("{} paint: redraw base: make paths", Utc::now());
+            self.all_trip_paths_bitmap = self
+                .trips_coords
+                .iter()
+                .zip(data.trips.iter())
+                .filter(|(_coords, trip)| trip.visible)
+                .map(|(coords, trip)| {
+                    let route = data
+                        .routes
+                        .iter()
+                        .find(|route| route.id == trip.route_id)
+                        .unwrap();
+                    let RGB { r, g, b } = route.color.0;
+                    let color = Color::rgb8(r, g, b);
+                    let RGB { r, g, b } = route.text_color.0;
+                    let text_color = Color::rgb8(r, g, b);
+                    (
+                        color,
+                        text_color,
+                        bez_path_from_coords_iter(
+                            coords
+                                .iter()
+                                .map(|coord| long_lat_to_canvas_closure_base(coord)),
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
 
-                self.all_trip_paths_canvas = self
-                    .trips_coords
-                    .iter()
-                    .zip(data.trips.iter())
-                    .filter(|(_coords, trip)| trip.visible)
-                    .map(|(coords, trip)| {
-                        let route = data
-                            .routes
-                            .iter()
-                            .find(|route| route.id == trip.route_id)
-                            .unwrap();
-                        let RGB { r, g, b } = route.color.0;
-                        let color = Color::rgb8(r, g, b);
-                        let RGB { r, g, b } = route.text_color.0;
-                        let text_color = Color::rgb8(r, g, b);
-                        (
-                            trip.id.clone(),
-                            color,
-                            text_color,
-                            bez_path_from_coords_iter(
-                                coords
-                                    .iter()
-                                    .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
-                            ),
-                        )
-                    })
-                    .collect::<Vec<_>>();
+            self.all_trip_paths_canvas = self
+                .trips_coords
+                .iter()
+                .zip(data.trips.iter())
+                .filter(|(_coords, trip)| trip.visible)
+                .map(|(coords, trip)| {
+                    let route = data
+                        .routes
+                        .iter()
+                        .find(|route| route.id == trip.route_id)
+                        .unwrap();
+                    let RGB { r, g, b } = route.color.0;
+                    let color = Color::rgb8(r, g, b);
+                    let RGB { r, g, b } = route.text_color.0;
+                    let text_color = Color::rgb8(r, g, b);
+                    (
+                        trip.id.clone(),
+                        color,
+                        text_color,
+                        bez_path_from_coords_iter(
+                            coords
+                                .iter()
+                                .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
 
-                println!("{} paint: redraw base: group paths", Utc::now());
-                for m in 0..NUMBER_TILES_WIDTH {
-                    for n in 0..NUMBER_TILES_WIDTH {
-                        let rect = Rect::from_origin_size(
-                            (
-                                ctx.size().width * m as f64 / NUMBER_TILES_WIDTH as f64,
-                                ctx.size().height * n as f64 / NUMBER_TILES_WIDTH as f64,
-                            ),
-                            (
-                                ctx.size().width / NUMBER_TILES_WIDTH as f64,
-                                ctx.size().height / NUMBER_TILES_WIDTH as f64,
-                            ),
-                        );
-                        let mut group_paths = Vec::new();
-                        // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                        for (id, color, text_color, trip_path) in &self.all_trip_paths_canvas {
-                            for seg in trip_path.segments() {
-                                if rect.contains(seg.as_line().unwrap().p0)
-                                    || rect.contains(seg.as_line().unwrap().p1)
-                                {
-                                    group_paths.push((
-                                        id.clone(),
-                                        color.clone(),
-                                        text_color.clone(),
-                                        trip_path.clone(),
-                                    ));
-                                    break;
-                                }
+            println!("{} paint: redraw base: group paths", Utc::now());
+            for m in 0..NUMBER_TILES_WIDTH {
+                for n in 0..NUMBER_TILES_WIDTH {
+                    let rect = Rect::from_origin_size(
+                        (
+                            ctx.size().width * m as f64 / NUMBER_TILES_WIDTH as f64,
+                            ctx.size().height * n as f64 / NUMBER_TILES_WIDTH as f64,
+                        ),
+                        (
+                            ctx.size().width / NUMBER_TILES_WIDTH as f64,
+                            ctx.size().height / NUMBER_TILES_WIDTH as f64,
+                        ),
+                    );
+                    let mut group_paths = Vec::new();
+                    // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
+                    for (id, color, text_color, trip_path) in &self.all_trip_paths_canvas {
+                        for seg in trip_path.segments() {
+                            if rect.contains(seg.as_line().unwrap().p0)
+                                || rect.contains(seg.as_line().unwrap().p1)
+                            {
+                                group_paths.push((
+                                    id.clone(),
+                                    color.clone(),
+                                    text_color.clone(),
+                                    trip_path.clone(),
+                                ));
+                                break;
                             }
                         }
-                        self.all_trip_paths_canvas_grouped.push((rect, group_paths));
                     }
+                    self.all_trip_paths_canvas_grouped.push((rect, group_paths));
                 }
-
-                // self.all_trip_paths_canvas_translated = self.all_trip_paths_canvas.clone();
-                // for trip_path in &mut self.all_trip_paths_canvas_translated {
-                //     trip_path.apply_affine(Affine::translate(self.focal_point.to_vec2() * -1.));
-                //     trip_path.apply_affine(Affine::scale(data.map_zoom_level.to_f64()));
-                // }
-
-                // self.selected_trip_paths = trips_coords
-                //     .iter()
-                //     .filter(|(selected, _)| *selected)
-                //     .map(|(_, trip_coords)| {
-                //         let mut path = BezPath::new();
-                //         for (i, coord) in trip_coords.iter().enumerate() {
-                //             if i == 0 {
-                //                 path.move_to(long_lat_to_canvas_closure(coord));
-                //             } else {
-                //                 path.line_to(long_lat_to_canvas_closure(coord));
-                //             }
-                //         }
-                //         path
-                //     })
-                //     .collect::<Vec<_>>();
-
-                // don't need to set selected path here - should be done in update
-                // self.selected_trip_path = self
-                //     .trips_coords
-                //     .iter()
-                //     .zip(data.trips.iter())
-                //     .filter(|(_coords, trip)| trip.selected)
-                //     .map(|(coords, _)| {
-                //         bez_path_from_coords_iter(
-                //             coords
-                //                 .iter()
-                //                 .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
-                //         )
-                //     })
-                //     .get(0)
-                //     .unwrap();
-
-                self.stop_circles_base = data
-                    .stops
-                    .iter()
-                    .map(|stop| {
-                        // Circle::new(
-                        //     long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1)),
-                        //     // if zoom > 6. { 6. } else { zoom },
-                        //     1.,
-                        // )
-                        long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1))
-                    })
-                    .collect::<Vec<_>>();
-                self.stop_circles_canvas = data
-                    .stops
-                    .iter()
-                    .map(|stop| {
-                        // Circle::new(
-                        //     long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1)),
-                        //     // if zoom > 6. { 6. } else { zoom },
-                        //     1.,
-                        // )
-                        long_lat_to_canvas_closure_canvas(&(stop.coord.0, stop.coord.1))
-                    })
-                    .collect::<Vec<_>>();
             }
 
-            println!("{} paint: redraw base: make image", Utc::now());
-            let mut cached_image;
-            {
-                let mut device = Device::new().unwrap();
-                // 0.1 makes the image very small
-                // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
-                let mut target = device.bitmap_target(BITMAP_SIZE, BITMAP_SIZE, 1.).unwrap();
-                let mut piet_context = target.render_context();
+            self.stop_circles_base = data
+                .stops
+                .iter()
+                .map(|stop| long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1)))
+                .collect::<Vec<_>>();
+            self.stop_circles_canvas = data
+                .stops
+                .iter()
+                .map(|stop| long_lat_to_canvas_closure_canvas(&(stop.coord.0, stop.coord.1)))
+                .collect::<Vec<_>>();
 
-                // piet_context.save();
-                // piet_context.transform(Affine::scale(1000. / ctx.size().height));
-                self.draw_base(data, &mut piet_context, rect, data.map_zoom_level.to_f64());
+            if self.redraw_base {
+                println!("{} paint: redraw base: make image", Utc::now());
+                self.redraw_base = false;
 
-                // paint the map
-                // let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
-                // for (color, _text_color, path) in &self.all_trip_paths_bitmap {
-                //     piet_context.stroke(path, color, path_width);
-                // }
+                let mut cached_image;
+                {
+                    let mut device = Device::new().unwrap();
+                    // 0.1 makes the image very small
+                    // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
+                    let mut target = device.bitmap_target(BITMAP_SIZE, BITMAP_SIZE, 1.).unwrap();
+                    let mut piet_context = target.render_context();
 
-                // for (point, stop) in self.stop_circles_base.iter().zip(data.stops.iter()) {
-                //     piet_context.fill(Circle::new(*point, 1.), &Color::BLACK);
-                //     piet_context.fill(Circle::new(*point, 0.5), &Color::WHITE);
-                // }
-                // let mut selected_circle = None;
-                // for (circle, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
-                //     if stop.selected {
-                //         selected_circle = Some(Circle::new(
-                //             circle.center,
-                //             if circle.radius < 2. {
-                //                 2. * 1.4
-                //             } else {
-                //                 circle.radius * 1.4
-                //             },
-                //         ));
-                //     } else {
-                //         piet_context.fill(circle, &Color::BLUE);
-                //     }
-                // }
-                // if let Some(selected_circle) = selected_circle {
-                //     piet_context.fill(selected_circle, &Color::FUCHSIA);
-                // }
+                    // piet_context.save();
+                    // piet_context.transform(Affine::scale(1000. / ctx.size().height));
+                    self.draw_base(data, &mut piet_context, rect, data.map_zoom_level.to_f64());
 
-                // if let Some(circle) = self.highlighted_stop_circle {
-                //     let circle =
-                //         Circle::new(circle.center, if zoom > 6. { 6. * 1.4 } else { zoom * 1.4 });
-                //     piet_context.fill(circle, &Color::PURPLE);
-                // }
-
-                // piet_context.restore();
-
-                piet_context.finish().unwrap();
-                let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
-                cached_image = ctx
-                    .make_image(
-                        BITMAP_SIZE,
-                        BITMAP_SIZE,
-                        image_buf.raw_pixels(),
-                        ImageFormat::RgbaPremul,
-                    )
-                    .unwrap();
+                    piet_context.finish().unwrap();
+                    let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+                    cached_image = ctx
+                        .make_image(
+                            BITMAP_SIZE,
+                            BITMAP_SIZE,
+                            image_buf.raw_pixels(),
+                            ImageFormat::RgbaPremul,
+                        )
+                        .unwrap();
+                }
+                if self.minimap_image.is_none() {
+                    self.minimap_image = Some(cached_image.clone());
+                }
+                self.cached_image = Some(cached_image);
             }
-            if self.minimap_image.is_none() {
-                self.minimap_image = Some(cached_image.clone());
-            }
-            self.cached_image = Some(cached_image);
+
             println!("{} paint: redraw base: draw map", Utc::now());
             self.draw_base_from_cache(ctx, rect, data.map_zoom_level.to_f64());
             self.draw_minimap(ctx, rect, data.map_zoom_level.to_f64());
