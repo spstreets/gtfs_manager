@@ -213,8 +213,8 @@ impl MapWidget {
         ctx.transform(Affine::scale(zoom));
         // TODO don't cast f64 to usize here
         let path_width = data.map_zoom_level.path_width(ctx.size().height as usize);
-        let path_bb = path_width * 1.5;
-        let path_wb = path_width * 2.;
+        let path_bb = path_width * 2.;
+        let path_wb = path_width * 3.;
 
         let s_circle_bb = path_width * 0.8;
         let s_circle = path_width * 0.6;
