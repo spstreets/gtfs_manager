@@ -413,8 +413,6 @@ impl Widget<AppData> for MapWidget {
                     // find and save all hovered paths
                     let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
 
-                    // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
-                    // ctx.transform(Affine::scale(zoom));
                     let translated_mouse_position = ((mouse_event.pos.to_vec2()
                         + self.focal_point.to_vec2())
                         / data.map_zoom_level.to_f64())
@@ -439,7 +437,7 @@ impl Widget<AppData> for MapWidget {
                                     let stop_index =
                                         *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
                                     let point = self.stop_circles_canvas[stop_index];
-                                    if Circle::new(point, 5.).contains(mouse_event.pos) {
+                                    if Circle::new(point, 5.).contains(translated_mouse_position) {
                                         data.hovered_stop_time_id =
                                             Some((trip_id.clone(), stop_time.stop_sequence));
                                         break;
@@ -498,6 +496,11 @@ impl Widget<AppData> for MapWidget {
                 }
             }
             Event::MouseUp(mouse_event) => {
+                let translated_mouse_position = ((mouse_event.pos.to_vec2()
+                    + self.focal_point.to_vec2())
+                    / data.map_zoom_level.to_f64())
+                .to_point();
+
                 if let Some(click_down_pos) = self.click_down_pos {
                     if mouse_event.pos == click_down_pos {
                         println!("mouse_up: same pos");
@@ -534,7 +537,9 @@ impl Widget<AppData> for MapWidget {
                                         .iter()
                                         .find(|(point, stop_id)| &stop_time.stop_id == stop_id)
                                         .unwrap();
-                                    if Circle::new(*stop_point, 5.).contains(mouse_event.pos) {
+                                    if Circle::new(*stop_point, 5.)
+                                        .contains(translated_mouse_position)
+                                    {
                                         ctx.submit_command(
                                             SELECT_STOP_TIME
                                                 .with((trip_id.clone(), stop_time.stop_sequence)),
@@ -564,6 +569,7 @@ impl Widget<AppData> for MapWidget {
                             data.selected_agency_id = Some(agency_id);
                             data.selected_route_id = Some(route_id);
                             data.selected_trip_id = Some(id.clone());
+                            data.selected_stop_time_id = None;
                             self.selected_trip_path =
                                 Some((id.clone(), color.clone(), text_color.clone(), path.clone()));
                         }
