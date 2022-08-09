@@ -441,7 +441,11 @@ impl Widget<AppData> for MapWidget {
                     println!("mouse move: drag");
                     if mouse_event.buttons.has_left() {
                         let drag_vector = mouse_event.pos.to_vec2() - drag_start.to_vec2();
-                        self.focal_point = self.focal_point.translate(drag_vector * -1., ctx.size());
+                        // TODO no idea why I need to reverse the drag vector here! the direction of the drag vector is the same that we want to change the focal point...
+                        self.focal_point = self.focal_point.translate(
+                            drag_vector * -1.,
+                            ctx.size() * data.map_zoom_level.to_f64(),
+                        );
                         self.drag_last_pos = Some(mouse_event.pos);
                     } else {
                         // we keep drag_start.is_some() even if the mouse has left the viewport, otherwise it is annoying if you slightly move your mouse outside the viewport and you loose your drag and have to click again
