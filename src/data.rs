@@ -1,6 +1,6 @@
 use chrono::Utc;
 use druid::im::{ordmap, vector, OrdMap, Vector};
-use druid::{Data, Lens, Widget, WidgetExt};
+use druid::{Data, Lens, Point, Widget, WidgetExt};
 use gtfs_structures::{
     Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, Pathway,
     PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Shape, Stop, StopTime,
@@ -59,7 +59,8 @@ pub struct MyStop {
     #[lens(ignore)]
     pub stop: Option<Rc<Stop>>,
     // stop_time: RawStopTime,
-    pub coord: (f64, f64),
+    #[serde(skip)]
+    pub latlong: Point,
 }
 impl ListItem for MyStop {
     fn new_child(&mut self) -> String {
@@ -111,7 +112,8 @@ pub struct MyStopTime {
     // stop_time: RawStopTime,
     pub stop_name: String,
     // (lon, lat)
-    pub coord: (f64, f64),
+    #[serde(skip)]
+    pub latlong: Point,
 }
 impl ListItem for MyStopTime {
     fn new_child(&mut self) -> String {
@@ -549,7 +551,7 @@ impl ListItem for AppData {
 // vector of trips (selected, vector of stop coords)
 impl AppData {
     // TODO don't need to construct MyStopTime here
-    pub fn trips_coords(&self) -> Vec<Vec<(f64, f64)>> {
+    pub fn trips_coords(&self) -> Vec<Vec<Point>> {
         dbg!("make trip coords");
         self.trips
             .iter()
@@ -594,7 +596,7 @@ impl AppData {
                     .unwrap();
                 let mut shapes = self.gtfs.shapes[range.start..range.end]
                     .iter()
-                    .map(|shape| (shape.sequence, (shape.longitude, shape.latitude)))
+                    .map(|shape| (shape.sequence, Point::new(shape.longitude, shape.latitude)))
                     .collect::<Vec<_>>();
                 shapes.sort_by(|shape1, shape2| shape1.0.cmp(&shape2.0));
                 shapes
@@ -784,7 +786,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                 stop: None,
                 // stop_time: stop_time.clone(),
                 stop_name: stop.name.clone(),
-                coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                latlong: Point::new(stop.longitude.unwrap(), stop.latitude.unwrap()),
             }
         })
         .collect::<Vector<_>>();
@@ -926,7 +928,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                 // this adds 4 seconds
                 // stop: Some(Rc::new(stop.clone())),
                 stop: None,
-                coord: (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                latlong: Point::new(stop.longitude.unwrap(), stop.latitude.unwrap()),
             })
             .collect::<Vector<_>>(),
         // stops: Vector::new(),

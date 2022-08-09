@@ -23,7 +23,7 @@ use crate::app_delegate::*;
 use crate::data::*;
 
 // bitmaps large than 10,000 x 10,000 will crash
-const BITMAP_SIZE: usize = 5000;
+const BITMAP_SIZE: usize = 1000;
 const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
 
@@ -52,33 +52,21 @@ impl NormalPoint {
     }
 }
 
-#[derive(Copy, Clone)]
-struct PathsRanges {
-    longmin: f64,
-    latmin: f64,
-    longmax: f64,
-    latmax: f64,
-}
 // -> (xmin, ymin, xmax, ymax)
-fn min_max_trips_coords(trips: &Vec<Vec<(f64, f64)>>) -> PathsRanges {
+fn min_max_trips_coords(trips: &Vec<Vec<Point>>) -> Rect {
     let x_iter = trips
         .iter()
-        .map(|trip| trip.iter().map(|point| point.0))
+        .map(|trip| trip.iter().map(|point| point.x))
         .flatten();
     let longmin = x_iter.clone().fold(0. / 0., f64::min);
     let longmax = x_iter.clone().fold(0. / 0., f64::max);
     let y_iter = trips
         .iter()
-        .map(|trip| trip.iter().map(|point| point.1))
+        .map(|trip| trip.iter().map(|point| point.y))
         .flatten();
     let latmin = y_iter.clone().fold(0. / 0., f64::min);
     let latmax = y_iter.clone().fold(0. / 0., f64::max);
-    PathsRanges {
-        longmin,
-        latmin,
-        longmax,
-        latmax,
-    }
+    Rect::new(longmin, latmin, longmax, latmax)
 }
 
 pub struct MapWidget {
@@ -109,12 +97,13 @@ pub struct MapWidget {
     focal_point: NormalPoint,
     minimap_image: Option<CairoImage>,
     cached_image: Option<CairoImage>,
+    immediate_mode: bool,
     redraw_base: bool,
     remake_paths: bool,
     redraw_highlights: bool,
     // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
     // vector of trips (selected, vector of stop coords)
-    pub trips_coords: Vec<Vec<(f64, f64)>>,
+    pub trips_coords: Vec<Vec<Point>>,
 }
 impl MapWidget {
     pub fn new(speed: f64) -> MapWidget {
@@ -141,6 +130,7 @@ impl MapWidget {
             focal_point: NormalPoint::CENTER,
             minimap_image: None,
             cached_image: None,
+            immediate_mode: true,
             redraw_base: true,
             remake_paths: true,
             redraw_highlights: true,
@@ -188,18 +178,15 @@ impl MapWidget {
     //     Point::new(x2, y2)
     // }
     fn long_lat_to_canvas(
-        point: &(f64, f64),
-        ranges: PathsRanges,
-        width: f64,
-        height: f64,
-        paint_width: f64,
-        paint_height: f64,
-        // focal_point: Point,
-        // zoom: f64,
+        point: Point,
+        latlong_rect: Rect,
+        ctx_size: Size,
+        proportioned_bitmap_size: Size,
     ) -> Point {
-        let (long, lat) = point;
-        let x2 = (*long - ranges.longmin) * (paint_width / width);
-        let y2 = (*lat - ranges.latmin) * (paint_height / height);
+        //        some point in coord rect (so origin is 0) * (bitmap size / ctx size????)
+        // so if we have a latlong rect of 1000^2 with a point (300,0) in it, and a ctx of 100^2, we return the point (300 - 0) * (1000 / 100) = 300 * 10 = 3000 ??????????
+        let x2 = (point.x - latlong_rect.x0) * (proportioned_bitmap_size.width / ctx_size.width);
+        let y2 = (point.y - latlong_rect.y0) * (proportioned_bitmap_size.height / ctx_size.height);
         Point::new(x2, y2)
     }
 
@@ -780,6 +767,9 @@ impl Widget<AppData> for MapWidget {
             //     ZoomLevel::Two => 2.,
             //     ZoomLevel::Three => 3.,
             // };
+            if data.map_zoom_level.to_f64() >= 9. {
+                self.immediate_mode = true;
+            }
             self.remake_paths = true;
             self.redraw_base = true;
             // self.redraw_highlights = true;
@@ -838,46 +828,44 @@ impl Widget<AppData> for MapWidget {
             self.redraw_highlights = false;
 
             // find size of path data
-            // TODO don't clone coord vecs
-            let ranges = min_max_trips_coords(&self.trips_coords);
-            let width = ranges.longmax - ranges.longmin;
-            let height = ranges.latmax - ranges.latmin;
+            let long_lat_rect = min_max_trips_coords(&self.trips_coords);
+            let width = long_lat_rect.width();
+            let height = long_lat_rect.height();
+            let latlong_ratio = long_lat_rect.aspect_ratio();
 
             // calculate size of maximum properly propotioned box we can paint in
 
             // let (zoomed_paint_width, zoomed_paint_height) =
             //     (paint_width * zoom, paint_height * zoom);
 
-            let (mut base_paint_width, mut base_paint_height) = if width > height {
-                (BITMAP_SIZE as f64, BITMAP_SIZE as f64 * height / width)
+            // make BITMAP_SIZE sized Size, but with same aspect ratio as coords rect
+            let bitmap_proportioned = if width > height {
+                Size::new(BITMAP_SIZE as f64, BITMAP_SIZE as f64 * latlong_ratio)
             } else {
-                (BITMAP_SIZE as f64 * width / height, BITMAP_SIZE as f64)
+                Size::new(BITMAP_SIZE as f64 / latlong_ratio, BITMAP_SIZE as f64)
             };
-            let long_lat_to_canvas_closure_base = |coord: &(f64, f64)| {
+            let long_lat_to_canvas_closure_base = |coord: Point| {
                 MapWidget::long_lat_to_canvas(
                     coord,
-                    ranges,
-                    width,
-                    height,
-                    base_paint_width,
-                    base_paint_height,
-                    // BITMAP_SIZE as f64,
-                    // BITMAP_SIZE as f64,
+                    long_lat_rect,
+                    long_lat_rect.size(),
+                    bitmap_proportioned,
                 )
             };
-            let (mut paint_width, mut paint_height) = if width > height {
-                (size.width, size.height * height / width)
+
+            // make ctx sized Size, but with same aspect ratio as coords rect
+            // Size::new(width, height)
+            let proportioned_canvas = if width > height {
+                Size::new(size.width, size.height * latlong_ratio)
             } else {
-                (size.width * width / height, size.height)
+                Size::new(size.width / latlong_ratio, size.height)
             };
-            let long_lat_to_canvas_closure_canvas = |coord: &(f64, f64)| {
+            let long_lat_to_canvas_closure_canvas = |coord: Point| {
                 MapWidget::long_lat_to_canvas(
                     coord,
-                    ranges,
-                    width,
-                    height,
-                    paint_width,
-                    paint_height,
+                    long_lat_rect,
+                    long_lat_rect.size(),
+                    proportioned_canvas,
                 )
             };
 
@@ -905,7 +893,7 @@ impl Widget<AppData> for MapWidget {
                         bez_path_from_coords_iter(
                             coords
                                 .iter()
-                                .map(|coord| long_lat_to_canvas_closure_base(coord)),
+                                .map(|coord| long_lat_to_canvas_closure_base(*coord)),
                         ),
                     )
                 })
@@ -933,7 +921,7 @@ impl Widget<AppData> for MapWidget {
                         bez_path_from_coords_iter(
                             coords
                                 .iter()
-                                .map(|coord| long_lat_to_canvas_closure_canvas(coord)),
+                                .map(|coord| long_lat_to_canvas_closure_canvas(*coord)),
                         ),
                     )
                 })
@@ -976,12 +964,12 @@ impl Widget<AppData> for MapWidget {
             self.stop_circles_base = data
                 .stops
                 .iter()
-                .map(|stop| long_lat_to_canvas_closure_base(&(stop.coord.0, stop.coord.1)))
+                .map(|stop| long_lat_to_canvas_closure_base(stop.latlong))
                 .collect::<Vec<_>>();
             self.stop_circles_canvas = data
                 .stops
                 .iter()
-                .map(|stop| long_lat_to_canvas_closure_canvas(&(stop.coord.0, stop.coord.1)))
+                .map(|stop| long_lat_to_canvas_closure_canvas(stop.latlong))
                 .collect::<Vec<_>>();
 
             if self.redraw_base {
