@@ -28,6 +28,7 @@ const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
 
 /// For storing a point normalised to [0, 1]. However will not panic if values fall outside [0, 1].
+#[derive(Default)]
 struct NormalPoint {
     x: f64,
     y: f64,
@@ -69,6 +70,7 @@ fn min_max_trips_coords(trips: &Vec<Vec<Point>>) -> Rect {
     Rect::new(longmin, latmin, longmax, latmax)
 }
 
+#[derive(Default)]
 pub struct MapWidget {
     mouse_position: Option<Point>,
     all_trip_paths_bitmap: Vec<(Color, Color, BezPath)>,
@@ -87,13 +89,10 @@ pub struct MapWidget {
     stop_circles_canvas: Vec<Point>,
     highlighted_stop_circle: Option<Point>,
     selected_stop_circle: Option<Point>,
-    // zoom_level: f64,
     speed: f64,
     click_down_pos: Option<Point>,
     drag_last_pos: Option<Point>,
     // focal_point should be a lat long coord which is then converted as required, in order to preserve focus between zoom levels. but then we have to dertmine what the ORIGIN coord is. better to just have focal point as a point in [0,1] space.
-    // focal_point: Point,
-    // focal_point: (f64, f64),
     focal_point: NormalPoint,
     minimap_image: Option<CairoImage>,
     cached_image: Option<CairoImage>,
@@ -108,34 +107,13 @@ pub struct MapWidget {
 impl MapWidget {
     pub fn new(speed: f64) -> MapWidget {
         println!("new widget");
-        MapWidget {
-            mouse_position: None,
-            all_trip_paths_bitmap: Vec::new(),
-            all_trip_paths_canvas: Vec::new(),
-            all_trip_paths_canvas_grouped: Vec::new(),
-            // all_trip_paths_canvas_translated: Vec::new(),
-            hovered_trip_paths: Vec::new(),
-            filtered_trip_paths: Vec::new(),
-            deleted_trip_paths: Vec::new(),
-            selected_trip_path: None,
-            stop_circles_base: Vec::new(),
-            stop_circles_canvas: Vec::new(),
-            highlighted_stop_circle: None,
-            selected_stop_circle: None,
-            // zoom_level,
-            speed,
-            click_down_pos: None,
-            drag_last_pos: None,
-            // focal_point: offset,
-            focal_point: NormalPoint::CENTER,
-            minimap_image: None,
-            cached_image: None,
-            immediate_mode: true,
-            redraw_base: true,
-            remake_paths: true,
-            redraw_highlights: true,
-            trips_coords: Vec::new(),
-        }
+        let mut map_widget = MapWidget::default();
+        map_widget.speed = speed;
+        map_widget.immediate_mode = true;
+        map_widget.redraw_base = true;
+        map_widget.remake_paths = true;
+        map_widget.redraw_highlights = true;
+        map_widget
     }
 
     fn latlong_to_canvas(latlong: Point, latlong_rect: Rect, canvas_max_dimension: f64) -> Point {
@@ -197,10 +175,6 @@ impl MapWidget {
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
     fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
         ctx.with_save(|ctx: &mut PaintCtx| {
-            // let transformed_focal_point = Point::new(
-            //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-            //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-            // );
             let zoom = data.map_zoom_level.to_f64();
             let transformed_focal_point =
                 self.focal_point.to_point(ctx.size() * zoom).to_vec2() * -1.;
@@ -215,7 +189,6 @@ impl MapWidget {
         });
     }
     fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
-        // ctx.with_save(|ctx: &mut PaintCtx| {
         ctx.save();
         // tranform
         let transformed_focal_point = self
@@ -279,38 +252,8 @@ impl MapWidget {
                         }
                     }
                 }
-
-                // let stop_ids = data.gtfs.stop_times[stop_times_range.0..stop_times_range.1]
-                //     .iter()
-                //     .map(|stop_time| stop_time.stop_id.clone())
-                //     .collect::<Vec<_>>();
-                // for (point, stop) in self.stop_circles_canvas.iter().zip(data.stops.iter()) {
-                //     if stop_ids.contains(&stop.id) {
-                //         ctx.fill(Circle::new(point.clone(), 2.), &Color::BLACK);
-                //         ctx.fill(Circle::new(point.clone(), 1.), &Color::WHITE);
-                //     }
-                // }
-
-                // let mut stop_ids = Vec::new();
-                // for i in stop_times_range.0..stop_times_range.1 {
-                //     let stop_time = data.stop_times.get(i).unwrap();
-                //     stop_ids.push(stop_time.stop_id.clone());
-                // }
-                // let stop_ids_good = data.gtfs.stop_times[stop_times_range.0..stop_times_range.1]
-                //     .iter()
-                //     .map(|stop_time| stop_time.stop_id.clone())
-                //     .collect::<Vec<_>>();
-                // dbg!(&stop_ids);
-                // dbg!(&stop_ids_good);
-                // for (point, stop) in self.stop_circles_canvas.iter().zip(data.stops.iter()) {
-                //     if stop_ids.contains(&stop.id) {
-                //         ctx.fill(Circle::new(point.clone(), 2.), &Color::BLACK);
-                //         ctx.fill(Circle::new(point.clone(), 1.), &Color::WHITE);
-                //     }
-                // }
             }
         }
-        // });
         ctx.restore();
     }
     fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
