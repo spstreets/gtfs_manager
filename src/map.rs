@@ -162,32 +162,9 @@ impl MapWidget {
         }
     }
 
-    // fn long_lat_to_canvas(
-    //     point: &(f64, f64),
-    //     ranges: PathsRanges,
-    //     width: f64,
-    //     height: f64,
-    //     zoomed_paint_width: f64,
-    //     zoomed_paint_height: f64,
-    //     focal_point: Point,
-    //     zoom: f64,
-    // ) -> Point {
-    //     let (long, lat) = point;
-    //     let x2 = (*long - ranges.longmin) * (zoomed_paint_width / width) - focal_point.x * zoom;
-    //     let y2 = (*lat - ranges.latmin) * (zoomed_paint_height / height) - focal_point.y * zoom;
-    //     Point::new(x2, y2)
-    // }
-    fn long_lat_to_canvas(
-        point: Point,
-        latlong_rect: Rect,
-        ctx_size: Size,
-        proportioned_bitmap_size: Size,
-    ) -> Point {
-        //        some point in coord rect (so origin is 0) * (bitmap size / ctx size????)
-        // so if we have a latlong rect of 1000^2 with a point (300,0) in it, and a ctx of 100^2, we return the point (300 - 0) * (1000 / 100) = 300 * 10 = 3000 ??????????
-        let x2 = (point.x - latlong_rect.x0) * (proportioned_bitmap_size.width / ctx_size.width);
-        let y2 = (point.y - latlong_rect.y0) * (proportioned_bitmap_size.height / ctx_size.height);
-        Point::new(x2, y2)
+    fn latlong_to_canvas(latlong: Point, latlong_rect: Rect, canvas_max_dimension: f64) -> Point {
+        let relative_latlong = latlong - latlong_rect.origin();
+        (relative_latlong * canvas_max_dimension / latlong_rect.size().max_side()).to_point()
     }
 
     fn draw_base(&self, data: &AppData, ctx: &mut CairoRenderContext, rect: Rect, zoom: f64) {
@@ -829,45 +806,13 @@ impl Widget<AppData> for MapWidget {
 
             // find size of path data
             let long_lat_rect = min_max_trips_coords(&self.trips_coords);
-            let width = long_lat_rect.width();
-            let height = long_lat_rect.height();
-            let latlong_ratio = long_lat_rect.aspect_ratio();
 
-            // calculate size of maximum properly propotioned box we can paint in
-
-            // let (zoomed_paint_width, zoomed_paint_height) =
-            //     (paint_width * zoom, paint_height * zoom);
-
-            // make BITMAP_SIZE sized Size, but with same aspect ratio as coords rect
-            let bitmap_proportioned = if width > height {
-                Size::new(BITMAP_SIZE as f64, BITMAP_SIZE as f64 * latlong_ratio)
-            } else {
-                Size::new(BITMAP_SIZE as f64 / latlong_ratio, BITMAP_SIZE as f64)
-            };
-            let long_lat_to_canvas_closure_base = |coord: Point| {
-                MapWidget::long_lat_to_canvas(
-                    coord,
-                    long_lat_rect,
-                    long_lat_rect.size(),
-                    bitmap_proportioned,
-                )
+            let latlong_to_bitmap = |coord: Point| {
+                MapWidget::latlong_to_canvas(coord, long_lat_rect, BITMAP_SIZE as f64)
             };
 
-            // make ctx sized Size, but with same aspect ratio as coords rect
-            // Size::new(width, height)
-            let proportioned_canvas = if width > height {
-                Size::new(size.width, size.height * latlong_ratio)
-            } else {
-                Size::new(size.width / latlong_ratio, size.height)
-            };
-            let long_lat_to_canvas_closure_canvas = |coord: Point| {
-                MapWidget::long_lat_to_canvas(
-                    coord,
-                    long_lat_rect,
-                    long_lat_rect.size(),
-                    proportioned_canvas,
-                )
-            };
+            let latlong_to_ctx =
+                |coord: Point| MapWidget::latlong_to_canvas(coord, long_lat_rect, size.max_side());
 
             // TODO should be making data in update or on_added, not paint
             // make trips paths
@@ -893,7 +838,7 @@ impl Widget<AppData> for MapWidget {
                         bez_path_from_coords_iter(
                             coords
                                 .iter()
-                                .map(|coord| long_lat_to_canvas_closure_base(*coord)),
+                                .map(|coord| latlong_to_bitmap(*coord)),
                         ),
                     )
                 })
@@ -921,7 +866,7 @@ impl Widget<AppData> for MapWidget {
                         bez_path_from_coords_iter(
                             coords
                                 .iter()
-                                .map(|coord| long_lat_to_canvas_closure_canvas(*coord)),
+                                .map(|coord| latlong_to_ctx(*coord)),
                         ),
                     )
                 })
@@ -964,12 +909,12 @@ impl Widget<AppData> for MapWidget {
             self.stop_circles_base = data
                 .stops
                 .iter()
-                .map(|stop| long_lat_to_canvas_closure_base(stop.latlong))
+                .map(|stop| latlong_to_bitmap(stop.latlong))
                 .collect::<Vec<_>>();
             self.stop_circles_canvas = data
                 .stops
                 .iter()
-                .map(|stop| long_lat_to_canvas_closure_canvas(stop.latlong))
+                .map(|stop| latlong_to_ctx(stop.latlong))
                 .collect::<Vec<_>>();
 
             if self.redraw_base {
