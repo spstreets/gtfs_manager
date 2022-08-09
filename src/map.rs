@@ -138,36 +138,12 @@ impl MapWidget {
         }
     }
 
-    fn calculate_padding(
-        width: f64,
-        height: f64,
-        size: Size,
-        zoom: f64,
-        zoomed_paint_width: f64,
-        zoomed_paint_height: f64,
-        paint_width: f64,
-        paint_height: f64,
-    ) -> (f64, f64) {
-        if width > height {
-            (
-                (size.width - zoomed_paint_width) / 2.,
-                (size.height - zoomed_paint_height) / 2.
-                    + (zoomed_paint_width - zoomed_paint_height) / 2.,
-            )
-        } else {
-            (
-                (size.width - zoomed_paint_width) / 2. + (paint_height - paint_width) / 2. / zoom,
-                (size.height - zoomed_paint_height) / 2.,
-            )
-        }
-    }
-
     fn latlong_to_canvas(latlong: Point, latlong_rect: Rect, canvas_max_dimension: f64) -> Point {
         let relative_latlong = latlong - latlong_rect.origin();
         (relative_latlong * canvas_max_dimension / latlong_rect.size().max_side()).to_point()
     }
 
-    fn draw_base(&self, data: &AppData, ctx: &mut CairoRenderContext, rect: Rect, zoom: f64) {
+    fn draw_base(&self, data: &AppData, ctx: &mut CairoRenderContext, rect: Rect) {
         ctx.save();
         // tranform
         // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
@@ -186,18 +162,48 @@ impl MapWidget {
         // draw paths
         ctx.restore();
     }
+    fn make_bitmap_with_draw_base(
+        &self,
+        data: &AppData,
+        ctx: &mut CairoRenderContext,
+        rect: Rect,
+    ) -> CairoImage {
+        let mut cached_image;
+        {
+            let mut device = Device::new().unwrap();
+            // 0.1 makes the image very small
+            // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
+            let mut target = device.bitmap_target(BITMAP_SIZE, BITMAP_SIZE, 1.).unwrap();
+            let mut piet_context = target.render_context();
+
+            // piet_context.save();
+            // piet_context.transform(Affine::scale(1000. / ctx.size().height));
+            self.draw_base(data, &mut piet_context, rect);
+
+            piet_context.finish().unwrap();
+            let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+            cached_image = ctx
+                .make_image(
+                    BITMAP_SIZE,
+                    BITMAP_SIZE,
+                    image_buf.raw_pixels(),
+                    ImageFormat::RgbaPremul,
+                )
+                .unwrap();
+        }
+        cached_image
+    }
+
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
-    fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+    fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
         ctx.with_save(|ctx: &mut PaintCtx| {
             // let transformed_focal_point = Point::new(
             //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
             //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
             // );
-            let transformed_focal_point = self
-                .focal_point
-                .to_point(ctx.size() * data.map_zoom_level.to_f64())
-                .to_vec2()
-                * -1.;
+            let zoom = data.map_zoom_level.to_f64();
+            let transformed_focal_point =
+                self.focal_point.to_point(ctx.size() * zoom).to_vec2() * -1.;
             ctx.transform(Affine::translate(transformed_focal_point));
             ctx.transform(Affine::scale(zoom));
             ctx.stroke(rect, &Color::GRAY, 2.);
@@ -208,7 +214,7 @@ impl MapWidget {
             );
         });
     }
-    fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+    fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
         // ctx.with_save(|ctx: &mut PaintCtx| {
         ctx.save();
         // tranform
@@ -218,7 +224,7 @@ impl MapWidget {
             .to_vec2()
             * -1.;
         ctx.transform(Affine::translate(transformed_focal_point));
-        ctx.transform(Affine::scale(zoom));
+        ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
         // TODO don't cast f64 to usize here
         let path_width = data.map_zoom_level.path_width(ctx.size().height as usize);
         let path_bb = path_width * 2.;
@@ -307,7 +313,7 @@ impl MapWidget {
         // });
         ctx.restore();
     }
-    fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
+    fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
         ctx.with_save(|ctx: &mut PaintCtx| {
             ctx.transform(Affine::scale(MINIMAP_PROPORTION));
             ctx.fill(rect, &Color::WHITE);
@@ -318,6 +324,7 @@ impl MapWidget {
             );
 
             // paint minimap viewfinder
+            let zoom = data.map_zoom_level.to_f64();
             ctx.clip(rect);
             ctx.transform(Affine::scale(1. / zoom));
             let transformed_focal_point = self
@@ -836,9 +843,7 @@ impl Widget<AppData> for MapWidget {
                         color,
                         text_color,
                         bez_path_from_coords_iter(
-                            coords
-                                .iter()
-                                .map(|coord| latlong_to_bitmap(*coord)),
+                            coords.iter().map(|coord| latlong_to_bitmap(*coord)),
                         ),
                     )
                 })
@@ -864,9 +869,7 @@ impl Widget<AppData> for MapWidget {
                         color,
                         text_color,
                         bez_path_from_coords_iter(
-                            coords
-                                .iter()
-                                .map(|coord| latlong_to_ctx(*coord)),
+                            coords.iter().map(|coord| latlong_to_ctx(*coord)),
                         ),
                     )
                 })
@@ -921,29 +924,7 @@ impl Widget<AppData> for MapWidget {
                 println!("{} paint: redraw base: make image", Utc::now());
                 self.redraw_base = false;
 
-                let mut cached_image;
-                {
-                    let mut device = Device::new().unwrap();
-                    // 0.1 makes the image very small
-                    // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
-                    let mut target = device.bitmap_target(BITMAP_SIZE, BITMAP_SIZE, 1.).unwrap();
-                    let mut piet_context = target.render_context();
-
-                    // piet_context.save();
-                    // piet_context.transform(Affine::scale(1000. / ctx.size().height));
-                    self.draw_base(data, &mut piet_context, rect, data.map_zoom_level.to_f64());
-
-                    piet_context.finish().unwrap();
-                    let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
-                    cached_image = ctx
-                        .make_image(
-                            BITMAP_SIZE,
-                            BITMAP_SIZE,
-                            image_buf.raw_pixels(),
-                            ImageFormat::RgbaPremul,
-                        )
-                        .unwrap();
-                }
+                let cached_image = self.make_bitmap_with_draw_base(data, ctx, rect);
                 if self.minimap_image.is_none() {
                     self.minimap_image = Some(cached_image.clone());
                 }
@@ -951,15 +932,13 @@ impl Widget<AppData> for MapWidget {
             }
 
             println!("{} paint: redraw base: draw map", Utc::now());
-            self.draw_base_from_cache(data, ctx, rect, data.map_zoom_level.to_f64());
-            self.draw_minimap(data, ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(data, ctx, rect);
+            self.draw_minimap(data, ctx, rect);
         } else if self.redraw_highlights {
             println!("paint: redraw highlights");
-            self.draw_base_from_cache(data, ctx, rect, data.map_zoom_level.to_f64());
-
-            self.draw_highlights(data, ctx, rect, data.map_zoom_level.to_f64());
-
-            self.draw_minimap(data, ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(data, ctx, rect);
+            self.draw_highlights(data, ctx, rect);
+            self.draw_minimap(data, ctx, rect);
             // if let Some(selected_circle) = self.selected_stop_circle {
             //     ctx.fill(selected_circle, &Color::FUCHSIA);
             // }
@@ -978,10 +957,10 @@ impl Widget<AppData> for MapWidget {
             self.redraw_highlights = false;
         } else {
             println!("paint: use cache");
-            self.draw_base_from_cache(data, ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_base_from_cache(data, ctx, rect);
             // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
-            self.draw_highlights(data, ctx, rect, data.map_zoom_level.to_f64());
-            self.draw_minimap(data, ctx, rect, data.map_zoom_level.to_f64());
+            self.draw_highlights(data, ctx, rect);
+            self.draw_minimap(data, ctx, rect);
         }
     }
 
