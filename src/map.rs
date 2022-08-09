@@ -10,7 +10,7 @@ use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, Text
 use druid::{
     Affine, AppDelegate, AppLauncher, BoxConstraints, Color, Cursor, Data, Env, Event,
     FontDescriptor, Handled, LayoutCtx, Lens, LensExt, LocalizedString, MouseButtons, MouseEvent,
-    Point, Rect, RenderContext, Selector, Size, TextLayout, Widget, WidgetExt, WindowDesc,
+    Point, Rect, RenderContext, Selector, Size, TextLayout, Vec2, Widget, WidgetExt, WindowDesc,
 };
 use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use rgb::RGB;
@@ -26,6 +26,31 @@ use crate::data::*;
 const BITMAP_SIZE: usize = 5000;
 const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
+
+/// For storing a point normalised to [0, 1]. However will not panic if values fall outside [0, 1].
+struct NormalPoint {
+    x: f64,
+    y: f64,
+}
+impl NormalPoint {
+    const CENTER: NormalPoint = NormalPoint { x: 0.5, y: 0.5 };
+    fn from_canvas_point(point: Point, size: Size) -> NormalPoint {
+        NormalPoint {
+            x: point.x / size.width,
+            y: point.y / size.height,
+        }
+    }
+    fn to_point(&self, size: Size) -> Point {
+        Point::new(self.x * size.width, self.y * size.height)
+    }
+    /// tranlates point by a vector in the given space (size)
+    fn translate(&self, vector: Vec2, size: Size) -> NormalPoint {
+        NormalPoint {
+            x: self.x + vector.x / size.width,
+            y: self.y + vector.y / size.height,
+        }
+    }
+}
 
 #[derive(Copy, Clone)]
 struct PathsRanges {
@@ -80,7 +105,8 @@ pub struct MapWidget {
     drag_last_pos: Option<Point>,
     // focal_point should be a lat long coord which is then converted as required, in order to preserve focus between zoom levels. but then we have to dertmine what the ORIGIN coord is. better to just have focal point as a point in [0,1] space.
     // focal_point: Point,
-    focal_point: (f64, f64),
+    // focal_point: (f64, f64),
+    focal_point: NormalPoint,
     minimap_image: Option<CairoImage>,
     cached_image: Option<CairoImage>,
     redraw_base: bool,
@@ -112,7 +138,7 @@ impl MapWidget {
             click_down_pos: None,
             drag_last_pos: None,
             // focal_point: offset,
-            focal_point: (0., 0.),
+            focal_point: NormalPoint::CENTER,
             minimap_image: None,
             cached_image: None,
             redraw_base: true,
@@ -199,11 +225,16 @@ impl MapWidget {
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
     fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
-            let transformed_focal_point = Point::new(
-                self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-                self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-            );
-            ctx.transform(Affine::translate(transformed_focal_point.to_vec2() * -1.));
+            // let transformed_focal_point = Point::new(
+            //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+            //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+            // );
+            let transformed_focal_point = self
+                .focal_point
+                .to_point(ctx.size() * data.map_zoom_level.to_f64())
+                .to_vec2()
+                * -1.;
+            ctx.transform(Affine::translate(transformed_focal_point));
             ctx.transform(Affine::scale(zoom));
             ctx.stroke(rect, &Color::GRAY, 2.);
             ctx.draw_image(
@@ -217,11 +248,12 @@ impl MapWidget {
         // ctx.with_save(|ctx: &mut PaintCtx| {
         ctx.save();
         // tranform
-        let transformed_focal_point = Point::new(
-            self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-            self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-        );
-        ctx.transform(Affine::translate(transformed_focal_point.to_vec2() * -1.));
+        let transformed_focal_point = self
+            .focal_point
+            .to_point(ctx.size() * data.map_zoom_level.to_f64())
+            .to_vec2()
+            * -1.;
+        ctx.transform(Affine::translate(transformed_focal_point));
         ctx.transform(Affine::scale(zoom));
         // TODO don't cast f64 to usize here
         let path_width = data.map_zoom_level.path_width(ctx.size().height as usize);
@@ -324,11 +356,11 @@ impl MapWidget {
             // paint minimap viewfinder
             ctx.clip(rect);
             ctx.transform(Affine::scale(1. / zoom));
-            let transformed_focal_point = Point::new(
-                self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-                self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-            );
-            ctx.transform(Affine::translate(transformed_focal_point.to_vec2()));
+            let transformed_focal_point = self
+                .focal_point
+                .to_point(ctx.size() * data.map_zoom_level.to_f64())
+                .to_vec2();
+            ctx.transform(Affine::translate(transformed_focal_point));
             ctx.stroke(rect, &Color::GRAY, 4. * zoom);
         });
     }
@@ -408,14 +440,9 @@ impl Widget<AppData> for MapWidget {
                 if let Some(drag_start) = self.drag_last_pos {
                     println!("mouse move: drag");
                     if mouse_event.buttons.has_left() {
-                        let drag_end = mouse_event.pos;
-                        // need to normalise drag_end and drag_start
-                        let size = ctx.size().height;
-                        self.focal_point = (
-                            self.focal_point.0 - (drag_end.x / size - drag_start.x / size),
-                            self.focal_point.1 - (drag_end.y / size - drag_start.y / size),
-                        );
-                        self.drag_last_pos = Some(drag_end);
+                        let drag_vector = mouse_event.pos.to_vec2() - drag_start.to_vec2();
+                        self.focal_point = self.focal_point.translate(drag_vector * -1., ctx.size());
+                        self.drag_last_pos = Some(mouse_event.pos);
                     } else {
                         // we keep drag_start.is_some() even if the mouse has left the viewport, otherwise it is annoying if you slightly move your mouse outside the viewport and you loose your drag and have to click again
                         self.drag_last_pos = None;
@@ -429,10 +456,9 @@ impl Widget<AppData> for MapWidget {
                     // find and save all hovered paths
                     let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
 
-                    let transformed_focal_point = Point::new(
-                        self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-                        self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-                    );
+                    let transformed_focal_point = self
+                        .focal_point
+                        .to_point(ctx.size() * data.map_zoom_level.to_f64());
                     let translated_mouse_position = ((mouse_event.pos.to_vec2()
                         + transformed_focal_point.to_vec2())
                         / data.map_zoom_level.to_f64())
@@ -519,18 +545,21 @@ impl Widget<AppData> for MapWidget {
                 // if mouse inside minimap
                 let minimap_rect = ctx.size().to_rect().scale_from_origin(MINIMAP_PROPORTION);
                 if minimap_rect.contains(mouse_event.pos) {
-                    self.focal_point = (
-                        mouse_event.pos.x / (ctx.size().height * MINIMAP_PROPORTION),
-                        mouse_event.pos.y / (ctx.size().height * MINIMAP_PROPORTION),
+                    self.focal_point = NormalPoint::from_canvas_point(
+                        mouse_event.pos,
+                        ctx.size() * MINIMAP_PROPORTION,
                     );
                     self.click_down_pos = None;
                     self.redraw_highlights = true;
                     ctx.request_paint();
                 } else {
-                    let transformed_focal_point = Point::new(
-                        self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-                        self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-                    );
+                    let transformed_focal_point = self
+                        .focal_point
+                        .to_point(ctx.size() * data.map_zoom_level.to_f64());
+                    // let transformed_focal_point = Point::new(
+                    //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+                    //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+                    // );
                     let translated_mouse_position = ((mouse_event.pos.to_vec2()
                         + transformed_focal_point.to_vec2())
                         / data.map_zoom_level.to_f64())
