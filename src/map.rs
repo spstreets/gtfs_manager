@@ -25,6 +25,7 @@ use crate::data::*;
 // bitmaps large than 10,000 x 10,000 will crash
 const BITMAP_SIZE: usize = 5000;
 const NUMBER_TILES_WIDTH: usize = 20;
+const MINIMAP_PROPORTION: f64 = 0.3;
 
 #[derive(Copy, Clone)]
 struct PathsRanges {
@@ -312,7 +313,7 @@ impl MapWidget {
     }
     fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect, zoom: f64) {
         ctx.with_save(|ctx: &mut PaintCtx| {
-            ctx.transform(Affine::scale(0.3));
+            ctx.transform(Affine::scale(MINIMAP_PROPORTION));
             ctx.fill(rect, &Color::WHITE);
             ctx.draw_image(
                 &self.minimap_image.as_ref().unwrap(),
@@ -515,113 +516,134 @@ impl Widget<AppData> for MapWidget {
                 }
             }
             Event::MouseUp(mouse_event) => {
-                let transformed_focal_point = Point::new(
-                    self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-                    self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-                );
-                let translated_mouse_position = ((mouse_event.pos.to_vec2()
-                    + transformed_focal_point.to_vec2())
-                    / data.map_zoom_level.to_f64())
-                .to_point();
+                // if mouse inside minimap
+                let minimap_rect = ctx.size().to_rect().scale_from_origin(MINIMAP_PROPORTION);
+                if minimap_rect.contains(mouse_event.pos) {
+                    self.focal_point = (
+                        mouse_event.pos.x / (ctx.size().height * MINIMAP_PROPORTION),
+                        mouse_event.pos.y / (ctx.size().height * MINIMAP_PROPORTION),
+                    );
+                    self.click_down_pos = None;
+                    self.redraw_highlights = true;
+                    ctx.request_paint();
+                } else {
+                    let transformed_focal_point = Point::new(
+                        self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+                        self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+                    );
+                    let translated_mouse_position = ((mouse_event.pos.to_vec2()
+                        + transformed_focal_point.to_vec2())
+                        / data.map_zoom_level.to_f64())
+                    .to_point();
 
-                if let Some(click_down_pos) = self.click_down_pos {
-                    if mouse_event.pos == click_down_pos {
-                        println!("mouse_up: same pos");
-                        // TODO differentiate between stop click and path click
-                        // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
+                    if let Some(click_down_pos) = self.click_down_pos {
+                        if mouse_event.pos == click_down_pos {
+                            println!("mouse_up: same pos");
+                            // TODO differentiate between stop click and path click
+                            // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
 
-                        // // check if hovering a stop on selected trip
-                        if let Some((trip_id, color, text_color, path)) = &self.selected_trip_path {
-                            // drawing larger stops on top of path selection
-                            if let Some(stop_times_range) =
-                                data.stop_time_range_from_trip_id.get(trip_id)
+                            // // check if hovering a stop on selected trip
+                            if let Some((trip_id, color, text_color, path)) =
+                                &self.selected_trip_path
                             {
-                                // im slice requires mut borrow
-                                // let stop_ids = data
-                                //     .stop_times
-                                //     .slice(stop_times_range.0..stop_times_range.1)
-                                let stop_ids = data.gtfs.stop_times
-                                    [stop_times_range.0..stop_times_range.1]
-                                    .iter()
-                                    .map(|stop_time| stop_time.stop_id.clone())
-                                    .collect::<Vec<_>>();
-                                let stop_points = self
-                                    .stop_circles_canvas
-                                    .iter()
-                                    .zip(data.stops.iter())
-                                    .filter(|(_point, stop)| stop_ids.contains(&stop.id))
-                                    .map(|(point, stop)| (point.clone(), stop.id.clone()))
-                                    .collect::<Vec<_>>();
-                                for stop_time in data.gtfs.stop_times
-                                    [stop_times_range.0..stop_times_range.1]
-                                    .iter()
+                                // drawing larger stops on top of path selection
+                                if let Some(stop_times_range) =
+                                    data.stop_time_range_from_trip_id.get(trip_id)
                                 {
-                                    let (stop_point, stop_id) = stop_points
+                                    // im slice requires mut borrow
+                                    // let stop_ids = data
+                                    //     .stop_times
+                                    //     .slice(stop_times_range.0..stop_times_range.1)
+                                    let stop_ids = data.gtfs.stop_times
+                                        [stop_times_range.0..stop_times_range.1]
                                         .iter()
-                                        .find(|(point, stop_id)| &stop_time.stop_id == stop_id)
-                                        .unwrap();
-                                    if Circle::new(*stop_point, 5.)
-                                        .contains(translated_mouse_position)
+                                        .map(|stop_time| stop_time.stop_id.clone())
+                                        .collect::<Vec<_>>();
+                                    let stop_points = self
+                                        .stop_circles_canvas
+                                        .iter()
+                                        .zip(data.stops.iter())
+                                        .filter(|(_point, stop)| stop_ids.contains(&stop.id))
+                                        .map(|(point, stop)| (point.clone(), stop.id.clone()))
+                                        .collect::<Vec<_>>();
+                                    for stop_time in data.gtfs.stop_times
+                                        [stop_times_range.0..stop_times_range.1]
+                                        .iter()
                                     {
-                                        ctx.submit_command(
-                                            SELECT_STOP_TIME
-                                                .with((trip_id.clone(), stop_time.stop_sequence)),
-                                        );
+                                        let (stop_point, stop_id) = stop_points
+                                            .iter()
+                                            .find(|(point, stop_id)| &stop_time.stop_id == stop_id)
+                                            .unwrap();
+                                        if Circle::new(*stop_point, 5.)
+                                            .contains(translated_mouse_position)
+                                        {
+                                            ctx.submit_command(
+                                                SELECT_STOP_TIME.with((
+                                                    trip_id.clone(),
+                                                    stop_time.stop_sequence,
+                                                )),
+                                            );
+                                        }
                                     }
                                 }
                             }
+
+                            // select trip if we are hovering one or more (if we are hovering a selected trip, there should be no hovered trips)
+                            if let Some((id, color, text_color, path)) =
+                                self.hovered_trip_paths.get(0)
+                            {
+                                let route_id = data
+                                    .trips
+                                    .iter()
+                                    .find(|trip| &trip.id == id)
+                                    .unwrap()
+                                    .route_id
+                                    .clone();
+                                let agency_id = data
+                                    .routes
+                                    .iter()
+                                    .find(|route| route.id == route_id)
+                                    .unwrap()
+                                    .agency_id
+                                    .clone();
+                                data.selected_agency_id = Some(agency_id);
+                                data.selected_route_id = Some(route_id);
+                                data.selected_trip_id = Some(id.clone());
+                                data.selected_stop_time_id = None;
+                                self.selected_trip_path = Some((
+                                    id.clone(),
+                                    color.clone(),
+                                    text_color.clone(),
+                                    path.clone(),
+                                ));
+                            }
+                            // for (stop_circle, stop) in
+                            //     self.stop_circles.iter().zip(data.stops.iter_mut())
+                            // {
+                            //     if stop_circle.contains(me.pos) {
+                            //         self.redraw_highlights = true;
+                            //         self.selected_stop_circle = Some(*stop_circle);
+                            //         ctx.submit_command(SELECT_STOP_LIST.with(stop.id.clone()));
+                            //     }
+                            // }
+
+                            // for (path, trip) in
+                            //     self.all_trip_paths.iter().zip(data.stops.iter_mut())
+                            // {
+                            //     if stop_circle.contains(me.pos) {
+                            //         ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
+                            //     }
+                            // }
+
+                            self.click_down_pos = None;
+                            self.redraw_highlights = true;
+                            // NOTE don't need to call ctx.paint() since we are updating data which will trigger a paint
+                        } else {
+                            // todo understand why .clear_cursor() doesn't work here
+                            ctx.override_cursor(&Cursor::Arrow);
+                            self.click_down_pos = None;
+                            self.drag_last_pos = None;
                         }
-
-                        // select trip if we are hovering one or more (if we are hovering a selected trip, there should be no hovered trips)
-                        if let Some((id, color, text_color, path)) = self.hovered_trip_paths.get(0)
-                        {
-                            let route_id = data
-                                .trips
-                                .iter()
-                                .find(|trip| &trip.id == id)
-                                .unwrap()
-                                .route_id
-                                .clone();
-                            let agency_id = data
-                                .routes
-                                .iter()
-                                .find(|route| route.id == route_id)
-                                .unwrap()
-                                .agency_id
-                                .clone();
-                            data.selected_agency_id = Some(agency_id);
-                            data.selected_route_id = Some(route_id);
-                            data.selected_trip_id = Some(id.clone());
-                            data.selected_stop_time_id = None;
-                            self.selected_trip_path =
-                                Some((id.clone(), color.clone(), text_color.clone(), path.clone()));
-                        }
-                        // for (stop_circle, stop) in
-                        //     self.stop_circles.iter().zip(data.stops.iter_mut())
-                        // {
-                        //     if stop_circle.contains(me.pos) {
-                        //         self.redraw_highlights = true;
-                        //         self.selected_stop_circle = Some(*stop_circle);
-                        //         ctx.submit_command(SELECT_STOP_LIST.with(stop.id.clone()));
-                        //     }
-                        // }
-
-                        // for (path, trip) in
-                        //     self.all_trip_paths.iter().zip(data.stops.iter_mut())
-                        // {
-                        //     if stop_circle.contains(me.pos) {
-                        //         ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
-                        //     }
-                        // }
-
-                        self.click_down_pos = None;
-                        self.redraw_highlights = true;
-                        // NOTE don't need to call ctx.paint() since we are updating data which will trigger a paint
-                    } else {
-                        // todo understand why .clear_cursor() doesn't work here
-                        ctx.override_cursor(&Cursor::Arrow);
-                        self.click_down_pos = None;
-                        self.drag_last_pos = None;
                     }
                 }
             }
