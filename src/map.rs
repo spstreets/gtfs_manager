@@ -76,6 +76,7 @@ pub struct MapWidget {
     all_trip_paths_bitmap: Vec<(Color, Color, BezPath)>,
     all_trip_paths_canvas_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
     // all_trip_paths_canvas_translated: Vec<BezPath>,
+    /// (trip_id, color, text_color, path)
     all_trip_paths_canvas: Vec<(String, Color, Color, BezPath)>,
     hovered_trip_paths: Vec<(String, Color, Color, BezPath)>,
     filtered_trip_paths: Vec<(String, Color, Color, BezPath)>,
@@ -97,7 +98,7 @@ pub struct MapWidget {
     minimap_image: Option<CairoImage>,
     cached_image: Option<CairoImage>,
     immediate_mode: bool,
-    redraw_base: bool,
+    recreate_bitmap: bool,
     remake_paths: bool,
     redraw_highlights: bool,
     // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
@@ -110,7 +111,7 @@ impl MapWidget {
         let mut map_widget = MapWidget::default();
         map_widget.speed = speed;
         map_widget.immediate_mode = true;
-        map_widget.redraw_base = true;
+        map_widget.recreate_bitmap = true;
         map_widget.remake_paths = true;
         map_widget.redraw_highlights = true;
         map_widget
@@ -121,13 +122,47 @@ impl MapWidget {
         (relative_latlong * canvas_max_dimension / latlong_rect.size().max_side()).to_point()
     }
 
-    fn draw_base(&self, data: &AppData, ctx: &mut CairoRenderContext, rect: Rect) {
+    fn draw_base_onto_paint_ctx(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
         ctx.save();
         // tranform
         // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
         // ctx.transform(Affine::scale(zoom));
 
-        let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
+        let transformed_focal_point = self
+            .focal_point
+            .to_point(ctx.size() * data.map_zoom_level.to_f64())
+            .to_vec2()
+            * -1.;
+        ctx.transform(Affine::translate(transformed_focal_point));
+        ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
+
+        // NOTE ctx.transform() doesn't change ctx.size()
+        let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+
+        let s_circle_bb = path_width * 0.8;
+        let s_circle = path_width * 0.6;
+
+        let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_canvas {
+            ctx.stroke(path, color, path_width);
+        }
+
+        // for (point, stop) in self.stop_circles_canvas.iter().zip(data.stops.iter()) {
+        //     ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
+        //     ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
+        // }
+
+        // draw paths
+        ctx.restore();
+    }
+    fn draw_base_onto_bitmap_ctx(&self, data: &AppData, ctx: &mut CairoRenderContext, rect: Rect) {
+        ctx.save();
+        // don't need to transform since we are just creating an image and it is then the image itself which will be transformed.
+        // tranform
+        // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
+        // ctx.transform(Affine::scale(zoom));
+
+        let path_width = data.map_zoom_level.path_width(BITMAP_SIZE as f64);
         for (color, _text_color, path) in &self.all_trip_paths_bitmap {
             ctx.stroke(path, color, path_width);
         }
@@ -156,7 +191,7 @@ impl MapWidget {
 
             // piet_context.save();
             // piet_context.transform(Affine::scale(1000. / ctx.size().height));
-            self.draw_base(data, &mut piet_context, rect);
+            self.draw_base_onto_bitmap_ctx(data, &mut piet_context, rect);
 
             piet_context.finish().unwrap();
             let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
@@ -189,6 +224,7 @@ impl MapWidget {
         });
     }
     fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
+        // what is ctx.save() for? doing transforms which we want to be temporary
         ctx.save();
         // tranform
         let transformed_focal_point = self
@@ -198,8 +234,7 @@ impl MapWidget {
             * -1.;
         ctx.transform(Affine::translate(transformed_focal_point));
         ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
-        // TODO don't cast f64 to usize here
-        let path_width = data.map_zoom_level.path_width(ctx.size().height as usize);
+        let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
         let path_bb = path_width * 2.;
         let path_wb = path_width * 3.;
 
@@ -372,7 +407,7 @@ impl Widget<AppData> for MapWidget {
                     self.mouse_position = Some(mouse_event.pos);
 
                     // find and save all hovered paths
-                    let path_width = data.map_zoom_level.path_width(BITMAP_SIZE);
+                    let path_width = data.map_zoom_level.path_width(BITMAP_SIZE as f64);
 
                     let transformed_focal_point = self
                         .focal_point
@@ -698,7 +733,7 @@ impl Widget<AppData> for MapWidget {
                 self.immediate_mode = true;
             }
             self.remake_paths = true;
-            self.redraw_base = true;
+            self.recreate_bitmap = true;
             // self.redraw_highlights = true;
             ctx.request_paint();
         }
@@ -749,6 +784,7 @@ impl Widget<AppData> for MapWidget {
         // ctx.fill(rect, &Color::grey(0.6));
         ctx.fill(rect, &Color::WHITE);
 
+        // need to remake paths when zoom level changes or layout changes
         if self.remake_paths {
             println!("paint: redraw");
             self.remake_paths = false;
@@ -765,7 +801,7 @@ impl Widget<AppData> for MapWidget {
                 |coord: Point| MapWidget::latlong_to_canvas(coord, long_lat_rect, size.max_side());
 
             // TODO should be making data in update or on_added, not paint
-            // make trips paths
+            // translate trip paths to a given canvas size and store colors
             println!("{} paint: redraw base: make paths", Utc::now());
             self.all_trip_paths_bitmap = self
                 .trips_coords
@@ -863,41 +899,52 @@ impl Widget<AppData> for MapWidget {
                 .map(|stop| latlong_to_ctx(stop.latlong))
                 .collect::<Vec<_>>();
 
-            if self.redraw_base {
-                println!("{} paint: redraw base: make image", Utc::now());
-                self.redraw_base = false;
+            // self.draw_base_from_cache(data, ctx, rect);
+            // self.draw_minimap(data, ctx, rect);
+        }
+        if self.recreate_bitmap {
+            println!("{} paint: redraw base: make image", Utc::now());
+            self.recreate_bitmap = false;
 
-                let cached_image = self.make_bitmap_with_draw_base(data, ctx, rect);
-                if self.minimap_image.is_none() {
-                    self.minimap_image = Some(cached_image.clone());
-                }
-                self.cached_image = Some(cached_image);
+            let cached_image = self.make_bitmap_with_draw_base(data, ctx, rect);
+            if self.minimap_image.is_none() {
+                self.minimap_image = Some(cached_image.clone());
             }
+            self.cached_image = Some(cached_image);
+        }
+        // if self.redraw_highlights {
+        //     println!("paint: redraw highlights");
+        //     self.draw_base_from_cache(data, ctx, rect);
+        //     self.draw_highlights(data, ctx, rect);
+        //     self.draw_minimap(data, ctx, rect);
+        //     // if let Some(selected_circle) = self.selected_stop_circle {
+        //     //     ctx.fill(selected_circle, &Color::FUCHSIA);
+        //     // }
 
-            println!("{} paint: redraw base: draw map", Utc::now());
-            self.draw_base_from_cache(data, ctx, rect);
-            self.draw_minimap(data, ctx, rect);
-        } else if self.redraw_highlights {
-            println!("paint: redraw highlights");
-            self.draw_base_from_cache(data, ctx, rect);
+        //     // if let Some(circle) = self.highlighted_stop_circle {
+        //     //     let circle = Circle::new(
+        //     //         circle.center,
+        //     //         if data.map_zoom_level.to_f64() > 6. {
+        //     //             6. * 1.4
+        //     //         } else {
+        //     //             data.map_zoom_level.to_f64() * 1.4
+        //     //         },
+        //     //     );
+        //     //     ctx.fill(circle, &Color::PURPLE);
+        //     // }
+        //     self.redraw_highlights = false;
+        // } else {
+        //     println!("paint: use cache");
+        //     self.draw_base_from_cache(data, ctx, rect);
+        //     // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
+        //     self.draw_highlights(data, ctx, rect);
+        //     self.draw_minimap(data, ctx, rect);
+        // }
+        if data.map_zoom_level.to_f64() > 9. {
+            println!("paint: immediate mode");
+            self.draw_base_onto_paint_ctx(data, ctx, rect);
             self.draw_highlights(data, ctx, rect);
             self.draw_minimap(data, ctx, rect);
-            // if let Some(selected_circle) = self.selected_stop_circle {
-            //     ctx.fill(selected_circle, &Color::FUCHSIA);
-            // }
-
-            // if let Some(circle) = self.highlighted_stop_circle {
-            //     let circle = Circle::new(
-            //         circle.center,
-            //         if data.map_zoom_level.to_f64() > 6. {
-            //             6. * 1.4
-            //         } else {
-            //             data.map_zoom_level.to_f64() * 1.4
-            //         },
-            //     );
-            //     ctx.fill(circle, &Color::PURPLE);
-            // }
-            self.redraw_highlights = false;
         } else {
             println!("paint: use cache");
             self.draw_base_from_cache(data, ctx, rect);

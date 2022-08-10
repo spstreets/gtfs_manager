@@ -470,7 +470,7 @@ impl ZoomLevel {
             ZoomLevel::Fifty => 50.,
         }
     }
-    pub fn path_width(&self, canvas_size: usize) -> f64 {
+    pub fn path_width(&self, canvas_size: f64) -> f64 {
         // match self {
         //     ZoomLevel::One => canvas_size as f64 / 400.,
         //     ZoomLevel::Two => canvas_size as f64 / 800.,
