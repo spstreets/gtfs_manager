@@ -934,7 +934,8 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // stops: Vector::new(),
         actions: Vector::new(),
         edits: Vector::new(),
-        map_zoom_level: ZoomLevel::One,
+        // map_zoom_level: ZoomLevel::One,
+        map_zoom_level: ZoomLevel::Two,
     };
     println!("{:?} finish make_initial_data", Utc::now());
     app_data

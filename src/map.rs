@@ -17,6 +17,7 @@ use rgb::RGB;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Debug;
+use std::ops::Div;
 use std::rc::Rc;
 
 use crate::app_delegate::*;
@@ -122,7 +123,7 @@ impl MapWidget {
         (relative_latlong * canvas_max_dimension / latlong_rect.size().max_side()).to_point()
     }
 
-    fn draw_base_onto_paint_ctx(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
+    fn draw_base_onto_paint_ctx(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.save();
         // tranform
         // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
@@ -155,7 +156,7 @@ impl MapWidget {
         // draw paths
         ctx.restore();
     }
-    fn draw_base_onto_bitmap_ctx(&self, data: &AppData, ctx: &mut CairoRenderContext, rect: Rect) {
+    fn draw_base_onto_bitmap_ctx(&self, data: &AppData, ctx: &mut CairoRenderContext) {
         ctx.save();
         // don't need to transform since we are just creating an image and it is then the image itself which will be transformed.
         // tranform
@@ -179,7 +180,6 @@ impl MapWidget {
         &self,
         data: &AppData,
         ctx: &mut CairoRenderContext,
-        rect: Rect,
     ) -> CairoImage {
         let mut cached_image;
         {
@@ -191,7 +191,7 @@ impl MapWidget {
 
             // piet_context.save();
             // piet_context.transform(Affine::scale(1000. / ctx.size().height));
-            self.draw_base_onto_bitmap_ctx(data, &mut piet_context, rect);
+            self.draw_base_onto_bitmap_ctx(data, &mut piet_context);
 
             piet_context.finish().unwrap();
             let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
@@ -208,14 +208,15 @@ impl MapWidget {
     }
 
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
-    fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
+    fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.with_save(|ctx: &mut PaintCtx| {
+            let rect = ctx.size().to_rect();
             let zoom = data.map_zoom_level.to_f64();
             let transformed_focal_point =
                 self.focal_point.to_point(ctx.size() * zoom).to_vec2() * -1.;
             ctx.transform(Affine::translate(transformed_focal_point));
             ctx.transform(Affine::scale(zoom));
-            ctx.stroke(rect, &Color::GRAY, 2.);
+            // ctx.stroke(rect, &Color::GRAY, 2.);
             ctx.draw_image(
                 &self.cached_image.as_ref().unwrap(),
                 rect,
@@ -223,7 +224,7 @@ impl MapWidget {
             );
         });
     }
-    fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
+    fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
         // what is ctx.save() for? doing transforms which we want to be temporary
         ctx.save();
         // tranform
@@ -291,8 +292,9 @@ impl MapWidget {
         }
         ctx.restore();
     }
-    fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx, rect: Rect) {
+    fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.with_save(|ctx: &mut PaintCtx| {
+            let rect = ctx.size().to_rect();
             ctx.transform(Affine::scale(MINIMAP_PROPORTION));
             ctx.fill(rect, &Color::WHITE);
             ctx.draw_image(
@@ -304,13 +306,36 @@ impl MapWidget {
             // paint minimap viewfinder
             let zoom = data.map_zoom_level.to_f64();
             ctx.clip(rect);
-            ctx.transform(Affine::scale(1. / zoom));
+            // Not sure why I need to use ctx.size() here rather than eg ctx.size() * MINIMAP_PROPORTION
             let transformed_focal_point = self
                 .focal_point
-                .to_point(ctx.size() * data.map_zoom_level.to_f64())
-                .to_vec2();
-            ctx.transform(Affine::translate(transformed_focal_point));
-            ctx.stroke(rect, &Color::GRAY, 4. * zoom);
+                // .to_point(ctx.size() * data.map_zoom_level.to_f64());
+                // .to_point(ctx.size() * MINIMAP_PROPORTION * zoom);
+                .to_point(ctx.size());
+            // // make path which is minimap sized rect with viewfinder hole in it
+            let mut shadow = rect.to_path(0.1);
+            // shadow.line_to(rect.origin());
+            // // ctx.clip(shape)
+            let inner_rect = rect
+                .with_size(rect.size() / zoom)
+                .with_origin(transformed_focal_point);
+            shadow.move_to(inner_rect.origin());
+            shadow.line_to(Point::new(inner_rect.x1, inner_rect.y0));
+            shadow.line_to(Point::new(inner_rect.x1, inner_rect.y1));
+            shadow.line_to(Point::new(inner_rect.x0, inner_rect.y1));
+            shadow.close_path();
+            // ctx.clip(inner_rect.scale_from_origin(-1.));
+
+            ctx.fill_even_odd(shadow, &Color::rgba(0., 0., 0., 0.5));
+            // ctx.stroke(shadow, &Color::rgba(0., 0., 0., 0.5), 4.);
+            ctx.stroke(inner_rect, &Color::RED, 4.);
+            // ctx.fill(shadow, &Color::RED);
+            // ctx.fill_even_odd(shadow, &Color::RED);
+            // ctx.transform(Affine::scale(1. / zoom));
+            // ctx.transform(Affine::translate(transformed_focal_point.to_vec2()));
+            // ctx.stroke(rect, &Color::GRAY, 4. * zoom);
+            // ctx.fill(rect, &Color::RED);
+            // ctx.stroke(rect, &Color::RED, 4. * zoom);
         });
     }
     fn find_hovered_paths(
@@ -906,7 +931,7 @@ impl Widget<AppData> for MapWidget {
             println!("{} paint: redraw base: make image", Utc::now());
             self.recreate_bitmap = false;
 
-            let cached_image = self.make_bitmap_with_draw_base(data, ctx, rect);
+            let cached_image = self.make_bitmap_with_draw_base(data, ctx);
             if self.minimap_image.is_none() {
                 self.minimap_image = Some(cached_image.clone());
             }
@@ -942,15 +967,15 @@ impl Widget<AppData> for MapWidget {
         // }
         if data.map_zoom_level.to_f64() > 9. {
             println!("paint: immediate mode");
-            self.draw_base_onto_paint_ctx(data, ctx, rect);
-            self.draw_highlights(data, ctx, rect);
-            self.draw_minimap(data, ctx, rect);
+            self.draw_base_onto_paint_ctx(data, ctx);
+            self.draw_highlights(data, ctx);
+            self.draw_minimap(data, ctx);
         } else {
             println!("paint: use cache");
-            self.draw_base_from_cache(data, ctx, rect);
+            self.draw_base_from_cache(data, ctx);
             // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
-            self.draw_highlights(data, ctx, rect);
-            self.draw_minimap(data, ctx, rect);
+            self.draw_highlights(data, ctx);
+            self.draw_minimap(data, ctx);
         }
     }
 
