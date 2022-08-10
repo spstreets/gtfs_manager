@@ -520,32 +520,33 @@ impl Widget<AppData> for MapWidget {
                 }
             }
             Event::MouseUp(mouse_event) => {
-                // if mouse inside minimap
-                let minimap_rect = ctx.size().to_rect().scale_from_origin(MINIMAP_PROPORTION);
-                if minimap_rect.contains(mouse_event.pos) {
-                    self.focal_point = NormalPoint::from_canvas_point(
-                        mouse_event.pos,
-                        ctx.size() * MINIMAP_PROPORTION,
-                    );
-                    self.click_down_pos = None;
-                    self.redraw_highlights = true;
-                    ctx.request_paint();
-                } else {
-                    let transformed_focal_point = self
-                        .focal_point
-                        .to_point(ctx.size() * data.map_zoom_level.to_f64());
-                    // let transformed_focal_point = Point::new(
-                    //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-                    //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-                    // );
-                    let translated_mouse_position = ((mouse_event.pos.to_vec2()
-                        + transformed_focal_point.to_vec2())
-                        / data.map_zoom_level.to_f64())
-                    .to_point();
+                let transformed_focal_point = self
+                    .focal_point
+                    .to_point(ctx.size() * data.map_zoom_level.to_f64());
+                // let transformed_focal_point = Point::new(
+                //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
+                //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
+                // );
+                let translated_mouse_position = ((mouse_event.pos.to_vec2()
+                    + transformed_focal_point.to_vec2())
+                    / data.map_zoom_level.to_f64())
+                .to_point();
 
-                    if let Some(click_down_pos) = self.click_down_pos {
-                        if mouse_event.pos == click_down_pos {
-                            println!("mouse_up: same pos");
+                if let Some(click_down_pos) = self.click_down_pos {
+                    if mouse_event.pos == click_down_pos {
+                        println!("mouse_up: same pos");
+                        // if mouse inside minimap
+                        let minimap_rect =
+                            ctx.size().to_rect().scale_from_origin(MINIMAP_PROPORTION);
+                        if minimap_rect.contains(mouse_event.pos) {
+                            self.focal_point = NormalPoint::from_canvas_point(
+                                mouse_event.pos,
+                                ctx.size() * MINIMAP_PROPORTION,
+                            );
+                            self.click_down_pos = None;
+                            self.redraw_highlights = true;
+                            ctx.request_paint();
+                        } else {
                             // TODO differentiate between stop click and path click
                             // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
 
@@ -645,12 +646,12 @@ impl Widget<AppData> for MapWidget {
                             self.click_down_pos = None;
                             self.redraw_highlights = true;
                             // NOTE don't need to call ctx.paint() since we are updating data which will trigger a paint
-                        } else {
-                            // todo understand why .clear_cursor() doesn't work here
-                            ctx.override_cursor(&Cursor::Arrow);
-                            self.click_down_pos = None;
-                            self.drag_last_pos = None;
                         }
+                    } else {
+                        // todo understand why .clear_cursor() doesn't work here
+                        ctx.override_cursor(&Cursor::Arrow);
+                        self.click_down_pos = None;
+                        self.drag_last_pos = None;
                     }
                 }
             }
