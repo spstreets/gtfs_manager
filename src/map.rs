@@ -23,8 +23,11 @@ use std::rc::Rc;
 use crate::app_delegate::*;
 use crate::data::*;
 
-// bitmaps large than 10,000 x 10,000 will crash
-const BITMAP_SIZE: usize = 1000;
+// bitmaps large than 10,000 x 10,000 will crash. This no longer seems to be a problem, was possibly because of the way we were drawing to it or something rather than an inherent problem with bitmaps of that size. 20,000 does add about 2GB to the memory use of the app though, so not a perfect solution. This is possibly why we will want immediate mode to kick in at some point?
+// why is different sizes a problem?
+const REFERENCE_SIZE: usize = 1_000;
+const BITMAP_SIZE_SMALL: usize = 1_000;
+const BITMAP_SIZE_LARGE: usize = 20_000;
 const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
 
@@ -42,7 +45,8 @@ impl NormalPoint {
             y: point.y / size.height,
         }
     }
-    fn to_point(&self, size: Size) -> Point {
+    /// returns a Point relative to the given Size. eg for NormalPoint::CENTER and Size: 1000,1000, we get Point: 500,500.
+    fn to_point_within_size(&self, size: Size) -> Point {
         Point::new(self.x * size.width, self.y * size.height)
     }
     /// tranlates point by a vector in the given space (size)
@@ -97,7 +101,9 @@ pub struct MapWidget {
     // focal_point should be a lat long coord which is then converted as required, in order to preserve focus between zoom levels. but then we have to dertmine what the ORIGIN coord is. better to just have focal point as a point in [0,1] space.
     focal_point: NormalPoint,
     minimap_image: Option<CairoImage>,
-    cached_image: Option<CairoImage>,
+    cached_image_small: Option<CairoImage>,
+    cached_image_large: Option<CairoImage>,
+    cached_image_vec: Vec<CairoImage>,
     immediate_mode: bool,
     recreate_bitmap: bool,
     remake_paths: bool,
@@ -129,13 +135,21 @@ impl MapWidget {
         // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
         // ctx.transform(Affine::scale(zoom));
 
+        // get focal point in context of zoomed canvas, and reverse.
+        // eg canvas 100^2, zoom x2, and a center focal point gives the point (-100,-100). So if we start drawing the 200^2 map here then the the center of the map will be at (0,0) as expected
+        // what if the paths were sized to a 400^2 canvas/bitmap? say one of these paths took up a (0,0) to (100,100) space then, keeping the same transforms as before, it would cover the same area as before, (-100,-100) to (100,100) so we starting painting the 400^2 a little before the canvas starts but then the final 3/4 is painted after the canvas. ie only the top left quarter of paths will be drawn between (-100,-100) and (100,100). This bitmap is x4 the size of the canvas. what if we just scale again by x100/400? Then the origin would remain (-100,-100). a 100^2 sized path, would now rather than extend to (100,100), reduce to (0,0) at 1/2 (original case) with just translate no scale, and then (-50,-50) at 1/4 so the entire 400^2 paths would end at (100,100), perfect!
         let transformed_focal_point = self
             .focal_point
-            .to_point(ctx.size() * data.map_zoom_level.to_f64())
+            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64())
+            // .to_point_within_size(BITMAP_SIZE_REFERENCE as f64 * data.map_zoom_level.to_f64())
             .to_vec2()
             * -1.;
+        // now we translate the canvas to the focal point, so following the example we are now painting the point (0,0) at (-100,-100) on the canvas
         ctx.transform(Affine::translate(transformed_focal_point));
+        // given the paths already sized to the 100^2 canvas, if we draw them now with origin (-100,-100) we would not see anything, so we need to scale the context by the zoom amount, so that drawing with origin (-100,-100) the paths take up 200^2 space so the bottom right quarter covers the canvas
         ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
+        let ctx_max_side = ctx.size().max_side();
+        ctx.transform(Affine::scale(ctx_max_side / REFERENCE_SIZE as f64));
 
         // NOTE ctx.transform() doesn't change ctx.size()
         let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
@@ -143,8 +157,8 @@ impl MapWidget {
         let s_circle_bb = path_width * 0.8;
         let s_circle = path_width * 0.6;
 
-        let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
-        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_canvas {
+        for (color, _text_color, path) in &self.all_trip_paths_bitmap {
+            // for (_trip_id, color, _text_color, path) in &self.all_trip_paths_canvas {
             ctx.stroke(path, color, path_width);
         }
 
@@ -156,14 +170,23 @@ impl MapWidget {
         // draw paths
         ctx.restore();
     }
-    fn draw_base_onto_bitmap_ctx(&self, data: &AppData, ctx: &mut CairoRenderContext) {
+    fn draw_paths_onto_bitmap_ctx(
+        &self,
+        data: &AppData,
+        ctx: &mut CairoRenderContext,
+        bitmap_size: usize,
+        zoom_level: ZoomLevel,
+    ) {
         ctx.save();
-        // don't need to transform since we are just creating an image and it is then the image itself which will be transformed.
-        // tranform
-        // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
-        // ctx.transform(Affine::scale(zoom));
+        // NOTE: don't need to transform for focal point and zoom since we are just creating an image and it is then the image itself which will be transformed. Only need to transform from reference size to actual bitmap size
 
-        let path_width = data.map_zoom_level.path_width(BITMAP_SIZE as f64);
+        // NOTE: can't use ctx.size() since it is not actually defined on RenderContext trait and has not otherwise been defined on CairoRenderContext
+
+        // NOTE: can't use current zoom value since we wan't to create bitmaps at different zoom levels in advance.
+        // let path_width = data.map_zoom_level.path_width(bitmap_size as f64);
+        // path width should use reference size since we are scaling them to the size of the bitmap anyway, else the would be too big/small from the scaling
+        let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
+        ctx.transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
         for (color, _text_color, path) in &self.all_trip_paths_bitmap {
             ctx.stroke(path, color, path_width);
         }
@@ -176,29 +199,31 @@ impl MapWidget {
         // draw paths
         ctx.restore();
     }
-    fn make_bitmap_with_draw_base(
+    fn make_bitmap(
         &self,
         data: &AppData,
         ctx: &mut CairoRenderContext,
+        bitmap_size: usize,
+        zoom_level: ZoomLevel,
     ) -> CairoImage {
         let mut cached_image;
         {
             let mut device = Device::new().unwrap();
             // 0.1 makes the image very small
             // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
-            let mut target = device.bitmap_target(BITMAP_SIZE, BITMAP_SIZE, 1.).unwrap();
+            let mut target = device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
             let mut piet_context = target.render_context();
 
             // piet_context.save();
             // piet_context.transform(Affine::scale(1000. / ctx.size().height));
-            self.draw_base_onto_bitmap_ctx(data, &mut piet_context);
+            self.draw_paths_onto_bitmap_ctx(data, &mut piet_context, bitmap_size, zoom_level);
 
             piet_context.finish().unwrap();
             let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
             cached_image = ctx
                 .make_image(
-                    BITMAP_SIZE,
-                    BITMAP_SIZE,
+                    bitmap_size,
+                    bitmap_size,
                     image_buf.raw_pixels(),
                     ImageFormat::RgbaPremul,
                 )
@@ -212,16 +237,30 @@ impl MapWidget {
         ctx.with_save(|ctx: &mut PaintCtx| {
             let rect = ctx.size().to_rect();
             let zoom = data.map_zoom_level.to_f64();
-            let transformed_focal_point =
-                self.focal_point.to_point(ctx.size() * zoom).to_vec2() * -1.;
+            let transformed_focal_point = self
+                .focal_point
+                .to_point_within_size(ctx.size() * zoom)
+                .to_vec2()
+                * -1.;
             ctx.transform(Affine::translate(transformed_focal_point));
             ctx.transform(Affine::scale(zoom));
             // ctx.stroke(rect, &Color::GRAY, 2.);
-            ctx.draw_image(
-                &self.cached_image.as_ref().unwrap(),
-                rect,
-                InterpolationMode::Bilinear,
-            );
+            match data.map_zoom_level {
+                ZoomLevel::One | ZoomLevel::Two => {
+                    ctx.draw_image(
+                        &self.cached_image_small.as_ref().unwrap(),
+                        rect,
+                        InterpolationMode::Bilinear,
+                    );
+                }
+                ZoomLevel::Five | ZoomLevel::Ten | ZoomLevel::Fifty => {
+                    ctx.draw_image(
+                        &self.cached_image_large.as_ref().unwrap(),
+                        rect,
+                        InterpolationMode::Bilinear,
+                    );
+                }
+            }
         });
     }
     fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
@@ -230,7 +269,7 @@ impl MapWidget {
         // tranform
         let transformed_focal_point = self
             .focal_point
-            .to_point(ctx.size() * data.map_zoom_level.to_f64())
+            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64())
             .to_vec2()
             * -1.;
         ctx.transform(Affine::translate(transformed_focal_point));
@@ -311,7 +350,7 @@ impl MapWidget {
                 .focal_point
                 // .to_point(ctx.size() * data.map_zoom_level.to_f64());
                 // .to_point(ctx.size() * MINIMAP_PROPORTION * zoom);
-                .to_point(ctx.size());
+                .to_point_within_size(ctx.size());
             // // make path which is minimap sized rect with viewfinder hole in it
             let mut shadow = rect.to_path(0.1);
             // shadow.line_to(rect.origin());
@@ -432,11 +471,11 @@ impl Widget<AppData> for MapWidget {
                     self.mouse_position = Some(mouse_event.pos);
 
                     // find and save all hovered paths
-                    let path_width = data.map_zoom_level.path_width(BITMAP_SIZE as f64);
+                    let path_width = data.map_zoom_level.path_width(BITMAP_SIZE_SMALL as f64);
 
                     let transformed_focal_point = self
                         .focal_point
-                        .to_point(ctx.size() * data.map_zoom_level.to_f64());
+                        .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
                     let translated_mouse_position = ((mouse_event.pos.to_vec2()
                         + transformed_focal_point.to_vec2())
                         / data.map_zoom_level.to_f64())
@@ -522,7 +561,7 @@ impl Widget<AppData> for MapWidget {
             Event::MouseUp(mouse_event) => {
                 let transformed_focal_point = self
                     .focal_point
-                    .to_point(ctx.size() * data.map_zoom_level.to_f64());
+                    .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
                 // let transformed_focal_point = Point::new(
                 //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
                 //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
@@ -758,8 +797,8 @@ impl Widget<AppData> for MapWidget {
             if data.map_zoom_level.to_f64() >= 9. {
                 self.immediate_mode = true;
             }
-            self.remake_paths = true;
-            self.recreate_bitmap = true;
+            // self.remake_paths = true;
+            // self.recreate_bitmap = true;
             // self.redraw_highlights = true;
             ctx.request_paint();
         }
@@ -785,7 +824,7 @@ impl Widget<AppData> for MapWidget {
         // }
         println!("layout");
         self.redraw_highlights = true;
-        self.remake_paths = true;
+        // self.remake_paths = true;
         let size = Size::new(100.0, 100.0);
         bc.constrain(size);
         let max = bc.max().height.min(bc.max().width);
@@ -820,7 +859,7 @@ impl Widget<AppData> for MapWidget {
             let long_lat_rect = min_max_trips_coords(&self.trips_coords);
 
             let latlong_to_bitmap = |coord: Point| {
-                MapWidget::latlong_to_canvas(coord, long_lat_rect, BITMAP_SIZE as f64)
+                MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
             };
 
             let latlong_to_ctx =
@@ -854,6 +893,7 @@ impl Widget<AppData> for MapWidget {
                 })
                 .collect::<Vec<_>>();
 
+            // TODO Don't need this for drawing base map, but deleteing it removes hovered paths. Work out if we can delete and what we need to update.
             self.all_trip_paths_canvas = self
                 .trips_coords
                 .iter()
@@ -932,11 +972,14 @@ impl Widget<AppData> for MapWidget {
             println!("{} paint: redraw base: make image", Utc::now());
             self.recreate_bitmap = false;
 
-            let cached_image = self.make_bitmap_with_draw_base(data, ctx);
+            // not remaking paths doesn't actually affect the path widths drawn between zoom levels...
+            let cached_image_small = self.make_bitmap(data, ctx, BITMAP_SIZE_SMALL, ZoomLevel::One);
+            let cached_image_large = self.make_bitmap(data, ctx, BITMAP_SIZE_LARGE, ZoomLevel::Ten);
             if self.minimap_image.is_none() {
-                self.minimap_image = Some(cached_image.clone());
+                self.minimap_image = Some(cached_image_small.clone());
             }
-            self.cached_image = Some(cached_image);
+            self.cached_image_small = Some(cached_image_small);
+            self.cached_image_large = Some(cached_image_large);
         }
         // if self.redraw_highlights {
         //     println!("paint: redraw highlights");
@@ -966,7 +1009,9 @@ impl Widget<AppData> for MapWidget {
         //     self.draw_highlights(data, ctx, rect);
         //     self.draw_minimap(data, ctx, rect);
         // }
-        if data.map_zoom_level.to_f64() > 9. {
+
+        // TODO come up with proper heuristic based on the size of coords or density of paths to determine when to switch to immediate mode, so that it generalises to maps other than SP
+        if data.map_zoom_level.to_f64() > 110. {
             println!("paint: immediate mode");
             self.draw_base_onto_paint_ctx(data, ctx);
             self.draw_highlights(data, ctx);

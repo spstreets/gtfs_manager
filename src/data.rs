@@ -450,6 +450,7 @@ pub struct Edit {
 pub enum ZoomLevel {
     One,
     Two,
+    Five,
     Ten,
     Fifty,
 }
@@ -458,6 +459,7 @@ impl ZoomLevel {
         vec![
             ("1x".to_string(), ZoomLevel::One),
             ("2x".to_string(), ZoomLevel::Two),
+            ("5x".to_string(), ZoomLevel::Five),
             ("10x".to_string(), ZoomLevel::Ten),
             ("50x".to_string(), ZoomLevel::Fifty),
         ]
@@ -466,18 +468,15 @@ impl ZoomLevel {
         match self {
             ZoomLevel::One => 1.,
             ZoomLevel::Two => 2.,
+            ZoomLevel::Five => 5.,
             ZoomLevel::Ten => 10.,
             ZoomLevel::Fifty => 50.,
         }
     }
+    /// canvas_size / (zoom_f64 * 300.)
     pub fn path_width(&self, canvas_size: f64) -> f64 {
-        // match self {
-        //     ZoomLevel::One => canvas_size as f64 / 400.,
-        //     ZoomLevel::Two => canvas_size as f64 / 800.,
-        //     ZoomLevel::Ten => canvas_size as f64 / 1_000.,
-        //     ZoomLevel::Fifty => canvas_size as f64 / 50_000.,
-        // }
-        canvas_size as f64 / (self.to_f64() * 300.)
+        // canvas_size / (300.)
+        canvas_size / (self.to_f64() * 300.)
     }
 }
 
@@ -934,8 +933,8 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // stops: Vector::new(),
         actions: Vector::new(),
         edits: Vector::new(),
-        // map_zoom_level: ZoomLevel::One,
-        map_zoom_level: ZoomLevel::Two,
+        map_zoom_level: ZoomLevel::One,
+        // map_zoom_level: ZoomLevel::Two,
     };
     println!("{:?} finish make_initial_data", Utc::now());
     app_data
