@@ -31,6 +31,14 @@ const BITMAP_SIZE_LARGE: usize = 20_000;
 const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
 
+const PATH_BLACK_BACKGROUND_MULT: f64 = 2.;
+const PATH_WHITE_BACKGROUND_MULT: f64 = 3.;
+const SMALL_CIRCLE_BLACK_BACKGROUND_MULT: f64 = 0.8;
+const SMALL_CIRCLE_MULT: f64 = 0.6;
+const LARGE_CIRCLE_WHITE_BACKGROUND_MULT: f64 = 3.;
+const LARGE_CICLE_BLACK_BACKGROUND_MULT: f64 = 2.5;
+const LARGE_CIRCLE_MULT: f64 = 2.;
+
 /// For storing a point normalised to [0, 1]. However will not panic if values fall outside [0, 1].
 #[derive(Default)]
 struct NormalPoint {
@@ -129,7 +137,7 @@ impl MapWidget {
         (relative_latlong * canvas_max_dimension / latlong_rect.size().max_side()).to_point()
     }
 
-    fn draw_base_onto_paint_ctx(&self, data: &AppData, ctx: &mut PaintCtx) {
+    fn draw_paths_onto_paint_ctx(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.save();
         // tranform
         // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
@@ -170,7 +178,7 @@ impl MapWidget {
         // draw paths
         ctx.restore();
     }
-    fn draw_paths_onto_bitmap_ctx(
+    fn draw_shapes_onto_bitmap_ctx(
         &self,
         data: &AppData,
         ctx: &mut CairoRenderContext,
@@ -216,7 +224,7 @@ impl MapWidget {
 
             // piet_context.save();
             // piet_context.transform(Affine::scale(1000. / ctx.size().height));
-            self.draw_paths_onto_bitmap_ctx(data, &mut piet_context, bitmap_size, zoom_level);
+            self.draw_shapes_onto_bitmap_ctx(data, &mut piet_context, bitmap_size, zoom_level);
 
             piet_context.finish().unwrap();
             let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
@@ -233,7 +241,7 @@ impl MapWidget {
     }
 
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
-    fn draw_base_from_cache(&self, data: &AppData, ctx: &mut PaintCtx) {
+    fn draw_onto_paint_context(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.with_save(|ctx: &mut PaintCtx| {
             let rect = ctx.size().to_rect();
             let zoom = data.map_zoom_level.to_f64();
@@ -274,16 +282,17 @@ impl MapWidget {
             * -1.;
         ctx.transform(Affine::translate(transformed_focal_point));
         ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
+
         let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
-        let path_bb = path_width * 2.;
-        let path_wb = path_width * 3.;
+        let path_bb = path_width * PATH_BLACK_BACKGROUND_MULT;
+        let path_wb = path_width * PATH_WHITE_BACKGROUND_MULT;
 
-        let s_circle_bb = path_width * 0.8;
-        let s_circle = path_width * 0.6;
+        let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
+        let s_circle = path_width * SMALL_CIRCLE_MULT;
 
-        let l_circle_wb = path_width * 3.;
-        let l_circle_bb = path_width * 2.5;
-        let l_circle = path_width * 2.;
+        let l_circle_wb = path_width * LARGE_CIRCLE_WHITE_BACKGROUND_MULT;
+        let l_circle_bb = path_width * LARGE_CICLE_BLACK_BACKGROUND_MULT;
+        let l_circle = path_width * LARGE_CIRCLE_MULT;
 
         // draw paths
         for (_, color, text_color, path) in &self.filtered_trip_paths {
@@ -500,7 +509,23 @@ impl Widget<AppData> for MapWidget {
                                     let stop_index =
                                         *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
                                     let point = self.stop_circles_canvas[stop_index];
-                                    if Circle::new(point, 5.).contains(translated_mouse_position) {
+
+                                    // stop_circles canvas is just sized to the canvas
+                                    // they are then transformed for zoom and focal point before drawing on the canvas.
+                                    // rather than transforming the circle, we are intead transforming the mouse position, so the size of the circle we are checking in has not been scaled. Divding the radius of the circle by the zoom seems like it should be the solution but doesn't work
+                                    // in self.draw_highlights() the ctx is scaled before drawing so: the path width and circle radius are scaled
+                                    let path_width =
+                                        data.map_zoom_level.path_width(ctx.size().max_side());
+                                    // TODO not sure about this
+                                    // let s_circle_bb = path_width
+                                    //     * SMALL_CIRCLE_BLACK_BACKGROUND_MULT
+                                    //     / data.map_zoom_level.to_f64();
+                                    let s_circle_bb =
+                                        path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
+
+                                    if Circle::new(point, s_circle_bb)
+                                        .contains(translated_mouse_position)
+                                    {
                                         data.hovered_stop_time_id =
                                             Some((trip_id.clone(), stop_time.stop_sequence));
                                         break;
@@ -1013,12 +1038,12 @@ impl Widget<AppData> for MapWidget {
         // TODO come up with proper heuristic based on the size of coords or density of paths to determine when to switch to immediate mode, so that it generalises to maps other than SP
         if data.map_zoom_level.to_f64() > 110. {
             println!("paint: immediate mode");
-            self.draw_base_onto_paint_ctx(data, ctx);
+            self.draw_paths_onto_paint_ctx(data, ctx);
             self.draw_highlights(data, ctx);
             self.draw_minimap(data, ctx);
         } else {
             println!("paint: use cache");
-            self.draw_base_from_cache(data, ctx);
+            self.draw_onto_paint_context(data, ctx);
             // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
             self.draw_highlights(data, ctx);
             self.draw_minimap(data, ctx);
