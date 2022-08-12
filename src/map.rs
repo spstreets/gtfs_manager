@@ -406,50 +406,26 @@ impl MapWidget {
             // ctx.stroke(rect, &Color::RED, 4. * zoom);
         });
     }
-    // fn find_hovered_paths(
-    //     &self,
-    //     data: &AppData,
-    //     ctx: &EventCtx,
-    //     mouse_position: Point,
-    // ) -> Vec<(String, Color, Color, BezPath)> {
-    //     // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
-    //     let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
-    //     let transformed_focal_point = self
-    //         .focal_point
-    //         .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-    //     // needs to also take into account scaling from REFERENCE_SIZE
-    //     let translated_mouse_position = ((mouse_position.to_vec2()
-    //         + transformed_focal_point.to_vec2())
-    //         / data.map_zoom_level.to_f64())
-    //     .to_point();
 
-    //     let mut hovered_trip_paths = Vec::new();
-    //     let path_width2 = path_width * path_width;
-    //     // for (i, box_group) in self.all_trip_paths_bitmap_grouped.iter().enumerate() {
-    //     for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
-    //         let (rect, paths) = box_group;
-    //         if rect.contains(translated_mouse_position) {
-    //             // println!("in box: {}", i);
-    //             for (id, color, text_color, path) in paths {
-    //                 for seg in path.segments() {
-    //                     // NOTE accuracy arg in .nearest() isn't used for lines
-    //                     // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
-    //                     if seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2 {
-    //                         // dbg!(id);
-    //                         hovered_trip_paths.push((
-    //                             id.clone(),
-    //                             color.clone(),
-    //                             text_color.clone(),
-    //                             path.clone(),
-    //                         ));
-    //                         break;
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     hovered_trip_paths
-    // }
+    fn is_path_hovered(
+        &self,
+        data: &AppData,
+        ctx: &EventCtx,
+        path: &BezPath,
+        mouse_position: Point,
+    ) -> bool {
+        let transformed_focal_point = self
+            .focal_point
+            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+        let translated_mouse_position = ((mouse_position.to_vec2()
+            + transformed_focal_point.to_vec2())
+            / data.map_zoom_level.to_f64())
+        .to_point();
+        let path_width = data.map_zoom_level.path_width(BITMAP_SIZE_SMALL as f64);
+        let path_width2 = path_width * path_width;
+        path.segments()
+            .any(|seg| seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2)
+    }
     fn find_hovered_paths(
         &self,
         data: &AppData,
@@ -505,6 +481,49 @@ impl MapWidget {
             }
         }
         hovered_trip_paths
+    }
+    fn find_hovered_stop_time(
+        &self,
+        data: &AppData,
+        ctx: &EventCtx,
+        mouse_position: Point,
+        trip_id: String,
+    ) -> Option<(String, u16)> {
+        let transformed_focal_point = self
+            .focal_point
+            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+        let translated_mouse_position = ((mouse_position.to_vec2()
+            + transformed_focal_point.to_vec2())
+            / data.map_zoom_level.to_f64())
+        .to_point();
+
+        if let Some(stop_times_range) = data.stop_time_range_from_trip_id.get(&trip_id) {
+            for i in stop_times_range.0..stop_times_range.1 {
+                let stop_time = data.stop_times.get(i).unwrap();
+                let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
+                let point = self.stop_circles_canvas[stop_index];
+
+                // stop_circles canvas is just sized to the canvas
+                // they are then transformed for zoom and focal point before drawing on the canvas.
+                // rather than transforming the circle, we are intead transforming the mouse position, so the size of the circle we are checking in has not been scaled. Divding the radius of the circle by the zoom seems like it should be the solution but doesn't work
+                // in self.draw_highlights() the ctx is scaled before drawing so: the path width and circle radius are scaled
+                let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+                // TODO not sure about this
+                // let s_circle_bb = path_width
+                //     * SMALL_CIRCLE_BLACK_BACKGROUND_MULT
+                //     / data.map_zoom_level.to_f64();
+                let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
+
+                if Circle::new(point, s_circle_bb).contains(translated_mouse_position) {
+                    // data.hovered_stop_time_id = Some((trip_id.clone(), stop_time.stop_sequence));
+                    return Some((trip_id.clone(), stop_time.stop_sequence));
+                    // break;
+                }
+            }
+            None
+        } else {
+            panic!("trip_id not found");
+        }
     }
 }
 
@@ -568,59 +587,22 @@ impl Widget<AppData> for MapWidget {
                     println!("mouse move: check for highlight");
                     self.mouse_position = Some(mouse_event.pos);
 
-                    // find and save all hovered paths
-                    let path_width = data.map_zoom_level.path_width(BITMAP_SIZE_SMALL as f64);
-
-                    let transformed_focal_point = self
-                        .focal_point
-                        .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-                    let translated_mouse_position = ((mouse_event.pos.to_vec2()
-                        + transformed_focal_point.to_vec2())
-                        / data.map_zoom_level.to_f64())
-                    .to_point();
-
                     // if hovering a stop on a selected path, highlight/englarge it
                     if let Some((trip_id, color, text_color, path)) = &self.selected_trip_path {
                         // println!("mouse move: check for hover: stop");
                         // TODO below is still going too slow and will cause a backup after lots of mouse move events - seems to be fixed now
 
                         // check if we are over selected path and then check for stop time, else check hovering paths
-                        let path_width2 = path_width * path_width;
-                        if path.segments().any(|seg| {
-                            seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2
-                        }) {
+
+                        if self.is_path_hovered(data, ctx, path, mouse_event.pos) {
                             self.hovered_trip_paths = Vec::new();
-                            if let Some(stop_times_range) =
-                                data.stop_time_range_from_trip_id.get(trip_id)
-                            {
-                                for i in stop_times_range.0..stop_times_range.1 {
-                                    let stop_time = data.stop_times.get(i).unwrap();
-                                    let stop_index =
-                                        *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
-                                    let point = self.stop_circles_canvas[stop_index];
 
-                                    // stop_circles canvas is just sized to the canvas
-                                    // they are then transformed for zoom and focal point before drawing on the canvas.
-                                    // rather than transforming the circle, we are intead transforming the mouse position, so the size of the circle we are checking in has not been scaled. Divding the radius of the circle by the zoom seems like it should be the solution but doesn't work
-                                    // in self.draw_highlights() the ctx is scaled before drawing so: the path width and circle radius are scaled
-                                    let path_width =
-                                        data.map_zoom_level.path_width(ctx.size().max_side());
-                                    // TODO not sure about this
-                                    // let s_circle_bb = path_width
-                                    //     * SMALL_CIRCLE_BLACK_BACKGROUND_MULT
-                                    //     / data.map_zoom_level.to_f64();
-                                    let s_circle_bb =
-                                        path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
-
-                                    if Circle::new(point, s_circle_bb)
-                                        .contains(translated_mouse_position)
-                                    {
-                                        data.hovered_stop_time_id =
-                                            Some((trip_id.clone(), stop_time.stop_sequence));
-                                        break;
-                                    }
-                                }
-                            }
+                            data.hovered_stop_time_id = self.find_hovered_stop_time(
+                                data,
+                                ctx,
+                                mouse_event.pos,
+                                trip_id.clone(),
+                            );
                         } else {
                             // check if hovering a path
                             println!("mouse move: check for hover: path");
