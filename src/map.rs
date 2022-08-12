@@ -388,9 +388,20 @@ impl MapWidget {
     }
     fn find_hovered_paths(
         &self,
-        translated_mouse_position: Point,
-        path_width: f64,
+        data: &AppData,
+        ctx: &EventCtx,
+        mouse_position: Point,
     ) -> Vec<(String, Color, Color, BezPath)> {
+        let path_width = data.map_zoom_level.path_width(BITMAP_SIZE_SMALL as f64);
+
+        let transformed_focal_point = self
+            .focal_point
+            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+        let translated_mouse_position = ((mouse_position.to_vec2()
+            + transformed_focal_point.to_vec2())
+            / data.map_zoom_level.to_f64())
+        .to_point();
+
         let mut hovered_trip_paths = Vec::new();
         let path_width2 = path_width * path_width;
         for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
@@ -536,7 +547,7 @@ impl Widget<AppData> for MapWidget {
                             // check if hovering a path
                             println!("mouse move: check for hover: path");
                             let hovered_trip_paths =
-                                self.find_hovered_paths(translated_mouse_position, path_width);
+                                self.find_hovered_paths(data, ctx, mouse_event.pos);
 
                             if self.hovered_trip_paths != hovered_trip_paths {
                                 println!("mouse move: highlights changed");
@@ -548,7 +559,7 @@ impl Widget<AppData> for MapWidget {
                         // check if hovering a path
                         println!("mouse move: check for hover: path");
                         let hovered_trip_paths =
-                            self.find_hovered_paths(translated_mouse_position, path_width);
+                            self.find_hovered_paths(data, ctx, mouse_event.pos);
 
                         if self.hovered_trip_paths != hovered_trip_paths {
                             println!("mouse move: highlights changed");
@@ -623,6 +634,7 @@ impl Widget<AppData> for MapWidget {
                                         SELECT_STOP_TIME.with(hovered_stop_time_id.clone()),
                                     );
                                 }
+                                // NOTE: keep below incase we want to be able to hover/select any stop rather than just stop_times of selected trip?
                                 // drawing larger stops on top of path selection
                                 // if let Some(stop_times_range) =
                                 //     data.stop_time_range_from_trip_id.get(trip_id)
