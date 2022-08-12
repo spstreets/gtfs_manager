@@ -86,12 +86,9 @@ fn min_max_trips_coords(trips: &Vec<Vec<Point>>) -> Rect {
 #[derive(Default)]
 pub struct MapWidget {
     mouse_position: Option<Point>,
-    all_trip_paths_bitmap: Vec<(String, Color, Color, BezPath)>,
-    all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
-    all_trip_paths_canvas_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
-    // all_trip_paths_canvas_translated: Vec<BezPath>,
     /// (trip_id, color, text_color, path)
-    all_trip_paths_canvas: Vec<(String, Color, Color, BezPath)>,
+    all_trip_paths: Vec<(String, Color, Color, BezPath)>,
+    all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
     hovered_trip_paths: Vec<(String, Color, Color, BezPath)>,
     filtered_trip_paths: Vec<(String, Color, Color, BezPath)>,
     deleted_trip_paths: Vec<(String, Color, Color, BezPath)>,
@@ -100,7 +97,7 @@ pub struct MapWidget {
     // stop_circles: Vec<Circle>,
     // highlighted_stop_circle: Option<Circle>,
     // selected_stop_circle: Option<Circle>,
-    stop_circles_base: Vec<Point>,
+    stop_circles: Vec<Point>,
     stop_circles_canvas: Vec<Point>,
     highlighted_stop_circle: Option<Point>,
     selected_stop_circle: Option<Point>,
@@ -166,15 +163,15 @@ impl MapWidget {
         let s_circle_bb = path_width * 0.8;
         let s_circle = path_width * 0.6;
 
-        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_bitmap {
+        for (_trip_id, color, _text_color, path) in &self.all_trip_paths {
             // for (_trip_id, color, _text_color, path) in &self.all_trip_paths_canvas {
             ctx.stroke(path, color, path_width);
         }
 
-        // for (point, stop) in self.stop_circles_canvas.iter().zip(data.stops.iter()) {
-        //     ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
-        //     ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
-        // }
+        for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+            ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
+            ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
+        }
 
         // draw paths
         ctx.restore();
@@ -196,11 +193,11 @@ impl MapWidget {
         // path width should use reference size since we are scaling them to the size of the bitmap anyway, else the would be too big/small from the scaling
         let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
         ctx.transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
-        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_bitmap {
+        for (_trip_id, color, _text_color, path) in &self.all_trip_paths {
             ctx.stroke(path, color, path_width);
         }
 
-        for (point, stop) in self.stop_circles_base.iter().zip(data.stops.iter()) {
+        for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
             ctx.fill(Circle::new(*point, path_width * 0.4), &Color::BLACK);
             ctx.fill(Circle::new(*point, path_width * 0.2), &Color::WHITE);
         }
@@ -277,15 +274,6 @@ impl MapWidget {
         ctx.save();
 
         // tranform
-        // let transformed_focal_point = self
-        //     .focal_point
-        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64())
-        //     .to_vec2()
-        //     * -1.;
-        // ctx.transform(Affine::translate(transformed_focal_point));
-        // ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
-        // let ctx_max_side = ctx.size().max_side();
-        // ctx.transform(Affine::scale(ctx_max_side / REFERENCE_SIZE as f64));
 
         // get focal point in context of zoomed canvas, and reverse.
         // eg canvas 100^2, zoom x2, and a center focal point gives the point (-100,-100). So if we start drawing the 200^2 map here then the the center of the map will be at (0,0) as expected
@@ -335,7 +323,7 @@ impl MapWidget {
                     let stop_time = data.stop_times.get(i).unwrap();
                     let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
                     // let point = self.stop_circles_canvas[stop_index];
-                    let point = self.stop_circles_base[stop_index];
+                    let point = self.stop_circles[stop_index];
                     let stop = data.stops.get(stop_index).unwrap();
                     ctx.fill(Circle::new(point.clone(), s_circle_bb), &Color::BLACK);
                     ctx.fill(Circle::new(point.clone(), s_circle), &Color::WHITE);
@@ -376,14 +364,9 @@ impl MapWidget {
             let zoom = data.map_zoom_level.to_f64();
             ctx.clip(rect);
             // Not sure why I need to use ctx.size() here rather than eg ctx.size() * MINIMAP_PROPORTION
-            let transformed_focal_point = self
-                .focal_point
-                // .to_point(ctx.size() * data.map_zoom_level.to_f64());
-                // .to_point(ctx.size() * MINIMAP_PROPORTION * zoom);
-                .to_point_within_size(ctx.size());
+            let transformed_focal_point = self.focal_point.to_point_within_size(ctx.size());
             // // make path which is minimap sized rect with viewfinder hole in it
             let mut shadow = rect.to_path(0.1);
-            // shadow.line_to(rect.origin());
             // // ctx.clip(shape)
             let inner_rect = rect
                 .with_size(rect.size() / zoom)
@@ -396,15 +379,7 @@ impl MapWidget {
             // ctx.clip(inner_rect.scale_from_origin(-1.));
 
             ctx.fill_even_odd(shadow, &Color::rgba(0., 0., 0., 0.5));
-            // ctx.stroke(shadow, &Color::rgba(0., 0., 0., 0.5), 4.);
             ctx.stroke(inner_rect, &Color::RED, 4.);
-            // ctx.fill(shadow, &Color::RED);
-            // ctx.fill_even_odd(shadow, &Color::RED);
-            // ctx.transform(Affine::scale(1. / zoom));
-            // ctx.transform(Affine::translate(transformed_focal_point.to_vec2()));
-            // ctx.stroke(rect, &Color::GRAY, 4. * zoom);
-            // ctx.fill(rect, &Color::RED);
-            // ctx.stroke(rect, &Color::RED, 4. * zoom);
         });
     }
 
@@ -415,14 +390,6 @@ impl MapWidget {
         path: &BezPath,
         mouse_position: Point,
     ) -> bool {
-        // let transformed_focal_point = self
-        //     .focal_point
-        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        // let translated_mouse_position = ((mouse_position.to_vec2()
-        //     + transformed_focal_point.to_vec2())
-        //     / data.map_zoom_level.to_f64())
-        // .to_point();
-
         let transformed_focal_point = self
             .focal_point
             .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
@@ -502,13 +469,6 @@ impl MapWidget {
         mouse_position: Point,
         trip_id: String,
     ) -> Option<(String, u16)> {
-        // let transformed_focal_point = self
-        //     .focal_point
-        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        // let translated_mouse_position = ((mouse_position.to_vec2()
-        //     + transformed_focal_point.to_vec2())
-        //     / data.map_zoom_level.to_f64())
-        // .to_point();
         let transformed_focal_point = self
             .focal_point
             .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
@@ -524,25 +484,13 @@ impl MapWidget {
             for i in stop_times_range.0..stop_times_range.1 {
                 let stop_time = data.stop_times.get(i).unwrap();
                 let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
-                // let point = self.stop_circles_canvas[stop_index];
-                let point = self.stop_circles_base[stop_index];
+                let point = self.stop_circles[stop_index];
 
-                // stop_circles canvas is just sized to the canvas
-                // they are then transformed for zoom and focal point before drawing on the canvas.
-                // rather than transforming the circle, we are intead transforming the mouse position, so the size of the circle we are checking in has not been scaled. Divding the radius of the circle by the zoom seems like it should be the solution but doesn't work
-                // in self.draw_highlights() the ctx is scaled before drawing so: the path width and circle radius are scaled
-                // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
                 let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
-                // TODO not sure about this
-                // let s_circle_bb = path_width
-                //     * SMALL_CIRCLE_BLACK_BACKGROUND_MULT
-                //     / data.map_zoom_level.to_f64();
                 let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
 
                 if Circle::new(point, s_circle_bb).contains(translated_mouse_position) {
-                    // data.hovered_stop_time_id = Some((trip_id.clone(), stop_time.stop_sequence));
                     return Some((trip_id.clone(), stop_time.stop_sequence));
-                    // break;
                 }
             }
             None
@@ -838,7 +786,7 @@ impl Widget<AppData> for MapWidget {
         if !data.selected_trip_id.same(&old_data.selected_trip_id) {
             println!("update: selected_trip: paint");
             self.selected_trip_path = self
-                .all_trip_paths_bitmap
+                .all_trip_paths
                 .iter()
                 .find(|path| {
                     if let Some(trip_id) = &data.selected_trip_id {
@@ -858,7 +806,7 @@ impl Widget<AppData> for MapWidget {
                         .map(|trip| trip.id.clone())
                         .collect::<Vec<_>>();
                     self.filtered_trip_paths = self
-                        .all_trip_paths_canvas
+                        .all_trip_paths
                         .iter()
                         .filter(|(id, _color, text_color, _path)| trip_ids.contains(id))
                         .cloned()
@@ -895,7 +843,7 @@ impl Widget<AppData> for MapWidget {
                     .map(|trip| trip.id.clone())
                     .collect::<Vec<_>>();
                 self.filtered_trip_paths = self
-                    .all_trip_paths_canvas
+                    .all_trip_paths
                     .iter()
                     .filter(|(id, _color, text_color, _path)| trip_ids.contains(id))
                     .cloned()
@@ -995,7 +943,7 @@ impl Widget<AppData> for MapWidget {
             // TODO should be making data in update or on_added, not paint
             // translate trip paths to a given canvas size and store colors
             println!("{} paint: redraw base: make paths", Utc::now());
-            self.all_trip_paths_bitmap = self
+            self.all_trip_paths = self
                 .trips_coords
                 .iter()
                 .zip(data.trips.iter())
@@ -1021,67 +969,7 @@ impl Widget<AppData> for MapWidget {
                 })
                 .collect::<Vec<_>>();
 
-            // TODO Don't need this for drawing base map, but deleteing it removes hovered paths. Work out if we can delete and what we need to update.
-            self.all_trip_paths_canvas = self
-                .trips_coords
-                .iter()
-                .zip(data.trips.iter())
-                .filter(|(_coords, trip)| trip.visible)
-                .map(|(coords, trip)| {
-                    let route = data
-                        .routes
-                        .iter()
-                        .find(|route| route.id == trip.route_id)
-                        .unwrap();
-                    let RGB { r, g, b } = route.color.0;
-                    let color = Color::rgb8(r, g, b);
-                    let RGB { r, g, b } = route.text_color.0;
-                    let text_color = Color::rgb8(r, g, b);
-                    (
-                        trip.id.clone(),
-                        color,
-                        text_color,
-                        bez_path_from_coords_iter(
-                            coords.iter().map(|coord| latlong_to_ctx(*coord)),
-                        ),
-                    )
-                })
-                .collect::<Vec<_>>();
-
             println!("{} paint: redraw base: group paths", Utc::now());
-            for m in 0..NUMBER_TILES_WIDTH {
-                for n in 0..NUMBER_TILES_WIDTH {
-                    let rect = Rect::from_origin_size(
-                        (
-                            ctx.size().width * m as f64 / NUMBER_TILES_WIDTH as f64,
-                            ctx.size().height * n as f64 / NUMBER_TILES_WIDTH as f64,
-                        ),
-                        (
-                            ctx.size().width / NUMBER_TILES_WIDTH as f64,
-                            ctx.size().height / NUMBER_TILES_WIDTH as f64,
-                        ),
-                    );
-                    let mut group_paths = Vec::new();
-                    // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                    for (id, color, text_color, trip_path) in &self.all_trip_paths_canvas {
-                        for seg in trip_path.segments() {
-                            if rect.contains(seg.as_line().unwrap().p0)
-                                || rect.contains(seg.as_line().unwrap().p1)
-                            {
-                                group_paths.push((
-                                    id.clone(),
-                                    color.clone(),
-                                    text_color.clone(),
-                                    trip_path.clone(),
-                                ));
-                                break;
-                            }
-                        }
-                    }
-                    self.all_trip_paths_canvas_grouped.push((rect, group_paths));
-                }
-            }
-
             for m in 0..NUMBER_TILES_WIDTH {
                 for n in 0..NUMBER_TILES_WIDTH {
                     let rect = Rect::from_origin_size(
@@ -1096,7 +984,7 @@ impl Widget<AppData> for MapWidget {
                     );
                     let mut group_paths = Vec::new();
                     // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                    for (id, color, text_color, trip_path) in &self.all_trip_paths_bitmap {
+                    for (id, color, text_color, trip_path) in &self.all_trip_paths {
                         for seg in trip_path.segments() {
                             if rect.contains(seg.as_line().unwrap().p0)
                                 || rect.contains(seg.as_line().unwrap().p1)
@@ -1115,7 +1003,7 @@ impl Widget<AppData> for MapWidget {
                 }
             }
 
-            self.stop_circles_base = data
+            self.stop_circles = data
                 .stops
                 .iter()
                 .map(|stop| latlong_to_bitmap(stop.latlong))
