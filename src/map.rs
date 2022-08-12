@@ -334,7 +334,8 @@ impl MapWidget {
                 for i in stop_times_range.0..stop_times_range.1 {
                     let stop_time = data.stop_times.get(i).unwrap();
                     let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
-                    let point = self.stop_circles_canvas[stop_index];
+                    // let point = self.stop_circles_canvas[stop_index];
+                    let point = self.stop_circles_base[stop_index];
                     let stop = data.stops.get(stop_index).unwrap();
                     ctx.fill(Circle::new(point.clone(), s_circle_bb), &Color::BLACK);
                     ctx.fill(Circle::new(point.clone(), s_circle), &Color::WHITE);
@@ -414,15 +415,27 @@ impl MapWidget {
         path: &BezPath,
         mouse_position: Point,
     ) -> bool {
+        // let transformed_focal_point = self
+        //     .focal_point
+        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+        // let translated_mouse_position = ((mouse_position.to_vec2()
+        //     + transformed_focal_point.to_vec2())
+        //     / data.map_zoom_level.to_f64())
+        // .to_point();
+
         let transformed_focal_point = self
             .focal_point
             .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        let translated_mouse_position = ((mouse_position.to_vec2()
-            + transformed_focal_point.to_vec2())
+        let translated_mouse_position =
+            (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
+
+        let translated_mouse_position = (translated_mouse_position
+            * (REFERENCE_SIZE as f64 / ctx.size().max_side())
             / data.map_zoom_level.to_f64())
         .to_point();
-        let path_width = data.map_zoom_level.path_width(BITMAP_SIZE_SMALL as f64);
+        let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
         let path_width2 = path_width * path_width;
+
         path.segments()
             .any(|seg| seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2)
     }
@@ -489,11 +502,21 @@ impl MapWidget {
         mouse_position: Point,
         trip_id: String,
     ) -> Option<(String, u16)> {
+        // let transformed_focal_point = self
+        //     .focal_point
+        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+        // let translated_mouse_position = ((mouse_position.to_vec2()
+        //     + transformed_focal_point.to_vec2())
+        //     / data.map_zoom_level.to_f64())
+        // .to_point();
         let transformed_focal_point = self
             .focal_point
             .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        let translated_mouse_position = ((mouse_position.to_vec2()
-            + transformed_focal_point.to_vec2())
+        let translated_mouse_position =
+            (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
+
+        let translated_mouse_position = (translated_mouse_position
+            * (REFERENCE_SIZE as f64 / ctx.size().max_side())
             / data.map_zoom_level.to_f64())
         .to_point();
 
@@ -501,13 +524,15 @@ impl MapWidget {
             for i in stop_times_range.0..stop_times_range.1 {
                 let stop_time = data.stop_times.get(i).unwrap();
                 let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
-                let point = self.stop_circles_canvas[stop_index];
+                // let point = self.stop_circles_canvas[stop_index];
+                let point = self.stop_circles_base[stop_index];
 
                 // stop_circles canvas is just sized to the canvas
                 // they are then transformed for zoom and focal point before drawing on the canvas.
                 // rather than transforming the circle, we are intead transforming the mouse position, so the size of the circle we are checking in has not been scaled. Divding the radius of the circle by the zoom seems like it should be the solution but doesn't work
                 // in self.draw_highlights() the ctx is scaled before drawing so: the path width and circle radius are scaled
-                let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+                // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+                let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
                 // TODO not sure about this
                 // let s_circle_bb = path_width
                 //     * SMALL_CIRCLE_BLACK_BACKGROUND_MULT
