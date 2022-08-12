@@ -86,7 +86,8 @@ fn min_max_trips_coords(trips: &Vec<Vec<Point>>) -> Rect {
 #[derive(Default)]
 pub struct MapWidget {
     mouse_position: Option<Point>,
-    all_trip_paths_bitmap: Vec<(Color, Color, BezPath)>,
+    all_trip_paths_bitmap: Vec<(String, Color, Color, BezPath)>,
+    all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
     all_trip_paths_canvas_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
     // all_trip_paths_canvas_translated: Vec<BezPath>,
     /// (trip_id, color, text_color, path)
@@ -165,7 +166,7 @@ impl MapWidget {
         let s_circle_bb = path_width * 0.8;
         let s_circle = path_width * 0.6;
 
-        for (color, _text_color, path) in &self.all_trip_paths_bitmap {
+        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_bitmap {
             // for (_trip_id, color, _text_color, path) in &self.all_trip_paths_canvas {
             ctx.stroke(path, color, path_width);
         }
@@ -195,7 +196,7 @@ impl MapWidget {
         // path width should use reference size since we are scaling them to the size of the bitmap anyway, else the would be too big/small from the scaling
         let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
         ctx.transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
-        for (color, _text_color, path) in &self.all_trip_paths_bitmap {
+        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_bitmap {
             ctx.stroke(path, color, path_width);
         }
 
@@ -274,14 +275,33 @@ impl MapWidget {
     fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
         // what is ctx.save() for? doing transforms which we want to be temporary
         ctx.save();
+
         // tranform
+        // let transformed_focal_point = self
+        //     .focal_point
+        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64())
+        //     .to_vec2()
+        //     * -1.;
+        // ctx.transform(Affine::translate(transformed_focal_point));
+        // ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
+        // let ctx_max_side = ctx.size().max_side();
+        // ctx.transform(Affine::scale(ctx_max_side / REFERENCE_SIZE as f64));
+
+        // get focal point in context of zoomed canvas, and reverse.
+        // eg canvas 100^2, zoom x2, and a center focal point gives the point (-100,-100). So if we start drawing the 200^2 map here then the the center of the map will be at (0,0) as expected
+        // what if the paths were sized to a 400^2 canvas/bitmap? say one of these paths took up a (0,0) to (100,100) space then, keeping the same transforms as before, it would cover the same area as before, (-100,-100) to (100,100) so we starting painting the 400^2 a little before the canvas starts but then the final 3/4 is painted after the canvas. ie only the top left quarter of paths will be drawn between (-100,-100) and (100,100). This bitmap is x4 the size of the canvas. what if we just scale again by x100/400? Then the origin would remain (-100,-100). a 100^2 sized path, would now rather than extend to (100,100), reduce to (0,0) at 1/2 (original case) with just translate no scale, and then (-50,-50) at 1/4 so the entire 400^2 paths would end at (100,100), perfect!
         let transformed_focal_point = self
             .focal_point
             .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64())
+            // .to_point_within_size(BITMAP_SIZE_REFERENCE as f64 * data.map_zoom_level.to_f64())
             .to_vec2()
             * -1.;
+        // now we translate the canvas to the focal point, so following the example we are now painting the point (0,0) at (-100,-100) on the canvas
         ctx.transform(Affine::translate(transformed_focal_point));
+        // given the paths already sized to the 100^2 canvas, if we draw them now with origin (-100,-100) we would not see anything, so we need to scale the context by the zoom amount, so that drawing with origin (-100,-100) the paths take up 200^2 space so the bottom right quarter covers the canvas
         ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
+        let ctx_max_side = ctx.size().max_side();
+        ctx.transform(Affine::scale(ctx_max_side / REFERENCE_SIZE as f64));
 
         let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
         let path_bb = path_width * PATH_BLACK_BACKGROUND_MULT;
@@ -295,15 +315,15 @@ impl MapWidget {
         let l_circle = path_width * LARGE_CIRCLE_MULT;
 
         // draw paths
-        for (_, color, text_color, path) in &self.filtered_trip_paths {
-            ctx.stroke(path, &Color::BLACK, path_bb);
-            ctx.stroke(path, color, path_width);
-        }
+        // for (_, color, text_color, path) in &self.filtered_trip_paths {
+        //     ctx.stroke(path, &Color::BLACK, path_bb);
+        //     ctx.stroke(path, color, path_width);
+        // }
         for (_, color, text_color, path) in &self.hovered_trip_paths {
             ctx.stroke(path, &Color::BLACK, path_bb);
             ctx.stroke(path, color, path_width);
         }
-        dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
+        // dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
 
         if let Some((id, color, text_color, path)) = &self.selected_trip_path {
             ctx.stroke(path, &Color::WHITE, path_wb);
@@ -386,25 +406,83 @@ impl MapWidget {
             // ctx.stroke(rect, &Color::RED, 4. * zoom);
         });
     }
+    // fn find_hovered_paths(
+    //     &self,
+    //     data: &AppData,
+    //     ctx: &EventCtx,
+    //     mouse_position: Point,
+    // ) -> Vec<(String, Color, Color, BezPath)> {
+    //     // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+    //     let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+    //     let transformed_focal_point = self
+    //         .focal_point
+    //         .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+    //     // needs to also take into account scaling from REFERENCE_SIZE
+    //     let translated_mouse_position = ((mouse_position.to_vec2()
+    //         + transformed_focal_point.to_vec2())
+    //         / data.map_zoom_level.to_f64())
+    //     .to_point();
+
+    //     let mut hovered_trip_paths = Vec::new();
+    //     let path_width2 = path_width * path_width;
+    //     // for (i, box_group) in self.all_trip_paths_bitmap_grouped.iter().enumerate() {
+    //     for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
+    //         let (rect, paths) = box_group;
+    //         if rect.contains(translated_mouse_position) {
+    //             // println!("in box: {}", i);
+    //             for (id, color, text_color, path) in paths {
+    //                 for seg in path.segments() {
+    //                     // NOTE accuracy arg in .nearest() isn't used for lines
+    //                     // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
+    //                     if seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2 {
+    //                         // dbg!(id);
+    //                         hovered_trip_paths.push((
+    //                             id.clone(),
+    //                             color.clone(),
+    //                             text_color.clone(),
+    //                             path.clone(),
+    //                         ));
+    //                         break;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     hovered_trip_paths
+    // }
     fn find_hovered_paths(
         &self,
         data: &AppData,
         ctx: &EventCtx,
         mouse_position: Point,
     ) -> Vec<(String, Color, Color, BezPath)> {
-        let path_width = data.map_zoom_level.path_width(BITMAP_SIZE_SMALL as f64);
+        // so we are trying to determine if a mouse Point which is bounded canvas coords but what it is hovering in the canvas might have been scaled and/or translated, and is over a path in REFERENCE_SIZE coords.
+        // so lets say the map is zoomed x2, the focal point is CENTER, and the canvas is 100^2
+        // so the origin of the map is at (-100,100) and the end is at (100,100). a path being hovered at (0,0) is actually the center of the map, so should be translated to             (REFERENCE_SIZE/2,REFERENCE_SIZE/2). So we could work out what the normalised point is, ie (0.5,0.5) and then find that point in REFERENCE_SIZE?
 
-        let transformed_focal_point = self
-            .focal_point
-            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        let translated_mouse_position = ((mouse_position.to_vec2()
-            + transformed_focal_point.to_vec2())
+        // so following the example this gives use the focal point in the scaled 200^2 ctx which would be (100,100)
+        let transformed_focal_point = self.focal_point.to_point_within_size(
+            // Size::new(REFERENCE_SIZE as f64, REFERENCE_SIZE as f64) * data.map_zoom_level.to_f64(),
+            ctx.size() * data.map_zoom_level.to_f64(),
+        );
+
+        // now we have the focal point of the zoomed map, we want to move the focal point to the origin (so translate everything (100,100)) whilst keeping the mouse pointing at the same thing, so subtract the focal point from the mouse position
+        // needs to also take into account scaling from REFERENCE_SIZE
+        let translated_mouse_position =
+            (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
+
+        // now we have the mouse position relative to a non-translated, but scaled/zoomed, 200^2 ctx. We want the mouse relative to a REFERENCE_SIZE ctx. so divide it by 2, then multiple by REFERENCE_SIZE / ctx.size().max_side
+        let translated_mouse_position = (translated_mouse_position
+            * (REFERENCE_SIZE as f64 / ctx.size().max_side())
             / data.map_zoom_level.to_f64())
         .to_point();
 
         let mut hovered_trip_paths = Vec::new();
+        // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+        let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
         let path_width2 = path_width * path_width;
-        for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
+        for (i, box_group) in self.all_trip_paths_bitmap_grouped.iter().enumerate() {
+            // for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
             let (rect, paths) = box_group;
             if rect.contains(translated_mouse_position) {
                 // println!("in box: {}", i);
@@ -753,7 +831,7 @@ impl Widget<AppData> for MapWidget {
         if !data.selected_trip_id.same(&old_data.selected_trip_id) {
             println!("update: selected_trip: paint");
             self.selected_trip_path = self
-                .all_trip_paths_canvas
+                .all_trip_paths_bitmap
                 .iter()
                 .find(|path| {
                     if let Some(trip_id) = &data.selected_trip_id {
@@ -926,6 +1004,7 @@ impl Widget<AppData> for MapWidget {
                     let RGB { r, g, b } = route.text_color.0;
                     let text_color = Color::rgb8(r, g, b);
                     (
+                        trip.id.clone(),
                         color,
                         text_color,
                         bez_path_from_coords_iter(
@@ -993,6 +1072,39 @@ impl Widget<AppData> for MapWidget {
                         }
                     }
                     self.all_trip_paths_canvas_grouped.push((rect, group_paths));
+                }
+            }
+
+            for m in 0..NUMBER_TILES_WIDTH {
+                for n in 0..NUMBER_TILES_WIDTH {
+                    let rect = Rect::from_origin_size(
+                        (
+                            REFERENCE_SIZE as f64 * m as f64 / NUMBER_TILES_WIDTH as f64,
+                            REFERENCE_SIZE as f64 * n as f64 / NUMBER_TILES_WIDTH as f64,
+                        ),
+                        (
+                            REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
+                            REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
+                        ),
+                    );
+                    let mut group_paths = Vec::new();
+                    // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
+                    for (id, color, text_color, trip_path) in &self.all_trip_paths_bitmap {
+                        for seg in trip_path.segments() {
+                            if rect.contains(seg.as_line().unwrap().p0)
+                                || rect.contains(seg.as_line().unwrap().p1)
+                            {
+                                group_paths.push((
+                                    id.clone(),
+                                    color.clone(),
+                                    text_color.clone(),
+                                    trip_path.clone(),
+                                ));
+                                break;
+                            }
+                        }
+                    }
+                    self.all_trip_paths_bitmap_grouped.push((rect, group_paths));
                 }
             }
 
