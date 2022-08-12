@@ -452,6 +452,7 @@ pub enum ZoomLevel {
     Two,
     Five,
     Ten,
+    Twenty,
     Fifty,
 }
 impl ZoomLevel {
@@ -461,6 +462,7 @@ impl ZoomLevel {
             ("2x".to_string(), ZoomLevel::Two),
             ("5x".to_string(), ZoomLevel::Five),
             ("10x".to_string(), ZoomLevel::Ten),
+            ("20x".to_string(), ZoomLevel::Twenty),
             ("50x".to_string(), ZoomLevel::Fifty),
         ]
     }
@@ -470,6 +472,7 @@ impl ZoomLevel {
             ZoomLevel::Two => 2.,
             ZoomLevel::Five => 5.,
             ZoomLevel::Ten => 10.,
+            ZoomLevel::Twenty => 20.,
             ZoomLevel::Fifty => 50.,
         }
     }

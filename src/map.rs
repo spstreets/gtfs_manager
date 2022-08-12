@@ -261,7 +261,7 @@ impl MapWidget {
                         InterpolationMode::Bilinear,
                     );
                 }
-                ZoomLevel::Five | ZoomLevel::Ten | ZoomLevel::Fifty => {
+                ZoomLevel::Five | ZoomLevel::Ten | ZoomLevel::Twenty | ZoomLevel::Fifty => {
                     ctx.draw_image(
                         &self.cached_image_large.as_ref().unwrap(),
                         rect,
@@ -618,46 +618,51 @@ impl Widget<AppData> for MapWidget {
                             if let Some((trip_id, color, text_color, path)) =
                                 &self.selected_trip_path
                             {
-                                // drawing larger stops on top of path selection
-                                if let Some(stop_times_range) =
-                                    data.stop_time_range_from_trip_id.get(trip_id)
-                                {
-                                    // im slice requires mut borrow
-                                    // let stop_ids = data
-                                    //     .stop_times
-                                    //     .slice(stop_times_range.0..stop_times_range.1)
-                                    let stop_ids = data.gtfs.stop_times
-                                        [stop_times_range.0..stop_times_range.1]
-                                        .iter()
-                                        .map(|stop_time| stop_time.stop_id.clone())
-                                        .collect::<Vec<_>>();
-                                    let stop_points = self
-                                        .stop_circles_canvas
-                                        .iter()
-                                        .zip(data.stops.iter())
-                                        .filter(|(_point, stop)| stop_ids.contains(&stop.id))
-                                        .map(|(point, stop)| (point.clone(), stop.id.clone()))
-                                        .collect::<Vec<_>>();
-                                    for stop_time in data.gtfs.stop_times
-                                        [stop_times_range.0..stop_times_range.1]
-                                        .iter()
-                                    {
-                                        let (stop_point, stop_id) = stop_points
-                                            .iter()
-                                            .find(|(point, stop_id)| &stop_time.stop_id == stop_id)
-                                            .unwrap();
-                                        if Circle::new(*stop_point, 5.)
-                                            .contains(translated_mouse_position)
-                                        {
-                                            ctx.submit_command(
-                                                SELECT_STOP_TIME.with((
-                                                    trip_id.clone(),
-                                                    stop_time.stop_sequence,
-                                                )),
-                                            );
-                                        }
-                                    }
+                                if let Some(hovered_stop_time_id) = &data.hovered_stop_time_id {
+                                    ctx.submit_command(
+                                        SELECT_STOP_TIME.with(hovered_stop_time_id.clone()),
+                                    );
                                 }
+                                // drawing larger stops on top of path selection
+                                // if let Some(stop_times_range) =
+                                //     data.stop_time_range_from_trip_id.get(trip_id)
+                                // {
+                                //     // im slice requires mut borrow
+                                //     // let stop_ids = data
+                                //     //     .stop_times
+                                //     //     .slice(stop_times_range.0..stop_times_range.1)
+                                //     let stop_ids = data.gtfs.stop_times
+                                //         [stop_times_range.0..stop_times_range.1]
+                                //         .iter()
+                                //         .map(|stop_time| stop_time.stop_id.clone())
+                                //         .collect::<Vec<_>>();
+                                //     let stop_points = self
+                                //         .stop_circles_canvas
+                                //         .iter()
+                                //         .zip(data.stops.iter())
+                                //         .filter(|(_point, stop)| stop_ids.contains(&stop.id))
+                                //         .map(|(point, stop)| (point.clone(), stop.id.clone()))
+                                //         .collect::<Vec<_>>();
+                                //     for stop_time in data.gtfs.stop_times
+                                //         [stop_times_range.0..stop_times_range.1]
+                                //         .iter()
+                                //     {
+                                //         let (stop_point, stop_id) = stop_points
+                                //             .iter()
+                                //             .find(|(point, stop_id)| &stop_time.stop_id == stop_id)
+                                //             .unwrap();
+                                //         if Circle::new(*stop_point, 5.)
+                                //             .contains(translated_mouse_position)
+                                //         {
+                                //             ctx.submit_command(
+                                //                 SELECT_STOP_TIME.with((
+                                //                     trip_id.clone(),
+                                //                     stop_time.stop_sequence,
+                                //                 )),
+                                //             );
+                                //         }
+                                //     }
+                                // }
                             }
 
                             // select trip if we are hovering one or more (if we are hovering a selected trip, there should be no hovered trips)
