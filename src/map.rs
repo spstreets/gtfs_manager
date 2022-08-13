@@ -129,6 +129,7 @@ impl MapWidget {
         map_widget.recreate_bitmap = true;
         map_widget.remake_paths = true;
         map_widget.redraw_highlights = true;
+        map_widget.focal_point = NormalPoint::CENTER;
         map_widget
     }
 
@@ -154,6 +155,11 @@ impl MapWidget {
             * -1.;
         // now we translate the canvas to the focal point, so following the example we are now painting the point (0,0) at (-100,-100) on the canvas
         ctx.transform(Affine::translate(transformed_focal_point));
+
+        // this makes the focal point the center, rather than top left
+        let center_adjust = ctx.size() * 0.5;
+        ctx.transform(Affine::translate(center_adjust.to_vec2()));
+
         // given the paths already sized to the 100^2 canvas, if we draw them now with origin (-100,-100) we would not see anything, so we need to scale the context by the zoom amount, so that drawing with origin (-100,-100) the paths take up 200^2 space so the bottom right quarter covers the canvas
         ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
         let ctx_max_side = ctx.size().max_side();
@@ -241,7 +247,7 @@ impl MapWidget {
     }
 
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
-    fn draw_onto_paint_context(&self, data: &AppData, ctx: &mut PaintCtx) {
+    fn draw_bitmap_onto_paint_context(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.with_save(|ctx: &mut PaintCtx| {
             let rect = ctx.size().to_rect();
             let zoom = data.map_zoom_level.to_f64();
@@ -251,6 +257,10 @@ impl MapWidget {
                 .to_vec2()
                 * -1.;
             ctx.transform(Affine::translate(transformed_focal_point));
+
+            // this makes the focal point the center, rather than top left
+            let center_adjust = ctx.size() * 0.5;
+            ctx.transform(Affine::translate(center_adjust.to_vec2()));
             // do we need zoom if the BITMAP is already sized to it's zoom level? Yes because we are not scaling the bitmap, but the rect which we are drawing it into
             ctx.transform(Affine::scale(zoom));
             // ctx.stroke(rect, &Color::GRAY, 2.);
@@ -296,6 +306,11 @@ impl MapWidget {
             * -1.;
         // now we translate the canvas to the focal point, so following the example we are now painting the point (0,0) at (-100,-100) on the canvas
         ctx.transform(Affine::translate(transformed_focal_point));
+
+        // this makes the focal point the center, rather than top left
+        let center_adjust = ctx.size() * 0.5;
+        ctx.transform(Affine::translate(center_adjust.to_vec2()));
+
         // given the paths already sized to the 100^2 canvas, if we draw them now with origin (-100,-100) we would not see anything, so we need to scale the context by the zoom amount, so that drawing with origin (-100,-100) the paths take up 200^2 space so the bottom right quarter covers the canvas
         ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
         let ctx_max_side = ctx.size().max_side();
@@ -374,7 +389,8 @@ impl MapWidget {
             let zoom = data.map_zoom_level.to_f64();
             ctx.clip(rect);
             // Not sure why I need to use ctx.size() here rather than eg ctx.size() * MINIMAP_PROPORTION
-            let transformed_focal_point = self.focal_point.to_point_within_size(ctx.size());
+            let transformed_focal_point = self.focal_point.to_point_within_size(ctx.size())
+                - (ctx.size() * 0.5 / zoom).to_vec2();
             // // make path which is minimap sized rect with viewfinder hole in it
             let mut shadow = rect.to_path(0.1);
             // // ctx.clip(shape)
@@ -1083,7 +1099,7 @@ impl Widget<AppData> for MapWidget {
         if self.cached_image_map.contains_key(&data.map_zoom_level) {
             println!("paint: use cache");
             dbg!(&data.map_zoom_level);
-            self.draw_onto_paint_context(data, ctx);
+            self.draw_bitmap_onto_paint_context(data, ctx);
             // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
             self.draw_highlights(data, ctx);
             self.draw_minimap(data, ctx);
