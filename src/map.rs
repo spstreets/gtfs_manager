@@ -422,16 +422,32 @@ impl MapWidget {
         path: &BezPath,
         mouse_position: Point,
     ) -> bool {
-        let transformed_focal_point = self
-            .focal_point
-            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        let translated_mouse_position =
-            (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
+        // let transformed_focal_point = self
+        //     .focal_point
+        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+        // let translated_mouse_position =
+        //     (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
 
-        let translated_mouse_position = (translated_mouse_position
-            * (REFERENCE_SIZE as f64 / ctx.size().max_side())
-            / data.map_zoom_level.to_f64())
-        .to_point();
+        // let translated_mouse_position = (translated_mouse_position
+        //     * (REFERENCE_SIZE as f64 / ctx.size().max_side())
+        //     / data.map_zoom_level.to_f64())
+        // .to_point();
+
+        let fp = self
+            .focal_point
+            .to_point_within_size(Size::new(1., 1.))
+            .to_vec2();
+        let b = fp
+            - Size::new(
+                1. / (data.map_zoom_level.to_f64() * 2.),
+                1. / (data.map_zoom_level.to_f64() * 2.),
+            )
+            .to_vec2();
+        let a = mouse_position.to_vec2() / (ctx.size().max_side() * data.map_zoom_level.to_f64());
+        let translated_mouse_position = b + a;
+        let translated_mouse_position =
+            (translated_mouse_position * REFERENCE_SIZE as f64).to_point();
+
         let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
         let path_width2 = path_width * path_width;
 
@@ -528,7 +544,6 @@ impl MapWidget {
         let translated_mouse_position =
             (translated_mouse_position * REFERENCE_SIZE as f64).to_point();
 
-
         let mut hovered_trip_paths = Vec::new();
         // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
         let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
@@ -565,16 +580,31 @@ impl MapWidget {
         mouse_position: Point,
         trip_id: String,
     ) -> Option<(String, u16)> {
-        let transformed_focal_point = self
-            .focal_point
-            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        let translated_mouse_position =
-            (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
+        // let transformed_focal_point = self
+        //     .focal_point
+        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
+        // let translated_mouse_position =
+        //     (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
 
-        let translated_mouse_position = (translated_mouse_position
-            * (REFERENCE_SIZE as f64 / ctx.size().max_side())
-            / data.map_zoom_level.to_f64())
-        .to_point();
+        // let translated_mouse_position = (translated_mouse_position
+        //     * (REFERENCE_SIZE as f64 / ctx.size().max_side())
+        //     / data.map_zoom_level.to_f64())
+        // .to_point();
+
+        let fp = self
+            .focal_point
+            .to_point_within_size(Size::new(1., 1.))
+            .to_vec2();
+        let b = fp
+            - Size::new(
+                1. / (data.map_zoom_level.to_f64() * 2.),
+                1. / (data.map_zoom_level.to_f64() * 2.),
+            )
+            .to_vec2();
+        let a = mouse_position.to_vec2() / (ctx.size().max_side() * data.map_zoom_level.to_f64());
+        let translated_mouse_position = b + a;
+        let translated_mouse_position =
+            (translated_mouse_position * REFERENCE_SIZE as f64).to_point();
 
         if let Some(stop_times_range) = data.stop_time_range_from_trip_id.get(&trip_id) {
             for i in stop_times_range.0..stop_times_range.1 {
