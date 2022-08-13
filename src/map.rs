@@ -784,14 +784,49 @@ impl Widget<AppData> for MapWidget {
                             // TODO differentiate between stop click and path click
                             // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
 
-                            // // check if hovering a stop on selected trip
-                            if let Some((trip_id, color, text_color, path)) =
+                            // select trip if we are hovering one or more (if we are hovering a selected trip, there should be no hovered trips)
+                            if let Some((id, color, text_color, path)) =
+                                self.hovered_trip_paths.get(0)
+                            {
+                                let route_id = data
+                                    .trips
+                                    .iter()
+                                    .find(|trip| &trip.id == id)
+                                    .unwrap()
+                                    .route_id
+                                    .clone();
+                                let agency_id = data
+                                    .routes
+                                    .iter()
+                                    .find(|route| route.id == route_id)
+                                    .unwrap()
+                                    .agency_id
+                                    .clone();
+                                data.selected_agency_id = Some(agency_id);
+                                data.selected_route_id = Some(route_id);
+                                data.selected_trip_id = Some(id.clone());
+                                data.selected_stop_time_id = None;
+                                self.selected_trip_path = Some((
+                                    id.clone(),
+                                    color.clone(),
+                                    text_color.clone(),
+                                    path.clone(),
+                                ));
+
+                                // check if hovering a stop on selected trip
+                            } else if let Some((trip_id, color, text_color, path)) =
                                 &self.selected_trip_path
                             {
-                                if let Some(hovered_stop_time_id) = &data.hovered_stop_time_id {
-                                    ctx.submit_command(
-                                        SELECT_STOP_TIME.with(hovered_stop_time_id.clone()),
-                                    );
+                                if self.is_path_hovered(data, ctx, path, mouse_event.pos) {
+                                    if let Some(hovered_stop_time_id) = &data.hovered_stop_time_id {
+                                        ctx.submit_command(
+                                            SELECT_STOP_TIME.with(hovered_stop_time_id.clone()),
+                                        );
+                                    } else {
+                                        ctx.submit_command(SELECT_TRIP.with(trip_id.clone()));
+                                    }
+                                } else {
+                                    ctx.submit_command(SELECT_NOTHING);
                                 }
                                 // NOTE: keep below incase we want to be able to hover/select any stop rather than just stop_times of selected trip?
                                 // drawing larger stops on top of path selection
@@ -836,35 +871,6 @@ impl Widget<AppData> for MapWidget {
                                 // }
                             }
 
-                            // select trip if we are hovering one or more (if we are hovering a selected trip, there should be no hovered trips)
-                            if let Some((id, color, text_color, path)) =
-                                self.hovered_trip_paths.get(0)
-                            {
-                                let route_id = data
-                                    .trips
-                                    .iter()
-                                    .find(|trip| &trip.id == id)
-                                    .unwrap()
-                                    .route_id
-                                    .clone();
-                                let agency_id = data
-                                    .routes
-                                    .iter()
-                                    .find(|route| route.id == route_id)
-                                    .unwrap()
-                                    .agency_id
-                                    .clone();
-                                data.selected_agency_id = Some(agency_id);
-                                data.selected_route_id = Some(route_id);
-                                data.selected_trip_id = Some(id.clone());
-                                data.selected_stop_time_id = None;
-                                self.selected_trip_path = Some((
-                                    id.clone(),
-                                    color.clone(),
-                                    text_color.clone(),
-                                    path.clone(),
-                                ));
-                            }
                             // for (stop_circle, stop) in
                             //     self.stop_circles.iter().zip(data.stops.iter_mut())
                             // {

@@ -35,6 +35,7 @@ pub const SELECT_AGENCY: Selector<Option<String>> = Selector::new("select.agency
 pub const SELECT_ROUTE: Selector<String> = Selector::new("select.route");
 pub const SELECT_TRIP: Selector<String> = Selector::new("select.trip");
 pub const SELECT_STOP_TIME: Selector<(String, u16)> = Selector::new("select.stop_time");
+pub const SELECT_NOTHING: Selector = Selector::new("select.nothing");
 
 pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
@@ -397,6 +398,17 @@ impl AppDelegate<AppData> for Delegate {
             //     .cloned()
             //     .collect::<Vector<_>>();
 
+            druid::Handled::Yes
+        } else if let Some(_) = cmd.get(SELECT_NOTHING) {
+            data.selected_agency_id = None;
+            data.selected_route_id = None;
+            data.selected_trip_id = None;
+            data.selected_stop_time_id = None;
+            data.selected_stop_id = None;
+
+            for trip in data.trips.iter_mut() {
+                trip.selected = false;
+            }
             druid::Handled::Yes
         } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {
             println!("select stop_time");
