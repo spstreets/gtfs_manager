@@ -446,7 +446,7 @@ pub struct Edit {
     id: usize,
 }
 
-#[derive(Debug, Clone, Data, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Data, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum ZoomLevel {
     One,
     Two,
@@ -466,15 +466,18 @@ impl ZoomLevel {
             ("50x".to_string(), ZoomLevel::Fifty),
         ]
     }
-    pub fn to_f64(&self) -> f64 {
+    pub fn to_usize(&self) -> usize {
         match self {
-            ZoomLevel::One => 1.,
-            ZoomLevel::Two => 2.,
-            ZoomLevel::Five => 5.,
-            ZoomLevel::Ten => 10.,
-            ZoomLevel::Twenty => 20.,
-            ZoomLevel::Fifty => 50.,
+            ZoomLevel::One => 1,
+            ZoomLevel::Two => 2,
+            ZoomLevel::Five => 5,
+            ZoomLevel::Ten => 10,
+            ZoomLevel::Twenty => 20,
+            ZoomLevel::Fifty => 50,
         }
+    }
+    pub fn to_f64(&self) -> f64 {
+        self.to_usize() as f64
     }
     /// canvas_size / (zoom_f64 * 300.)
     pub fn path_width(&self, canvas_size: f64) -> f64 {

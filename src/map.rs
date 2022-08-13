@@ -26,7 +26,8 @@ use crate::data::*;
 // bitmaps large than 10,000 x 10,000 will crash. This no longer seems to be a problem, was possibly because of the way we were drawing to it or something rather than an inherent problem with bitmaps of that size. 20,000 does add about 2GB to the memory use of the app though, so not a perfect solution. This is possibly why we will want immediate mode to kick in at some point?
 // why is different sizes a problem?
 const REFERENCE_SIZE: usize = 1_000;
-const BITMAP_SIZE_SMALL: usize = 1_000;
+// const BITMAP_SIZE: usize = 1_000;
+const BITMAP_SIZE: usize = 1_000;
 const BITMAP_SIZE_LARGE: usize = 20_000;
 const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
@@ -109,6 +110,7 @@ pub struct MapWidget {
     minimap_image: Option<CairoImage>,
     cached_image_small: Option<CairoImage>,
     cached_image_large: Option<CairoImage>,
+    cached_image_map: HashMap<ZoomLevel, CairoImage>,
     cached_image_vec: Vec<CairoImage>,
     immediate_mode: bool,
     recreate_bitmap: bool,
@@ -209,11 +211,11 @@ impl MapWidget {
         &self,
         data: &AppData,
         ctx: &mut CairoRenderContext,
-        bitmap_size: usize,
         zoom_level: ZoomLevel,
     ) -> CairoImage {
         let mut cached_image;
         {
+            let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
             let mut device = Device::new().unwrap();
             // 0.1 makes the image very small
             // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
@@ -249,24 +251,32 @@ impl MapWidget {
                 .to_vec2()
                 * -1.;
             ctx.transform(Affine::translate(transformed_focal_point));
+            // do we need zoom if the BITMAP is already sized to it's zoom level? Yes because we are not scaling the bitmap, but the rect which we are drawing it into
             ctx.transform(Affine::scale(zoom));
             // ctx.stroke(rect, &Color::GRAY, 2.);
-            match data.map_zoom_level {
-                ZoomLevel::One | ZoomLevel::Two => {
-                    ctx.draw_image(
-                        &self.cached_image_small.as_ref().unwrap(),
-                        rect,
-                        InterpolationMode::Bilinear,
-                    );
-                }
-                ZoomLevel::Five | ZoomLevel::Ten | ZoomLevel::Twenty | ZoomLevel::Fifty => {
-                    ctx.draw_image(
-                        &self.cached_image_large.as_ref().unwrap(),
-                        rect,
-                        InterpolationMode::Bilinear,
-                    );
-                }
-            }
+            // match data.map_zoom_level {
+            //     ZoomLevel::One | ZoomLevel::Two => {
+            //         ctx.draw_image(
+            //             &self.cached_image_small.as_ref().unwrap(),
+            //             rect,
+            //             InterpolationMode::Bilinear,
+            //         );
+            //     }
+            //     ZoomLevel::Five | ZoomLevel::Ten | ZoomLevel::Twenty | ZoomLevel::Fifty => {
+            //         ctx.draw_image(
+            //             &self.cached_image_large.as_ref().unwrap(),
+            //             rect,
+            //             InterpolationMode::Bilinear,
+            //         );
+            //     }
+            // }
+            let bitmap = self.cached_image_map.get(&data.map_zoom_level).unwrap();
+            ctx.draw_image(
+                bitmap,
+                // rect.scale_from_origin(zoom),
+                rect,
+                InterpolationMode::Bilinear,
+            );
         });
     }
     fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
@@ -1022,13 +1032,22 @@ impl Widget<AppData> for MapWidget {
             self.recreate_bitmap = false;
 
             // not remaking paths doesn't actually affect the path widths drawn between zoom levels...
-            let cached_image_small = self.make_bitmap(data, ctx, BITMAP_SIZE_SMALL, ZoomLevel::One);
-            let cached_image_large = self.make_bitmap(data, ctx, BITMAP_SIZE_LARGE, ZoomLevel::Ten);
-            if self.minimap_image.is_none() {
-                self.minimap_image = Some(cached_image_small.clone());
+            // let cached_image_small = self.make_bitmap(data, ctx, BITMAP_SIZE_SMALL, ZoomLevel::One);
+            // let cached_image_large = self.make_bitmap(data, ctx, BITMAP_SIZE_LARGE, ZoomLevel::Ten);
+            for (_name, zoom_level) in ZoomLevel::radio_group_vec() {
+                // panning the map is laggy for *all* zoom levels if we create bitmaps at x10 or greater
+                if zoom_level.to_usize() < 10 {
+                    self.cached_image_map
+                        .insert(zoom_level, self.make_bitmap(data, ctx, zoom_level));
+                }
             }
-            self.cached_image_small = Some(cached_image_small);
-            self.cached_image_large = Some(cached_image_large);
+            if self.minimap_image.is_none() {
+                // self.minimap_image = Some(cached_image_small.clone());
+                self.minimap_image =
+                    Some(self.cached_image_map.get(&ZoomLevel::One).unwrap().clone());
+            }
+            // self.cached_image_small = Some(cached_image_small);
+            // self.cached_image_large = Some(cached_image_large);
         }
         // if self.redraw_highlights {
         //     println!("paint: redraw highlights");
@@ -1060,15 +1079,17 @@ impl Widget<AppData> for MapWidget {
         // }
 
         // TODO come up with proper heuristic based on the size of coords or density of paths to determine when to switch to immediate mode, so that it generalises to maps other than SP
-        if data.map_zoom_level.to_f64() > 110. {
-            println!("paint: immediate mode");
-            self.draw_paths_onto_paint_ctx(data, ctx);
+
+        if self.cached_image_map.contains_key(&data.map_zoom_level) {
+            println!("paint: use cache");
+            dbg!(&data.map_zoom_level);
+            self.draw_onto_paint_context(data, ctx);
+            // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
             self.draw_highlights(data, ctx);
             self.draw_minimap(data, ctx);
         } else {
-            println!("paint: use cache");
-            self.draw_onto_paint_context(data, ctx);
-            // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
+            println!("paint: immediate mode");
+            self.draw_paths_onto_paint_ctx(data, ctx);
             self.draw_highlights(data, ctx);
             self.draw_minimap(data, ctx);
         }
