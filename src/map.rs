@@ -58,6 +58,12 @@ impl NormalPoint {
     fn to_point_within_size(&self, size: Size) -> Point {
         Point::new(self.x * size.width, self.y * size.height)
     }
+    fn to_point_within_size_centering_removed(&self, size: Size, zoom: f64) -> Point {
+        Point::new(
+            (self.x - (zoom * 0.5)) * size.width,
+            (self.y - (zoom * 0.5)) * size.height,
+        )
+    }
     /// tranlates point by a vector in the given space (size)
     fn translate(&self, vector: Vec2, size: Size) -> NormalPoint {
         NormalPoint {
@@ -438,26 +444,90 @@ impl MapWidget {
         ctx: &EventCtx,
         mouse_position: Point,
     ) -> Vec<(String, Color, Color, BezPath)> {
+        // converting a mouse Point (in canvas coords) to a Point in REFERENCE_SIZE coords
         // so we are trying to determine if a mouse Point which is bounded canvas coords but what it is hovering in the canvas might have been scaled and/or translated, and is over a path in REFERENCE_SIZE coords.
-        // so lets say the map is zoomed x2, the focal point is CENTER, and the canvas is 100^2
-        // so the origin of the map is at (-100,100) and the end is at (100,100). a path being hovered at (0,0) is actually the center of the map, so should be translated to             (REFERENCE_SIZE/2,REFERENCE_SIZE/2). So we could work out what the normalised point is, ie (0.5,0.5) and then find that point in REFERENCE_SIZE?
 
-        // so following the example this gives use the focal point in the scaled 200^2 ctx which would be (100,100)
-        let transformed_focal_point = self.focal_point.to_point_within_size(
+        // so lets say the map is zoomed x2, the focal point is CENTER, and the canvas is 100^2
+
+        // top left focal point version:
+        // so the origin of the map is at (-100,-100) and the end is at (100,100). a path being hovered at (0,0) is actually the center of the map, so should be translated to             (REFERENCE_SIZE/2,REFERENCE_SIZE/2). So we could work out what the normalised point is, ie (0.5,0.5) and then find that point in REFERENCE_SIZE?
+
+        // centered focal point version:
+        // so the origin of the map is at (-50,-50) and the end is at (150,150). a path being hovered at (0,0) should be translated to (REFERNCE_SIZE/4,REFERNCE_SIZE/4) and (0.5,0.5) is (REFERENCE_SIZE/2,REFERENCE_SIZE/2)
+
+        // First we want to effectively pan the map so that the maps origin is at (0,0) on both the canvas and coords space, ie remove any panning and adjust the focal point accordingly
+        // so the mouse is within a coord space of the same size, but an origin of (0,0)
+        // to do this, we get the focal point and adjust for this. For centered focal point, this would be nothing for zoom x1, size/4 for zoom x2, size * 2/5 for x5, size * 4.5/10 for x10 etc. This is not an easy calculation so it seems it would be easier to remove the zoom scale first, then we only have to remove panning
+        // if the mouse position is centered, it should not change.
+        // if zoom is x1, the mouse position should not change.
+        // at (0,0) for x2 zoom (so (0.25,0.25) normalised), we have a ctx*2 canvas, changing to a ctx sized canvas, with the same origin, so the mouse position should be changed to (-ctx.size/4, -ctx.size/4)
+        // at (0,0) for x10 zoom (so (0.45,0.45) normalised), we have a ctx*10 canvas (size*4.5/10 out of view on either side of the viewport), changing to a ctx sized canvas, with the same origin, so the mouse position should be changed to (-ctx.size * 0.45, -ctx.size * 0.45)
+        // these normal mults are actually all we need for REFERENCE_SIZE
+        // x1: (0,0)
+        // x2: (0.25,0.25)
+        // x4: 1/4 + 1/8 = (0.375,0.375)
+        // x5: (0.4,0.4)
+        // x10: (0.45,0.45)
+        // x20: 9/20 + 1/40 = (0.475,0.475)
+        // they are 1/zoom *
+
+        // let mouse_position_no_scale = mouse_position.to_vec2() - self.focal_point - (0.5,0.5) / data.map_zoom_level.to_f64();
+        // let norm_mult = 0.5 - 1 / data.map_zoom_level.to_f64();
+
+        // so following the example, below gives us the focal point in the scaled 200^2 ctx which would be (100,100)
+
+        // so following the example, below gives us the (centering removed) focal point in the scaled 200^2 ctx which would be (0,0)
+        let transformed_focal_point = self.focal_point.to_point_within_size_centering_removed(
             // Size::new(REFERENCE_SIZE as f64, REFERENCE_SIZE as f64) * data.map_zoom_level.to_f64(),
             ctx.size() * data.map_zoom_level.to_f64(),
+            data.map_zoom_level.to_f64(),
         );
+        // dbg!(transformed_focal_point);
 
+        // top left focal point version:
         // now we have the focal point of the zoomed map, we want to move the focal point to the origin (so translate everything (100,100)) whilst keeping the mouse pointing at the same thing, so subtract the focal point from the mouse position
         // needs to also take into account scaling from REFERENCE_SIZE
-        let translated_mouse_position =
+        // let translated_mouse_position =
+        //     (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
+
+        // centered focal point version:
+        // now we have the focal point of the zoomed map, we want to move the origin of the canvas to (0,0) (or focal point to the center) of the 200^2 canvas whilst keeping the mouse pointing at the same thing, so translate everything (50,50) / add the focal point * 0.5 to the mouse position
+        // (0,0) + (100,100) * 0.5 = (50,50)
+        // if the focal point is center and zoom is x1 then we want to translate (0,0).
+        let translated_mouse_position_pre =
             (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
+        // dbg!(mouse_position);
+        // dbg!(translated_mouse_position_pre);
 
         // now we have the mouse position relative to a non-translated, but scaled/zoomed, 200^2 ctx. We want the mouse relative to a REFERENCE_SIZE ctx. so divide it by 2, then multiple by REFERENCE_SIZE / ctx.size().max_side
-        let translated_mouse_position = (translated_mouse_position
-            * (REFERENCE_SIZE as f64 / ctx.size().max_side())
-            / data.map_zoom_level.to_f64())
+        // let translated_mouse_position = (translated_mouse_position_pre
+        //     * (REFERENCE_SIZE as f64 / ctx.size().max_side())
+        //     / data.map_zoom_level.to_f64())
+        // .to_point();
+        let translated_mouse_position = (translated_mouse_position_pre
+            * (REFERENCE_SIZE as f64 / ctx.size().max_side()))
         .to_point();
+        // dbg!(translated_mouse_position);
+
+        // a and b are vectorised normalised relative to the total size of the map ie ctx.size() * zoom
+        // a is the vector from the viewport origin to the mouse position
+        // b is the vector from the map origin to the viewport origin
+        // a + b therefore gives the normalised vector of the mouse relative to the origin which can be used to place the mouse on the REFERENCE_SIZE ctx.
+        let fp = self
+            .focal_point
+            .to_point_within_size(Size::new(1., 1.))
+            .to_vec2();
+        let b = fp
+            - Size::new(
+                1. / (data.map_zoom_level.to_f64() * 2.),
+                1. / (data.map_zoom_level.to_f64() * 2.),
+            )
+            .to_vec2();
+        let a = mouse_position.to_vec2() / (ctx.size().max_side() * data.map_zoom_level.to_f64());
+        let translated_mouse_position = b + a;
+        let translated_mouse_position =
+            (translated_mouse_position * REFERENCE_SIZE as f64).to_point();
+
 
         let mut hovered_trip_paths = Vec::new();
         // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
