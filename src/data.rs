@@ -482,7 +482,7 @@ impl ZoomLevel {
     /// canvas_size / (zoom_f64 * 300.)
     pub fn path_width(&self, canvas_size: f64) -> f64 {
         // canvas_size / (self.to_f64() * 300.)
-        canvas_size / (self.to_f64() * 200.)
+        canvas_size / (self.to_f64() * 300.)
     }
 }
 

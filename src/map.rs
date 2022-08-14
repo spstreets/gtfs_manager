@@ -32,13 +32,14 @@ const BITMAP_SIZE_LARGE: usize = 20_000;
 const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
 
+const PATH_HIGHLIGHTED: f64 = 1.5;
 const PATH_BLACK_BACKGROUND_MULT: f64 = 2.;
 const PATH_WHITE_BACKGROUND_MULT: f64 = 3.;
-const SMALL_CIRCLE_BLACK_BACKGROUND_MULT: f64 = 0.8;
-const SMALL_CIRCLE_MULT: f64 = 0.6;
-const LARGE_CIRCLE_WHITE_BACKGROUND_MULT: f64 = 3.;
-const LARGE_CICLE_BLACK_BACKGROUND_MULT: f64 = 2.5;
-const LARGE_CIRCLE_MULT: f64 = 2.;
+const SMALL_CIRCLE_BLACK_BACKGROUND_MULT: f64 = 1.5;
+const SMALL_CIRCLE_MULT: f64 = 1.;
+const LARGE_CIRCLE_WHITE_BACKGROUND_MULT: f64 = 4.;
+const LARGE_CICLE_BLACK_BACKGROUND_MULT: f64 = 3.5;
+const LARGE_CIRCLE_MULT: f64 = 3.;
 
 /// For storing a point normalised to [0, 1]. However will not panic if values fall outside [0, 1].
 #[derive(Default)]
@@ -322,7 +323,7 @@ impl MapWidget {
         let ctx_max_side = ctx.size().max_side();
         ctx.transform(Affine::scale(ctx_max_side / REFERENCE_SIZE as f64));
 
-        let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
+        let path_width = data.map_zoom_level.path_width(ctx.size().max_side()) * PATH_HIGHLIGHTED;
         let path_bb = path_width * PATH_BLACK_BACKGROUND_MULT;
         let path_wb = path_width * PATH_WHITE_BACKGROUND_MULT;
 
@@ -363,7 +364,7 @@ impl MapWidget {
                             && stop_time.stop_sequence == hovered_stop_time_id.1
                         {
                             ctx.fill(Circle::new(point.clone(), l_circle_bb), &Color::BLACK);
-                            ctx.fill(Circle::new(point.clone(), l_circle), &Color::RED);
+                            ctx.fill(Circle::new(point.clone(), l_circle), &Color::WHITE);
                         }
                     }
                     if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
@@ -410,7 +411,7 @@ impl MapWidget {
             shadow.close_path();
             // ctx.clip(inner_rect.scale_from_origin(-1.));
 
-            ctx.fill_even_odd(shadow, &Color::rgba(0., 0., 0., 0.5));
+            ctx.fill_even_odd(shadow, &Color::rgba(0., 0., 0., 0.3));
             ctx.stroke(inner_rect, &Color::RED, 4.);
         });
     }
@@ -607,13 +608,12 @@ impl MapWidget {
             (translated_mouse_position * REFERENCE_SIZE as f64).to_point();
 
         if let Some(stop_times_range) = data.stop_time_range_from_trip_id.get(&trip_id) {
+            let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
+            let s_circle_bb = path_width * PATH_HIGHLIGHTED * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
             for i in stop_times_range.0..stop_times_range.1 {
                 let stop_time = data.stop_times.get(i).unwrap();
                 let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
                 let point = self.stop_circles[stop_index];
-
-                let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
-                let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
 
                 if Circle::new(point, s_circle_bb).contains(translated_mouse_position) {
                     return Some((trip_id.clone(), stop_time.stop_sequence));
@@ -1053,8 +1053,8 @@ impl Widget<AppData> for MapWidget {
         let size = ctx.size();
         let rect = size.to_rect();
         ctx.clip(rect);
-        // ctx.fill(rect, &Color::grey(0.6));
-        ctx.fill(rect, &Color::WHITE);
+        ctx.fill(rect, &Color::grey(0.4));
+        // ctx.fill(rect, &Color::WHITE);
 
         // need to remake paths when zoom level changes or layout changes
         if self.remake_paths {
