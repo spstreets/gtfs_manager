@@ -222,6 +222,79 @@ fn field_row<T: Data>(
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
+pub fn unselected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
+    Container::new(child.padding((10., 10., 10., 10.)))
+        .rounded(CORNER_RADIUS)
+        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+        // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+        // .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
+        .fix_width(NARROW_LIST_WIDTH)
+}
+// pub fn selected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
+//     Container::new(child.padding((10., 10., 10., 10.)))
+//         .rounded(CORNER_RADIUS)
+//         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+//         // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+//         .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
+//         .fix_width(NARROW_LIST_WIDTH)
+// }
+pub fn selected_item_container<T: Data + ListItem>(
+    child: impl Widget<T> + 'static,
+    edit_checkbox: impl Widget<T> + 'static,
+    either_fields: impl Widget<T> + 'static,
+) -> impl Widget<T> {
+    Container::new(
+        Flex::column()
+            .with_child(
+                Flex::row()
+                    .with_child(child)
+                    .with_child(
+                        Flex::column()
+                            .with_child(edit_checkbox)
+                            .with_child(delete_item_button()),
+                    )
+                    .must_fill_main_axis(true)
+                    .main_axis_alignment(MainAxisAlignment::SpaceBetween),
+            )
+            .with_child(either_fields)
+            .padding((10., 10., 10., 10.)),
+    )
+    .rounded(CORNER_RADIUS)
+    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+    // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+    .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
+    .fix_width(NARROW_LIST_WIDTH)
+}
+pub fn item_container<T: ListItem + Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
+    Container::new(child.padding((10., 10., 10., 10.)))
+        .rounded(CORNER_RADIUS)
+        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
+        // .border(Color::RED, 0.)
+        // .background(BG_COLOR)
+        // .env_scope(|env, item| env.set(BG_COLOR, Color::RED))
+        // .env_scope(|env, item| env.set(BG_COLOR,  Color::BLUE.into()))
+        .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
+        // EnvScope must wrap the border, else Missing Key panic
+        .env_scope(|env, stop_time| {
+            // dbg!("set env");
+            env.set(
+                VARIABLE_ITEM_BORDER_WIDTH,
+                if stop_time.selected() {
+                    SELECTED_ITEM_BORDER_WIDTH
+                } else {
+                    0.
+                },
+            )
+        })
+        .fix_width(NARROW_LIST_WIDTH)
+}
+pub fn either_ui<T: ListItem + Data>(
+    ui: impl Widget<T> + 'static,
+    small_ui: impl Widget<T> + 'static,
+) -> impl Widget<T> {
+    item_container(Either::new(|data: &T, _: &_| data.selected(), ui, small_ui))
+}
+
 pub fn stop_ui() -> impl Widget<MyStop> {
     let title = Flex::row()
         .with_child(Checkbox::new("").lens(MyStop::selected))
@@ -490,79 +563,6 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
         dbg!("got click");
         ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
     })
-}
-
-pub fn unselected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
-    Container::new(child.padding((10., 10., 10., 10.)))
-        .rounded(CORNER_RADIUS)
-        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-        // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
-        // .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
-        .fix_width(NARROW_LIST_WIDTH)
-}
-// pub fn selected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
-//     Container::new(child.padding((10., 10., 10., 10.)))
-//         .rounded(CORNER_RADIUS)
-//         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-//         // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
-//         .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
-//         .fix_width(NARROW_LIST_WIDTH)
-// }
-pub fn selected_item_container<T: Data + ListItem>(
-    child: impl Widget<T> + 'static,
-    edit_checkbox: impl Widget<T> + 'static,
-    either_fields: impl Widget<T> + 'static,
-) -> impl Widget<T> {
-    Container::new(
-        Flex::column()
-            .with_child(
-                Flex::row()
-                    .with_child(child)
-                    .with_child(
-                        Flex::column()
-                            .with_child(edit_checkbox)
-                            .with_child(delete_item_button()),
-                    )
-                    .must_fill_main_axis(true)
-                    .main_axis_alignment(MainAxisAlignment::SpaceBetween),
-            )
-            .with_child(either_fields)
-            .padding((10., 10., 10., 10.)),
-    )
-    .rounded(CORNER_RADIUS)
-    .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-    // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
-    .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
-    .fix_width(NARROW_LIST_WIDTH)
-}
-pub fn item_container<T: ListItem + Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
-    Container::new(child.padding((10., 10., 10., 10.)))
-        .rounded(CORNER_RADIUS)
-        .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
-        // .border(Color::RED, 0.)
-        // .background(BG_COLOR)
-        // .env_scope(|env, item| env.set(BG_COLOR, Color::RED))
-        // .env_scope(|env, item| env.set(BG_COLOR,  Color::BLUE.into()))
-        .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
-        // EnvScope must wrap the border, else Missing Key panic
-        .env_scope(|env, stop_time| {
-            // dbg!("set env");
-            env.set(
-                VARIABLE_ITEM_BORDER_WIDTH,
-                if stop_time.selected() {
-                    SELECTED_ITEM_BORDER_WIDTH
-                } else {
-                    0.
-                },
-            )
-        })
-        .fix_width(NARROW_LIST_WIDTH)
-}
-pub fn either_ui<T: ListItem + Data>(
-    ui: impl Widget<T> + 'static,
-    small_ui: impl Widget<T> + 'static,
-) -> impl Widget<T> {
-    item_container(Either::new(|data: &T, _: &_| data.selected(), ui, small_ui))
 }
 
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
