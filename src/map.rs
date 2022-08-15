@@ -137,8 +137,14 @@ impl MapWidget {
     }
 
     fn latlong_to_canvas(latlong: Point, latlong_rect: Rect, canvas_max_dimension: f64) -> Point {
-        let relative_latlong = latlong - latlong_rect.origin();
-        (relative_latlong * canvas_max_dimension / latlong_rect.size().max_side()).to_point()
+        let latlong_origin_vec = latlong - latlong_rect.origin();
+        // flip latlong vec since latlong coord system has origin bottom left and canvas uses top left
+        let flipped_latlong_origin_vec = Vec2::new(
+            latlong_origin_vec.x,
+            latlong_rect.height() - latlong_origin_vec.y,
+        );
+        (flipped_latlong_origin_vec * canvas_max_dimension / latlong_rect.size().max_side())
+            .to_point()
     }
 
     fn draw_paths_onto_paint_ctx(&self, data: &AppData, ctx: &mut PaintCtx) {
