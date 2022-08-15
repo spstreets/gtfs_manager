@@ -108,7 +108,6 @@ pub struct MapWidget {
     // highlighted_stop_circle: Option<Circle>,
     // selected_stop_circle: Option<Circle>,
     stop_circles: Vec<Point>,
-    stop_circles_canvas: Vec<Point>,
     highlighted_stop_circle: Option<Point>,
     selected_stop_circle: Option<Point>,
     speed: f64,
@@ -357,7 +356,6 @@ impl MapWidget {
                 for i in stop_times_range.0..stop_times_range.1 {
                     let stop_time = data.stop_times.get(i).unwrap();
                     let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
-                    // let point = self.stop_circles_canvas[stop_index];
                     let point = self.stop_circles[stop_index];
                     let stop = data.stops.get(stop_index).unwrap();
                     ctx.fill(Circle::new(point.clone(), s_circle_bb), &Color::BLACK);
@@ -1192,10 +1190,6 @@ impl Widget<AppData> for MapWidget {
                     MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
                 };
 
-                let latlong_to_ctx = |coord: Point| {
-                    MapWidget::latlong_to_canvas(coord, long_lat_rect, size.max_side())
-                };
-
                 // TODO should be making data in update or on_added, not paint
                 // translate trip paths to a given canvas size and store colors
                 println!("{} paint: redraw base: make paths", Utc::now());
@@ -1264,11 +1258,6 @@ impl Widget<AppData> for MapWidget {
                     .stops
                     .iter()
                     .map(|stop| latlong_to_bitmap(stop.latlong))
-                    .collect::<Vec<_>>();
-                self.stop_circles_canvas = data
-                    .stops
-                    .iter()
-                    .map(|stop| latlong_to_ctx(stop.latlong))
                     .collect::<Vec<_>>();
             }
             _ => {}
