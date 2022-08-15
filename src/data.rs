@@ -533,6 +533,7 @@ pub struct AppData {
     pub edits: Vector<Edit>,
 
     pub map_zoom_level: ZoomLevel,
+    pub map_stop_selection_mode: bool,
 }
 impl ListItem for AppData {
     fn new_child(&mut self) -> String {
@@ -941,6 +942,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         edits: Vector::new(),
         map_zoom_level: ZoomLevel::One,
         // map_zoom_level: ZoomLevel::Two,
+        map_stop_selection_mode: false,
     };
     println!("{:?} finish make_initial_data", Utc::now());
     app_data

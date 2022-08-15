@@ -29,6 +29,8 @@ pub const ITEM_UPDATE: Selector<(String, String)> = Selector::new("item.update")
 pub const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.child");
 pub const NEW_TRIP: Selector<String> = Selector::new("new.trip");
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
+pub const EDIT_STOP_TIME_UPDATE: Selector<String> = Selector::new("edit.stop_time.update");
+pub const EDIT_STOP_TIME_CHOOSE: Selector = Selector::new("edit.stop_time.choose");
 pub const SELECT_STOP_LIST: Selector<String> = Selector::new("select.stop.list");
 pub const SELECT_STOP_MAP: Selector<String> = Selector::new("select.stop.map");
 pub const SELECT_AGENCY: Selector<Option<String>> = Selector::new("select.agency");
@@ -409,6 +411,20 @@ impl AppDelegate<AppData> for Delegate {
             for trip in data.trips.iter_mut() {
                 trip.selected = false;
             }
+            druid::Handled::Yes
+        } else if let Some(_) = cmd.get(EDIT_STOP_TIME_CHOOSE) {
+            // let (trip_id, stop_sequence) = stop_time_pk;
+            data.map_stop_selection_mode = true;
+
+            druid::Handled::Yes
+        } else if let Some(stop_id) = cmd.get(EDIT_STOP_TIME_UPDATE) {
+            // let (trip_id, stop_sequence) = stop_time_pk;
+            // set the new stop id
+            println!(
+                "update stop_time {:?} to stop_id: {}",
+                data.selected_stop_time_id, stop_id
+            );
+
             druid::Handled::Yes
         } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {
             println!("select stop_time");

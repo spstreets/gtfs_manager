@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use druid::im::{ordmap, vector, OrdMap, Vector};
+use druid::image::buffer::Rows;
 use druid::lens::{self, LensExt};
 use druid::text::{EditableText, TextStorage};
 use druid::widget::{
@@ -622,19 +623,26 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
         //         None => true,
         //     },
         // ))
-        .with_child(field_row(
-            "stop_id",
-            Button::new(|data: &MyStopTime, _: &_| data.stop_id.clone()).on_click(
-                |ctx: &mut EventCtx, data: &mut MyStopTime, _| {
-                    dbg!("submit sotp event");
-                    ctx.submit_command(SELECT_STOP_LIST.with(data.stop_id.clone()));
-                },
-            ),
-            |data: &MyStopTime, _: &_| match &data.stop_time {
-                Some(stop_time) => stop_time.stop_id != data.stop_id,
-                None => true,
-            },
-        ))
+        .with_child(
+            Flex::row()
+                .with_child(field_row(
+                    "stop_id",
+                    Button::new(|data: &MyStopTime, _: &_| data.stop_id.clone()).on_click(
+                        |ctx: &mut EventCtx, data: &mut MyStopTime, _| {
+                            ctx.submit_command(SELECT_STOP_LIST.with(data.stop_id.clone()));
+                        },
+                    ),
+                    |data: &MyStopTime, _: &_| match &data.stop_time {
+                        Some(stop_time) => stop_time.stop_id != data.stop_id,
+                        None => true,
+                    },
+                ))
+                .with_child(Button::new("edit").on_click(
+                    |ctx: &mut EventCtx, data: &mut MyStopTime, _| {
+                        ctx.submit_command(EDIT_STOP_TIME_CHOOSE);
+                    },
+                )),
+        )
         .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "stop_sequence",
