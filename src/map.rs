@@ -1134,93 +1134,6 @@ impl Widget<AppData> for MapWidget {
             println!("paint: redraw");
             self.remake_paths = false;
             self.redraw_highlights = false;
-
-            // find size of path data
-            let long_lat_rect = min_max_trips_coords(&self.trips_coords);
-
-            let latlong_to_bitmap = |coord: Point| {
-                MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
-            };
-
-            let latlong_to_ctx =
-                |coord: Point| MapWidget::latlong_to_canvas(coord, long_lat_rect, size.max_side());
-
-            // TODO should be making data in update or on_added, not paint
-            // translate trip paths to a given canvas size and store colors
-            println!("{} paint: redraw base: make paths", Utc::now());
-            self.all_trip_paths = self
-                .trips_coords
-                .iter()
-                .zip(data.trips.iter())
-                .filter(|(_coords, trip)| trip.visible)
-                .map(|(coords, trip)| {
-                    let route = data
-                        .routes
-                        .iter()
-                        .find(|route| route.id == trip.route_id)
-                        .unwrap();
-                    let RGB { r, g, b } = route.color.0;
-                    let color = Color::rgb8(r, g, b);
-                    let RGB { r, g, b } = route.text_color.0;
-                    let text_color = Color::rgb8(r, g, b);
-                    (
-                        trip.id.clone(),
-                        color,
-                        text_color,
-                        bez_path_from_coords_iter(
-                            coords.iter().map(|coord| latlong_to_bitmap(*coord)),
-                        ),
-                    )
-                })
-                .collect::<Vec<_>>();
-
-            println!("{} paint: redraw base: group paths", Utc::now());
-            for m in 0..NUMBER_TILES_WIDTH {
-                for n in 0..NUMBER_TILES_WIDTH {
-                    let rect = Rect::from_origin_size(
-                        (
-                            REFERENCE_SIZE as f64 * m as f64 / NUMBER_TILES_WIDTH as f64,
-                            REFERENCE_SIZE as f64 * n as f64 / NUMBER_TILES_WIDTH as f64,
-                        ),
-                        (
-                            REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
-                            REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
-                        ),
-                    );
-                    let mut group_paths = Vec::new();
-                    // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                    for (id, color, text_color, trip_path) in &self.all_trip_paths {
-                        for seg in trip_path.segments() {
-                            if rect.contains(seg.as_line().unwrap().p0)
-                                || rect.contains(seg.as_line().unwrap().p1)
-                            {
-                                group_paths.push((
-                                    id.clone(),
-                                    color.clone(),
-                                    text_color.clone(),
-                                    trip_path.clone(),
-                                ));
-                                break;
-                            }
-                        }
-                    }
-                    self.all_trip_paths_bitmap_grouped.push((rect, group_paths));
-                }
-            }
-
-            self.stop_circles = data
-                .stops
-                .iter()
-                .map(|stop| latlong_to_bitmap(stop.latlong))
-                .collect::<Vec<_>>();
-            self.stop_circles_canvas = data
-                .stops
-                .iter()
-                .map(|stop| latlong_to_ctx(stop.latlong))
-                .collect::<Vec<_>>();
-
-            // self.draw_base_from_cache(data, ctx, rect);
-            // self.draw_minimap(data, ctx, rect);
         }
         if self.recreate_bitmap {
             println!("{} paint: redraw base: make image", Utc::now());
@@ -1244,37 +1157,8 @@ impl Widget<AppData> for MapWidget {
             // self.cached_image_small = Some(cached_image_small);
             // self.cached_image_large = Some(cached_image_large);
         }
-        // if self.redraw_highlights {
-        //     println!("paint: redraw highlights");
-        //     self.draw_base_from_cache(data, ctx, rect);
-        //     self.draw_highlights(data, ctx, rect);
-        //     self.draw_minimap(data, ctx, rect);
-        //     // if let Some(selected_circle) = self.selected_stop_circle {
-        //     //     ctx.fill(selected_circle, &Color::FUCHSIA);
-        //     // }
-
-        //     // if let Some(circle) = self.highlighted_stop_circle {
-        //     //     let circle = Circle::new(
-        //     //         circle.center,
-        //     //         if data.map_zoom_level.to_f64() > 6. {
-        //     //             6. * 1.4
-        //     //         } else {
-        //     //             data.map_zoom_level.to_f64() * 1.4
-        //     //         },
-        //     //     );
-        //     //     ctx.fill(circle, &Color::PURPLE);
-        //     // }
-        //     self.redraw_highlights = false;
-        // } else {
-        //     println!("paint: use cache");
-        //     self.draw_base_from_cache(data, ctx, rect);
-        //     // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
-        //     self.draw_highlights(data, ctx, rect);
-        //     self.draw_minimap(data, ctx, rect);
-        // }
 
         // TODO come up with proper heuristic based on the size of coords or density of paths to determine when to switch to immediate mode, so that it generalises to maps other than SP
-
         if self.cached_image_map.contains_key(&data.map_zoom_level) {
             println!("paint: use cache");
             self.draw_bitmap_onto_paint_context(data, ctx);
@@ -1294,9 +1178,100 @@ impl Widget<AppData> for MapWidget {
     fn lifecycle(
         &mut self,
         ctx: &mut druid::LifeCycleCtx,
-        event: &druid::LifeCycle,
+        event: &LifeCycle,
         data: &AppData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::WidgetAdded => {
+                let size = ctx.size();
+                // find size of path data
+                let long_lat_rect = min_max_trips_coords(&self.trips_coords);
+
+                let latlong_to_bitmap = |coord: Point| {
+                    MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
+                };
+
+                let latlong_to_ctx = |coord: Point| {
+                    MapWidget::latlong_to_canvas(coord, long_lat_rect, size.max_side())
+                };
+
+                // TODO should be making data in update or on_added, not paint
+                // translate trip paths to a given canvas size and store colors
+                println!("{} paint: redraw base: make paths", Utc::now());
+                self.all_trip_paths = self
+                    .trips_coords
+                    .iter()
+                    .zip(data.trips.iter())
+                    .filter(|(_coords, trip)| trip.visible)
+                    .map(|(coords, trip)| {
+                        let route = data
+                            .routes
+                            .iter()
+                            .find(|route| route.id == trip.route_id)
+                            .unwrap();
+                        let RGB { r, g, b } = route.color.0;
+                        let color = Color::rgb8(r, g, b);
+                        let RGB { r, g, b } = route.text_color.0;
+                        let text_color = Color::rgb8(r, g, b);
+                        (
+                            trip.id.clone(),
+                            color,
+                            text_color,
+                            bez_path_from_coords_iter(
+                                coords.iter().map(|coord| latlong_to_bitmap(*coord)),
+                            ),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                println!("{} paint: redraw base: group paths", Utc::now());
+                for m in 0..NUMBER_TILES_WIDTH {
+                    for n in 0..NUMBER_TILES_WIDTH {
+                        let rect = Rect::from_origin_size(
+                            (
+                                REFERENCE_SIZE as f64 * m as f64 / NUMBER_TILES_WIDTH as f64,
+                                REFERENCE_SIZE as f64 * n as f64 / NUMBER_TILES_WIDTH as f64,
+                            ),
+                            (
+                                REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
+                                REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
+                            ),
+                        );
+                        let mut group_paths = Vec::new();
+                        // TODO maybe only store the parts of the path actually in the box, so that when checking for hover later, we are not comparing parts of the path that we know are not in the box. A further optimization would be to deduplicate line segments that are shared by all trips in the route
+                        // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
+                        for (id, color, text_color, trip_path) in &self.all_trip_paths {
+                            for seg in trip_path.segments() {
+                                if rect.contains(seg.as_line().unwrap().p0)
+                                    || rect.contains(seg.as_line().unwrap().p1)
+                                {
+                                    group_paths.push((
+                                        id.clone(),
+                                        color.clone(),
+                                        text_color.clone(),
+                                        trip_path.clone(),
+                                    ));
+                                    break;
+                                }
+                            }
+                        }
+                        self.all_trip_paths_bitmap_grouped.push((rect, group_paths));
+                    }
+                }
+
+                self.stop_circles = data
+                    .stops
+                    .iter()
+                    .map(|stop| latlong_to_bitmap(stop.latlong))
+                    .collect::<Vec<_>>();
+                self.stop_circles_canvas = data
+                    .stops
+                    .iter()
+                    .map(|stop| latlong_to_ctx(stop.latlong))
+                    .collect::<Vec<_>>();
+            }
+            _ => {}
+        }
     }
 }
