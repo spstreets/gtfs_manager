@@ -111,7 +111,7 @@ pub struct MapWidget {
     highlighted_stop_circle: Option<Point>,
     selected_stop_circle: Option<Point>,
     speed: f64,
-    click_down_pos: Option<Point>,
+    down_click_pos: Option<Point>,
     drag_last_pos: Option<Point>,
     // focal_point should be a lat long coord which is then converted as required, in order to preserve focus between zoom levels. but then we have to dertmine what the ORIGIN coord is. better to just have focal point as a point in [0,1] space.
     focal_point: NormalPoint,
@@ -120,10 +120,7 @@ pub struct MapWidget {
     cached_image_large: Option<CairoImage>,
     cached_image_map: HashMap<ZoomLevel, CairoImage>,
     cached_image_vec: Vec<CairoImage>,
-    immediate_mode: bool,
     recreate_bitmap: bool,
-    remake_paths: bool,
-    redraw_highlights: bool,
     stop_selection_mode: bool,
     // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
     // vector of trips (selected, vector of stop coords)
@@ -134,10 +131,7 @@ impl MapWidget {
         println!("new widget");
         let mut map_widget = MapWidget::default();
         map_widget.speed = speed;
-        map_widget.immediate_mode = true;
         map_widget.recreate_bitmap = true;
-        map_widget.remake_paths = true;
-        map_widget.redraw_highlights = true;
         map_widget.focal_point = NormalPoint::CENTER;
         map_widget
     }
@@ -272,23 +266,6 @@ impl MapWidget {
             ctx.transform(Affine::translate(center_adjust.to_vec2()));
             // do we need zoom if the BITMAP is already sized to it's zoom level? Yes because we are not scaling the bitmap, but the rect which we are drawing it into
             ctx.transform(Affine::scale(zoom));
-            // ctx.stroke(rect, &Color::GRAY, 2.);
-            // match data.map_zoom_level {
-            //     ZoomLevel::One | ZoomLevel::Two => {
-            //         ctx.draw_image(
-            //             &self.cached_image_small.as_ref().unwrap(),
-            //             rect,
-            //             InterpolationMode::Bilinear,
-            //         );
-            //     }
-            //     ZoomLevel::Five | ZoomLevel::Ten | ZoomLevel::Twenty | ZoomLevel::Fifty => {
-            //         ctx.draw_image(
-            //             &self.cached_image_large.as_ref().unwrap(),
-            //             rect,
-            //             InterpolationMode::Bilinear,
-            //         );
-            //     }
-            // }
             let bitmap = self.cached_image_map.get(&data.map_zoom_level).unwrap();
             ctx.draw_image(
                 bitmap,
@@ -743,7 +720,7 @@ impl Widget<AppData> for MapWidget {
             // }
             Event::MouseDown(mouse_event) => {
                 ctx.override_cursor(&Cursor::Pointer);
-                self.click_down_pos = Some(mouse_event.pos);
+                self.down_click_pos = Some(mouse_event.pos);
                 self.drag_last_pos = Some(mouse_event.pos);
             }
             Event::MouseMove(mouse_event) => {
@@ -797,7 +774,7 @@ impl Widget<AppData> for MapWidget {
                                 if self.hovered_trip_paths != hovered_trip_paths {
                                     println!("mouse move: highlights changed");
                                     self.hovered_trip_paths = hovered_trip_paths;
-                                    self.redraw_highlights = true;
+                                    ctx.request_paint();
                                 }
                             }
                         } else {
@@ -809,57 +786,30 @@ impl Widget<AppData> for MapWidget {
                             if self.hovered_trip_paths != hovered_trip_paths {
                                 println!("mouse move: highlights changed");
                                 self.hovered_trip_paths = hovered_trip_paths;
-                                self.redraw_highlights = true;
+                                ctx.request_paint();
                             }
                         }
                     } else {
                         // should arguably
-                        self.redraw_highlights = true;
                         self.hovered_stop_id = self.find_hovered_stop(data, ctx, mouse_event.pos);
                         ctx.request_paint();
                     }
 
-                    // for (i, trip_path) in self.all_trip_paths_canvas.iter().enumerate() {
-                    //     for seg in trip_path.segments() {
-                    //         // NOTE accuracy arg in .nearest() isn't used for lines
-                    //         // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
-                    //         if seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2
-                    //         {
-                    //             dbg!(i);
-                    //             highlighted_trip_paths.push(trip_path.clone());
-                    //             break;
-                    //         }
-                    //     }
-                    // }
-
                     self.highlighted_stop_circle = None;
-                    // for circle in &self.stop_circles {
-                    //     if circle.contains(mouse_event.pos) {
-                    //         self.redraw_highlights = true;
-                    //         self.highlighted_stop_circle = Some(circle.clone());
-                    //     }
-                    // }
-                    if self.redraw_highlights {
-                        println!("mouse_move: paint");
-                        ctx.request_paint();
-                    }
                 }
             }
             Event::MouseUp(mouse_event) => {
                 let transformed_focal_point = self
                     .focal_point
                     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-                // let transformed_focal_point = Point::new(
-                //     self.focal_point.0 * ctx.size().height * data.map_zoom_level.to_f64(),
-                //     self.focal_point.1 * ctx.size().height * data.map_zoom_level.to_f64(),
-                // );
+
                 let translated_mouse_position = ((mouse_event.pos.to_vec2()
                     + transformed_focal_point.to_vec2())
                     / data.map_zoom_level.to_f64())
                 .to_point();
 
                 // only handle up click if the down click was on the map
-                if let Some(click_down_pos) = self.click_down_pos {
+                if let Some(click_down_pos) = self.down_click_pos {
                     if mouse_event.pos == click_down_pos {
                         println!("mouse_up: same pos");
                         // if mouse inside minimap
@@ -870,8 +820,7 @@ impl Widget<AppData> for MapWidget {
                                 mouse_event.pos,
                                 ctx.size() * MINIMAP_PROPORTION,
                             );
-                            self.click_down_pos = None;
-                            self.redraw_highlights = true;
+                            self.down_click_pos = None;
                             ctx.request_paint();
                         } else {
                             if !data.map_stop_selection_mode {
@@ -925,24 +874,6 @@ impl Widget<AppData> for MapWidget {
                                         ctx.submit_command(SELECT_NOTHING);
                                     }
                                 }
-
-                            // for (stop_circle, stop) in
-                            //     self.stop_circles.iter().zip(data.stops.iter_mut())
-                            // {
-                            //     if stop_circle.contains(me.pos) {
-                            //         self.redraw_highlights = true;
-                            //         self.selected_stop_circle = Some(*stop_circle);
-                            //         ctx.submit_command(SELECT_STOP_LIST.with(stop.id.clone()));
-                            //     }
-                            // }
-
-                            // for (path, trip) in
-                            //     self.all_trip_paths.iter().zip(data.stops.iter_mut())
-                            // {
-                            //     if stop_circle.contains(me.pos) {
-                            //         ctx.submit_command(SHOW_STOP.with(stop.id.clone()));
-                            //     }
-                            // }
                             } else {
                                 if let Some(hovered_stop_id) = &self.hovered_stop_id {
                                     ctx.submit_command(
@@ -953,14 +884,13 @@ impl Widget<AppData> for MapWidget {
                                 }
                             }
 
-                            self.click_down_pos = None;
-                            self.redraw_highlights = true;
+                            self.down_click_pos = None;
                             // NOTE don't need to call ctx.paint() since we are updating data which will trigger a paint
                         }
                     } else {
                         // todo understand why .clear_cursor() doesn't work here
                         ctx.override_cursor(&Cursor::Arrow);
-                        self.click_down_pos = None;
+                        self.down_click_pos = None;
                         self.drag_last_pos = None;
                     }
                 }
@@ -1009,21 +939,15 @@ impl Widget<AppData> for MapWidget {
                         .collect::<Vec<_>>();
                 }
             }
-            self.redraw_highlights = true;
             ctx.request_paint();
         }
 
         // if new stop_time is hovered
-        println!(
-            "update: hovered_stop_time_id: {:?}",
-            data.hovered_stop_time_id
-        );
         if !data
             .hovered_stop_time_id
             .same(&old_data.hovered_stop_time_id)
         {
             println!("update: hovered_stop_time_id: paint");
-            self.redraw_highlights = true;
             ctx.request_paint();
         }
         // if new route is selected
@@ -1044,7 +968,6 @@ impl Widget<AppData> for MapWidget {
                     .filter(|(id, _color, text_color, _path)| trip_ids.contains(id))
                     .cloned()
                     .collect::<Vec<_>>();
-                self.redraw_highlights = true;
                 ctx.request_paint();
             }
         }
@@ -1055,22 +978,10 @@ impl Widget<AppData> for MapWidget {
 
             // only want to redraw base when a new trip is added, so leave for now
             // self.redraw_base = true;
-            self.redraw_highlights = true;
             ctx.request_paint();
         }
         if !data.map_zoom_level.same(&&old_data.map_zoom_level) {
             println!("update: map_zoom_level: paint");
-            // self.zoom_level = match data.map_zoom_level {
-            //     ZoomLevel::One => 1.,
-            //     ZoomLevel::Two => 2.,
-            //     ZoomLevel::Three => 3.,
-            // };
-            if data.map_zoom_level.to_f64() >= 9. {
-                self.immediate_mode = true;
-            }
-            // self.remake_paths = true;
-            // self.recreate_bitmap = true;
-            // self.redraw_highlights = true;
             ctx.request_paint();
         }
         if !data
@@ -1101,8 +1012,6 @@ impl Widget<AppData> for MapWidget {
         //     bc.constrain(size)
         // }
         println!("layout");
-        self.redraw_highlights = true;
-        // self.remake_paths = true;
         let size = Size::new(100.0, 100.0);
         bc.constrain(size);
         let max = bc.max().height.min(bc.max().width);
@@ -1127,19 +1036,10 @@ impl Widget<AppData> for MapWidget {
         ctx.fill(rect, &Color::grey(0.4));
         // ctx.fill(rect, &Color::WHITE);
 
-        // need to remake paths when zoom level changes or layout changes
-        if self.remake_paths {
-            println!("paint: redraw");
-            self.remake_paths = false;
-            self.redraw_highlights = false;
-        }
         if self.recreate_bitmap {
             println!("{} paint: redraw base: make image", Utc::now());
             self.recreate_bitmap = false;
 
-            // not remaking paths doesn't actually affect the path widths drawn between zoom levels...
-            // let cached_image_small = self.make_bitmap(data, ctx, BITMAP_SIZE_SMALL, ZoomLevel::One);
-            // let cached_image_large = self.make_bitmap(data, ctx, BITMAP_SIZE_LARGE, ZoomLevel::Ten);
             for (_name, zoom_level) in ZoomLevel::radio_group_vec() {
                 // panning the map is laggy for *all* zoom levels if we create bitmaps at x10 or greater
                 if zoom_level.to_usize() < 10 {
@@ -1148,12 +1048,9 @@ impl Widget<AppData> for MapWidget {
                 }
             }
             if self.minimap_image.is_none() {
-                // self.minimap_image = Some(cached_image_small.clone());
                 self.minimap_image =
                     Some(self.cached_image_map.get(&ZoomLevel::One).unwrap().clone());
             }
-            // self.cached_image_small = Some(cached_image_small);
-            // self.cached_image_large = Some(cached_image_large);
         }
 
         // TODO come up with proper heuristic based on the size of coords or density of paths to determine when to switch to immediate mode, so that it generalises to maps other than SP
