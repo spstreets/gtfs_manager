@@ -1888,13 +1888,7 @@ pub fn main_widget() -> impl Widget<AppData> {
 
     let zoom_level = RadioGroup::row(ZoomLevel::radio_group_vec()).lens(AppData::map_zoom_level);
     // let map_widget = (MapWidget::new(1., 1., Point::ZERO).on_added(
-    let map_widget = (MapWidget::new(1.).on_added(
-        |map: &mut MapWidget, life_cycle_ctx: &mut LifeCycleCtx, data: &AppData, _: &Env| {
-            map.trips_coords = data.trips_coords();
-            // life_cycle_ctx.
-        },
-    ))
-    .expand();
+    let map_widget = (MapWidget::new()).expand();
 
     Flex::row()
         .with_flex_child(all_together_now, 1.)

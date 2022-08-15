@@ -127,10 +127,10 @@ pub struct MapWidget {
     pub trips_coords: Vec<Vec<Point>>,
 }
 impl MapWidget {
-    pub fn new(speed: f64) -> MapWidget {
+    pub fn new() -> MapWidget {
         println!("new widget");
         let mut map_widget = MapWidget::default();
-        map_widget.speed = speed;
+        map_widget.speed = 1.;
         map_widget.recreate_bitmap = true;
         map_widget.focal_point = NormalPoint::CENTER;
         map_widget
@@ -1085,6 +1085,9 @@ impl Widget<AppData> for MapWidget {
     ) {
         match event {
             LifeCycle::WidgetAdded => {
+                // TODO this should obviously be decoupled from widget impl
+                self.trips_coords = data.trips_coords();
+
                 let size = ctx.size();
                 // find size of path data
                 let long_lat_rect = min_max_trips_coords(&self.trips_coords);
