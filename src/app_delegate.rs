@@ -424,6 +424,18 @@ impl AppDelegate<AppData> for Delegate {
                 "update stop_time {:?} to stop_id: {}",
                 data.selected_stop_time_id, stop_id
             );
+            if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
+                let selected_stop_time = data
+                    .stop_times
+                    .iter_mut()
+                    .find(|stop_time| {
+                        stop_time.trip_id == selected_stop_time_id.0
+                            && stop_time.stop_sequence == selected_stop_time_id.1
+                    })
+                    .unwrap();
+                selected_stop_time.stop_id = stop_id.clone();
+                selected_stop_time.edited = true;
+            }
 
             druid::Handled::Yes
         } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {

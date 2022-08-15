@@ -95,7 +95,9 @@ fn min_max_trips_coords(trips: &Vec<Vec<Point>>) -> Rect {
 pub struct MapWidget {
     mouse_position: Option<Point>,
     /// (trip_id, color, text_color, path)
-    all_trip_paths: Vec<(String, Color, Color, BezPath)>,
+    all_trip_paths_combined: Vec<(String, Color, Color, BezPath)>,
+    all_trip_paths_from_shapes: Vec<(String, Color, Color, BezPath)>,
+    all_trip_paths_from_stop_coords: Vec<(String, Color, Color, BezPath)>,
     all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
     hovered_trip_paths: Vec<(String, Color, Color, BezPath)>,
     filtered_trip_paths: Vec<(String, Color, Color, BezPath)>,
@@ -124,7 +126,7 @@ pub struct MapWidget {
     stop_selection_mode: bool,
     // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
     // vector of trips (selected, vector of stop coords)
-    pub trips_coords: Vec<Vec<Point>>,
+    // pub trips_coords_from_shapes: Vec<Vec<Point>>,
 }
 impl MapWidget {
     pub fn new() -> MapWidget {
@@ -136,6 +138,44 @@ impl MapWidget {
         map_widget
     }
 
+    fn group_paths_into_rects(&self) -> Vec<(Rect, Vec<(String, Color, Color, BezPath)>)> {
+        println!("{} paint: redraw base: group paths", Utc::now());
+        let mut all_trip_paths_bitmap_grouped = Vec::new();
+        for m in 0..NUMBER_TILES_WIDTH {
+            for n in 0..NUMBER_TILES_WIDTH {
+                let rect = Rect::from_origin_size(
+                    (
+                        REFERENCE_SIZE as f64 * m as f64 / NUMBER_TILES_WIDTH as f64,
+                        REFERENCE_SIZE as f64 * n as f64 / NUMBER_TILES_WIDTH as f64,
+                    ),
+                    (
+                        REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
+                        REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
+                    ),
+                );
+                let mut group_paths = Vec::new();
+                // TODO maybe only store the parts of the path actually in the box, so that when checking for hover later, we are not comparing parts of the path that we know are not in the box. A further optimization would be to deduplicate line segments that are shared by all trips in the route
+                // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
+                for (id, color, text_color, trip_path) in &self.all_trip_paths_combined {
+                    for seg in trip_path.segments() {
+                        if rect.contains(seg.as_line().unwrap().p0)
+                            || rect.contains(seg.as_line().unwrap().p1)
+                        {
+                            group_paths.push((
+                                id.clone(),
+                                color.clone(),
+                                text_color.clone(),
+                                trip_path.clone(),
+                            ));
+                            break;
+                        }
+                    }
+                }
+                all_trip_paths_bitmap_grouped.push((rect, group_paths));
+            }
+        }
+        all_trip_paths_bitmap_grouped
+    }
     fn latlong_to_canvas(latlong: Point, latlong_rect: Rect, canvas_max_dimension: f64) -> Point {
         let latlong_origin_vec = latlong - latlong_rect.origin();
         // flip latlong vec since latlong coord system has origin bottom left and canvas uses top left
@@ -180,7 +220,7 @@ impl MapWidget {
         let s_circle_bb = path_width * 0.8;
         let s_circle = path_width * 0.6;
 
-        for (_trip_id, color, _text_color, path) in &self.all_trip_paths {
+        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_combined {
             // for (_trip_id, color, _text_color, path) in &self.all_trip_paths_canvas {
             ctx.stroke(path, color, path_width);
         }
@@ -210,7 +250,7 @@ impl MapWidget {
         // path width should use reference size since we are scaling them to the size of the bitmap anyway, else the would be too big/small from the scaling
         let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
         ctx.transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
-        for (_trip_id, color, _text_color, path) in &self.all_trip_paths {
+        for (_trip_id, color, _text_color, path) in &self.all_trip_paths_combined {
             ctx.stroke(path, color, path_width);
         }
 
@@ -918,7 +958,7 @@ impl Widget<AppData> for MapWidget {
         if !data.selected_trip_id.same(&old_data.selected_trip_id) {
             println!("update: selected_trip: paint");
             self.selected_trip_path = self
-                .all_trip_paths
+                .all_trip_paths_combined
                 .iter()
                 .find(|path| {
                     if let Some(trip_id) = &data.selected_trip_id {
@@ -938,7 +978,7 @@ impl Widget<AppData> for MapWidget {
                         .map(|trip| trip.id.clone())
                         .collect::<Vec<_>>();
                     self.filtered_trip_paths = self
-                        .all_trip_paths
+                        .all_trip_paths_combined
                         .iter()
                         .filter(|(id, _color, text_color, _path)| trip_ids.contains(id))
                         .cloned()
@@ -969,7 +1009,7 @@ impl Widget<AppData> for MapWidget {
                     .map(|trip| trip.id.clone())
                     .collect::<Vec<_>>();
                 self.filtered_trip_paths = self
-                    .all_trip_paths
+                    .all_trip_paths_combined
                     .iter()
                     .filter(|(id, _color, text_color, _path)| trip_ids.contains(id))
                     .cloned()
@@ -986,6 +1026,36 @@ impl Widget<AppData> for MapWidget {
             // self.redraw_base = true;
             ctx.request_paint();
         }
+
+        // check for stop_times which have been edited
+        for (i, (data_stop_time, old_data_stop_time)) in data
+            .stop_times
+            .iter()
+            .zip(old_data.stop_times.iter())
+            .enumerate()
+        {
+            if data_stop_time.edited && !old_data_stop_time.edited {
+                dbg!("bingo");
+                let trip_index = data
+                    .trips
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, trip)| {
+                        if trip.id == data_stop_time.trip_id {
+                            Some(index)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                self.all_trip_paths_combined[trip_index] =
+                    self.all_trip_paths_from_stop_coords[trip_index].clone();
+                self.recreate_bitmap = true;
+                self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
+                ctx.request_paint();
+            }
+        }
+
         if !data.map_zoom_level.same(&&old_data.map_zoom_level) {
             println!("update: map_zoom_level: paint");
             ctx.request_paint();
@@ -1086,11 +1156,13 @@ impl Widget<AppData> for MapWidget {
         match event {
             LifeCycle::WidgetAdded => {
                 // TODO this should obviously be decoupled from widget impl
-                self.trips_coords = data.trips_coords();
+                let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                // let trips_coords_from_shapes = data.trips_coords_from_stop_coords();
+                let trips_coords_from_stop_coords = data.trips_coords_from_stop_coords();
 
                 let size = ctx.size();
                 // find size of path data
-                let long_lat_rect = min_max_trips_coords(&self.trips_coords);
+                let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
 
                 let latlong_to_bitmap = |coord: Point| {
                     MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
@@ -1099,8 +1171,7 @@ impl Widget<AppData> for MapWidget {
                 // TODO should be making data in update or on_added, not paint
                 // translate trip paths to a given canvas size and store colors
                 println!("{} paint: redraw base: make paths", Utc::now());
-                self.all_trip_paths = self
-                    .trips_coords
+                self.all_trip_paths_from_shapes = trips_coords_from_shapes
                     .iter()
                     .zip(data.trips.iter())
                     .filter(|(_coords, trip)| trip.visible)
@@ -1125,40 +1196,34 @@ impl Widget<AppData> for MapWidget {
                     })
                     .collect::<Vec<_>>();
 
-                println!("{} paint: redraw base: group paths", Utc::now());
-                for m in 0..NUMBER_TILES_WIDTH {
-                    for n in 0..NUMBER_TILES_WIDTH {
-                        let rect = Rect::from_origin_size(
-                            (
-                                REFERENCE_SIZE as f64 * m as f64 / NUMBER_TILES_WIDTH as f64,
-                                REFERENCE_SIZE as f64 * n as f64 / NUMBER_TILES_WIDTH as f64,
+                // let trip_coords
+                self.all_trip_paths_from_stop_coords = trips_coords_from_stop_coords
+                    .iter()
+                    .zip(data.trips.iter())
+                    .filter(|(_coords, trip)| trip.visible)
+                    .map(|(coords, trip)| {
+                        let route = data
+                            .routes
+                            .iter()
+                            .find(|route| route.id == trip.route_id)
+                            .unwrap();
+                        let RGB { r, g, b } = route.color.0;
+                        let color = Color::rgb8(r, g, b);
+                        let RGB { r, g, b } = route.text_color.0;
+                        let text_color = Color::rgb8(r, g, b);
+                        (
+                            trip.id.clone(),
+                            color,
+                            text_color,
+                            bez_path_from_coords_iter(
+                                coords.iter().map(|coord| latlong_to_bitmap(*coord)),
                             ),
-                            (
-                                REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
-                                REFERENCE_SIZE as f64 / NUMBER_TILES_WIDTH as f64,
-                            ),
-                        );
-                        let mut group_paths = Vec::new();
-                        // TODO maybe only store the parts of the path actually in the box, so that when checking for hover later, we are not comparing parts of the path that we know are not in the box. A further optimization would be to deduplicate line segments that are shared by all trips in the route
-                        // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                        for (id, color, text_color, trip_path) in &self.all_trip_paths {
-                            for seg in trip_path.segments() {
-                                if rect.contains(seg.as_line().unwrap().p0)
-                                    || rect.contains(seg.as_line().unwrap().p1)
-                                {
-                                    group_paths.push((
-                                        id.clone(),
-                                        color.clone(),
-                                        text_color.clone(),
-                                        trip_path.clone(),
-                                    ));
-                                    break;
-                                }
-                            }
-                        }
-                        self.all_trip_paths_bitmap_grouped.push((rect, group_paths));
-                    }
-                }
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                self.all_trip_paths_combined = self.all_trip_paths_from_shapes.clone();
+                self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
 
                 self.stop_circles = data
                     .stops

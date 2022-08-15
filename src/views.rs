@@ -586,6 +586,9 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
     //     .with_child(delete_item_button());
 
     let fields = Flex::column()
+        .with_child(Label::new(|data: &MyStopTime, _: &_| {
+            format!("edited: {:?}", data.edited)
+        }))
         .with_child(field_row(
             "trip_id",
             Label::new(|data: &MyStopTime, _: &_| format!("{:?}", data.trip_id)),

@@ -87,6 +87,7 @@ pub struct MyStopTime {
     pub selected: bool,
     pub show_editing: bool,
     pub hover: bool,
+    pub edited: bool,
 
     pub trip_id: String,
     // pub arrival_time: Option<u32>,
@@ -140,6 +141,7 @@ pub struct MyTrip {
     pub selected: bool,
     pub expanded: bool,
     pub show_editing: bool,
+    pub edited: bool,
 
     pub id: String,
     pub service_id: String,
@@ -168,6 +170,7 @@ impl MyTrip {
             selected: false,
             expanded: false,
             show_editing: false,
+            edited: false,
 
             id: Uuid::new_v4().to_string(),
             service_id: "needtogetcalendar.serviceid".to_string(),
@@ -281,6 +284,7 @@ impl ListItem for MyRoute {
             selected: false,
             expanded: false,
             show_editing: false,
+            edited: false,
 
             id: Uuid::new_v4().to_string(),
             service_id: "needtogetcalendar.serviceid".to_string(),
@@ -556,8 +560,44 @@ impl ListItem for AppData {
 }
 // vector of trips (selected, vector of stop coords)
 impl AppData {
+    pub fn trips_coords_from_stop_coords(&self) -> Vec<Vec<Point>> {
+        dbg!("make trip coords");
+        self.trips
+            .iter()
+            .map(|trip| {
+                let (start_index, end_index) = self
+                    .stop_time_range_from_trip_id
+                    .get(&trip.id)
+                    .unwrap()
+                    .clone();
+                let mut stop_time_coords = self.gtfs.stop_times[start_index..end_index]
+                    .iter()
+                    .map(|stop_time| {
+                        let stop = self
+                            .stops
+                            .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
+                            .unwrap();
+
+                        // (
+                        //     stop_time.stop_sequence.clone(),
+                        //     (stop.longitude.unwrap(), stop.latitude.unwrap()),
+                        // )
+
+                        Point::new(stop.longitude.unwrap(), stop.latitude.unwrap())
+                    })
+                    .collect::<Vec<_>>();
+                // stop_time_coords.sort_by(|stop_time1, stop_time2| stop_time1.0.cmp(&stop_time2.0));
+
+                // stop_time_coords
+                //     .iter()
+                //     .map(|(_stop_sequence, coords)| *coords)
+                //     .collect::<Vec<_>>()
+                stop_time_coords
+            })
+            .collect::<Vec<_>>()
+    }
     // TODO don't need to construct MyStopTime here
-    pub fn trips_coords(&self) -> Vec<Vec<Point>> {
+    pub fn trips_coords_from_shapes(&self) -> Vec<Vec<Point>> {
         dbg!("make trip coords");
         self.trips
             .iter()
@@ -764,6 +804,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                 selected: false,
                 show_editing: false,
                 hover: false,
+                edited: false,
 
                 trip_id: stop_time.trip_id.clone(),
                 arrival_time: stop_time.arrival_time.clone(),
@@ -814,6 +855,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                 selected: false,
                 expanded: false,
                 show_editing: false,
+                edited: false,
 
                 id: trip.id.clone(),
                 service_id: trip.service_id.clone(),
