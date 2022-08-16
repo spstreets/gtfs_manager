@@ -1,5 +1,6 @@
 use chrono::Utc;
 use druid::im::{ordmap, vector, OrdMap, Vector};
+use druid::kurbo::BezPath;
 use druid::{Data, Lens, Point, Widget, WidgetExt};
 use gtfs_structures::{
     Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, Pathway,
@@ -560,8 +561,29 @@ impl ListItem for AppData {
 }
 // vector of trips (selected, vector of stop coords)
 impl AppData {
-    pub fn trips_coords_from_stop_coords(&self) -> Vec<Vec<Point>> {
+    pub fn trip_coords_from_stop_coords(&self, trip_id: String) -> Vec<Point> {
         dbg!("make trip coords");
+        let trip = self.trips.iter().find(|trip| trip.id == trip_id).unwrap();
+        let (start_index, end_index) = self
+            .stop_time_range_from_trip_id
+            .get(&trip.id)
+            .unwrap()
+            .clone();
+        let mut points = Vec::new();
+        for i in start_index..end_index {
+            let stop_time = self.stop_times.get(i).unwrap();
+            let stop = self
+                .stops
+                .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
+                .unwrap();
+
+            points.push(Point::new(stop.longitude.unwrap(), stop.latitude.unwrap()));
+        }
+        points
+    }
+
+    pub fn trips_coords_from_stop_coords(&self) -> Vec<Vec<Point>> {
+        dbg!("make trips coords");
         self.trips
             .iter()
             .map(|trip| {

@@ -1036,20 +1036,37 @@ impl Widget<AppData> for MapWidget {
         {
             if data_stop_time.edited && !old_data_stop_time.edited {
                 dbg!("bingo");
-                let trip_index = data
+                // TODO make latlong_to_bitmap() here is expensive and could be avoided
+                let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
+                let latlong_to_bitmap = |coord: Point| {
+                    MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
+                };
+
+                let (trip_index, trip) = data
                     .trips
                     .iter()
                     .enumerate()
-                    .find_map(|(index, trip)| {
-                        if trip.id == data_stop_time.trip_id {
-                            Some(index)
-                        } else {
-                            None
-                        }
-                    })
+                    .find(|(index, trip)| trip.id == data_stop_time.trip_id)
                     .unwrap();
-                self.all_trip_paths_combined[trip_index] =
-                    self.all_trip_paths_from_stop_coords[trip_index].clone();
+
+                let route = data
+                    .routes
+                    .iter()
+                    .find(|route| route.id == trip.route_id)
+                    .unwrap();
+                let RGB { r, g, b } = route.color.0;
+                let color = Color::rgb8(r, g, b);
+                let RGB { r, g, b } = route.text_color.0;
+                let text_color = Color::rgb8(r, g, b);
+                let coords = data.trip_coords_from_stop_coords(data_stop_time.trip_id.clone());
+
+                self.all_trip_paths_combined[trip_index] = (
+                    trip.id.clone(),
+                    color,
+                    text_color,
+                    bez_path_from_coords_iter(coords.iter().map(|coord| latlong_to_bitmap(*coord))),
+                );
                 self.recreate_bitmap = true;
                 self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
                 ctx.request_paint();
@@ -1196,31 +1213,31 @@ impl Widget<AppData> for MapWidget {
                     })
                     .collect::<Vec<_>>();
 
-                // let trip_coords
-                self.all_trip_paths_from_stop_coords = trips_coords_from_stop_coords
-                    .iter()
-                    .zip(data.trips.iter())
-                    .filter(|(_coords, trip)| trip.visible)
-                    .map(|(coords, trip)| {
-                        let route = data
-                            .routes
-                            .iter()
-                            .find(|route| route.id == trip.route_id)
-                            .unwrap();
-                        let RGB { r, g, b } = route.color.0;
-                        let color = Color::rgb8(r, g, b);
-                        let RGB { r, g, b } = route.text_color.0;
-                        let text_color = Color::rgb8(r, g, b);
-                        (
-                            trip.id.clone(),
-                            color,
-                            text_color,
-                            bez_path_from_coords_iter(
-                                coords.iter().map(|coord| latlong_to_bitmap(*coord)),
-                            ),
-                        )
-                    })
-                    .collect::<Vec<_>>();
+                // there is no point precalculating these because if the stop_time.stop_id has changed then we will need to recreate the path anyway
+                // self.all_trip_paths_from_stop_coords = trips_coords_from_stop_coords
+                //     .iter()
+                //     .zip(data.trips.iter())
+                //     .filter(|(_coords, trip)| trip.visible)
+                //     .map(|(coords, trip)| {
+                //         let route = data
+                //             .routes
+                //             .iter()
+                //             .find(|route| route.id == trip.route_id)
+                //             .unwrap();
+                //         let RGB { r, g, b } = route.color.0;
+                //         let color = Color::rgb8(r, g, b);
+                //         let RGB { r, g, b } = route.text_color.0;
+                //         let text_color = Color::rgb8(r, g, b);
+                //         (
+                //             trip.id.clone(),
+                //             color,
+                //             text_color,
+                //             bez_path_from_coords_iter(
+                //                 coords.iter().map(|coord| latlong_to_bitmap(*coord)),
+                //             ),
+                //         )
+                //     })
+                //     .collect::<Vec<_>>();
 
                 self.all_trip_paths_combined = self.all_trip_paths_from_shapes.clone();
                 self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
