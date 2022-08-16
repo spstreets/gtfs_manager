@@ -98,11 +98,15 @@ pub struct MapWidget {
     all_trip_paths_combined: Vec<(String, Color, Color, BezPath)>,
     all_trip_paths_from_shapes: Vec<(String, Color, Color, BezPath)>,
     all_trip_paths_from_stop_coords: Vec<(String, Color, Color, BezPath)>,
-    all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
-    hovered_trip_paths: Vec<(String, Color, Color, BezPath)>,
+    // all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
+    all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<usize>)>,
+    // hovered_trip_paths: Vec<(String, Color, Color, BezPath)>,
+    hovered_trip_paths: Vec<usize>,
     filtered_trip_paths: Vec<(String, Color, Color, BezPath)>,
     deleted_trip_paths: Vec<(String, Color, Color, BezPath)>,
-    selected_trip_path: Option<(String, Color, Color, BezPath)>,
+    // could just store an index here. as long as we don't change the order of all_trip_paths_combined and only add new trips to the end, this shouldn't be a problem. Could we enforce this in a type?
+    // selected_trip_path: Option<(String, Color, Color, BezPath)>,
+    selected_trip_path: Option<usize>,
     // this is for updating a stop_time stop_id
     hovered_stop_id: Option<String>,
     // selected_trip_paths: Vec<BezPath>,
@@ -138,7 +142,7 @@ impl MapWidget {
         map_widget
     }
 
-    fn group_paths_into_rects(&self) -> Vec<(Rect, Vec<(String, Color, Color, BezPath)>)> {
+    fn group_paths_into_rects(&self) -> Vec<(Rect, Vec<usize>)> {
         println!("{} paint: redraw base: group paths", Utc::now());
         let mut all_trip_paths_bitmap_grouped = Vec::new();
         for m in 0..NUMBER_TILES_WIDTH {
@@ -156,17 +160,14 @@ impl MapWidget {
                 let mut group_paths = Vec::new();
                 // TODO maybe only store the parts of the path actually in the box, so that when checking for hover later, we are not comparing parts of the path that we know are not in the box. A further optimization would be to deduplicate line segments that are shared by all trips in the route
                 // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                for (id, color, text_color, trip_path) in &self.all_trip_paths_combined {
+                for (index, ((id, color, text_color, trip_path))) in
+                    self.all_trip_paths_combined.iter().enumerate()
+                {
                     for seg in trip_path.segments() {
                         if rect.contains(seg.as_line().unwrap().p0)
                             || rect.contains(seg.as_line().unwrap().p1)
                         {
-                            group_paths.push((
-                                id.clone(),
-                                color.clone(),
-                                text_color.clone(),
-                                trip_path.clone(),
-                            ));
+                            group_paths.push(index);
                             break;
                         }
                     }
@@ -364,41 +365,43 @@ impl MapWidget {
         //     ctx.stroke(path, &Color::BLACK, path_bb);
         //     ctx.stroke(path, color, path_width);
         // }
-        for (_, color, text_color, path) in &self.hovered_trip_paths {
+        for index in &self.hovered_trip_paths {
+            let (_trip_id, color, text_color, path) =
+                self.all_trip_paths_combined.get(*index).unwrap();
             ctx.stroke(path, &Color::BLACK, path_bb);
             ctx.stroke(path, color, path_width);
         }
         // dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
 
-        if let Some((id, color, text_color, path)) = &self.selected_trip_path {
+        if let Some(index) = self.selected_trip_path {
+            let (id, color, text_color, path) = self.all_trip_paths_combined.get(index).unwrap();
             ctx.stroke(path, &Color::WHITE, path_wb);
             ctx.stroke(path, &Color::BLACK, path_bb);
             ctx.stroke(path, color, path_width);
             // drawing larger stops on top of path selection
-            if let Some(stop_times_range) = data.stop_time_range_from_trip_id.get(id) {
-                for i in stop_times_range.0..stop_times_range.1 {
-                    let stop_time = data.stop_times.get(i).unwrap();
-                    let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
-                    let point = self.stop_circles[stop_index];
-                    let stop = data.stops.get(stop_index).unwrap();
-                    ctx.fill(Circle::new(point.clone(), s_circle_bb), &Color::BLACK);
-                    ctx.fill(Circle::new(point.clone(), s_circle), &Color::WHITE);
-                    if let Some(hovered_stop_time_id) = &data.hovered_stop_time_id {
-                        if stop_time.trip_id == hovered_stop_time_id.0
-                            && stop_time.stop_sequence == hovered_stop_time_id.1
-                        {
-                            ctx.fill(Circle::new(point.clone(), l_circle_bb), &Color::BLACK);
-                            ctx.fill(Circle::new(point.clone(), l_circle), &Color::WHITE);
-                        }
+            let stop_times_range = data.stop_time_range_from_trip_id.get(id).unwrap();
+            for i in stop_times_range.0..stop_times_range.1 {
+                let stop_time = data.stop_times.get(i).unwrap();
+                let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
+                let point = self.stop_circles[stop_index];
+                let stop = data.stops.get(stop_index).unwrap();
+                ctx.fill(Circle::new(point.clone(), s_circle_bb), &Color::BLACK);
+                ctx.fill(Circle::new(point.clone(), s_circle), &Color::WHITE);
+                if let Some(hovered_stop_time_id) = &data.hovered_stop_time_id {
+                    if stop_time.trip_id == hovered_stop_time_id.0
+                        && stop_time.stop_sequence == hovered_stop_time_id.1
+                    {
+                        ctx.fill(Circle::new(point.clone(), l_circle_bb), &Color::BLACK);
+                        ctx.fill(Circle::new(point.clone(), l_circle), &Color::WHITE);
                     }
-                    if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
-                        if stop_time.trip_id == selected_stop_time_id.0
-                            && stop_time.stop_sequence == selected_stop_time_id.1
-                        {
-                            ctx.fill(Circle::new(point.clone(), l_circle_wb), &Color::WHITE);
-                            ctx.fill(Circle::new(point.clone(), l_circle_bb), &Color::BLACK);
-                            ctx.fill(Circle::new(point.clone(), l_circle), &Color::WHITE);
-                        }
+                }
+                if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
+                    if stop_time.trip_id == selected_stop_time_id.0
+                        && stop_time.stop_sequence == selected_stop_time_id.1
+                    {
+                        ctx.fill(Circle::new(point.clone(), l_circle_wb), &Color::WHITE);
+                        ctx.fill(Circle::new(point.clone(), l_circle_bb), &Color::BLACK);
+                        ctx.fill(Circle::new(point.clone(), l_circle), &Color::WHITE);
                     }
                 }
             }
@@ -533,7 +536,7 @@ impl MapWidget {
         data: &AppData,
         ctx: &EventCtx,
         mouse_position: Point,
-    ) -> Vec<(String, Color, Color, BezPath)> {
+    ) -> Vec<usize> {
         // converting a mouse Point (in canvas coords) to a Point in REFERENCE_SIZE coords
         // so we are trying to determine if a mouse Point which is bounded canvas coords but what it is hovering in the canvas might have been scaled and/or translated, and is over a path in REFERENCE_SIZE coords.
 
@@ -627,18 +630,15 @@ impl MapWidget {
             let (rect, paths) = box_group;
             if rect.contains(translated_mouse_position) {
                 // println!("in box: {}", i);
-                for (id, color, text_color, path) in paths {
+                for index in paths {
+                    let (_trip_id, _color, _text_color, path) =
+                        self.all_trip_paths_combined.get(*index).unwrap();
                     for seg in path.segments() {
                         // NOTE accuracy arg in .nearest() isn't used for lines
                         // if seg.nearest(mouse_event.pos, 1.).distance_sq < 1. {
                         if seg.nearest(translated_mouse_position, 1.).distance_sq < path_width2 {
                             // dbg!(id);
-                            hovered_trip_paths.push((
-                                id.clone(),
-                                color.clone(),
-                                text_color.clone(),
-                                path.clone(),
-                            ));
+                            hovered_trip_paths.push(*index);
                             break;
                         }
                     }
@@ -796,7 +796,9 @@ impl Widget<AppData> for MapWidget {
                     // if in normal mode check for path and stop_time hovers
                     if !data.map_stop_selection_mode {
                         // if hovering a stop on a selected path, highlight/englarge it
-                        if let Some((trip_id, color, text_color, path)) = &self.selected_trip_path {
+                        if let Some(index) = self.selected_trip_path {
+                            let (trip_id, color, text_color, path) =
+                                self.all_trip_paths_combined.get(index).unwrap();
                             // println!("mouse move: check for hover: stop");
                             // TODO below is still going too slow and will cause a backup after lots of mouse move events - seems to be fixed now
 
@@ -874,9 +876,9 @@ impl Widget<AppData> for MapWidget {
                                 // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
 
                                 // select trip if we are hovering one or more (if we are hovering a selected trip, there should be no hovered trips)
-                                if let Some((id, color, text_color, path)) =
-                                    self.hovered_trip_paths.get(0)
-                                {
+                                if let Some(index) = self.hovered_trip_paths.get(0) {
+                                    let (id, color, text_color, path) =
+                                        self.all_trip_paths_combined.get(*index).unwrap();
                                     let route_id = data
                                         .trips
                                         .iter()
@@ -895,17 +897,12 @@ impl Widget<AppData> for MapWidget {
                                     data.selected_route_id = Some(route_id);
                                     data.selected_trip_id = Some(id.clone());
                                     data.selected_stop_time_id = None;
-                                    self.selected_trip_path = Some((
-                                        id.clone(),
-                                        color.clone(),
-                                        text_color.clone(),
-                                        path.clone(),
-                                    ));
+                                    self.selected_trip_path = Some(*index);
 
                                     // check if hovering a stop on selected trip
-                                } else if let Some((trip_id, color, text_color, path)) =
-                                    &self.selected_trip_path
-                                {
+                                } else if let Some(index) = self.selected_trip_path {
+                                    let (trip_id, color, text_color, path) =
+                                        self.all_trip_paths_combined.get(index).unwrap();
                                     if self.is_path_hovered(data, ctx, path, mouse_event.pos) {
                                         if let Some(hovered_stop_time_id) =
                                             &data.hovered_stop_time_id
@@ -957,17 +954,14 @@ impl Widget<AppData> for MapWidget {
         // if selected trip changes
         if !data.selected_trip_id.same(&old_data.selected_trip_id) {
             println!("update: selected_trip: paint");
-            self.selected_trip_path = self
-                .all_trip_paths_combined
-                .iter()
-                .find(|path| {
-                    if let Some(trip_id) = &data.selected_trip_id {
-                        &path.0 == trip_id
-                    } else {
-                        false
-                    }
-                })
-                .cloned();
+            self.selected_trip_path = data.selected_trip_id.as_ref().map(|selected_trip_id| {
+                self.all_trip_paths_combined
+                    .iter()
+                    .enumerate()
+                    .find(|(index, path)| &path.0 == selected_trip_id)
+                    .map(|(index, path)| index)
+                    .unwrap()
+            });
             // if trip is deselected and route is selected
             if self.selected_trip_path.is_none() {
                 if let Some(route_id) = &data.selected_route_id {
@@ -1034,7 +1028,7 @@ impl Widget<AppData> for MapWidget {
             .zip(old_data.stop_times.iter())
             .enumerate()
         {
-            if data_stop_time.edited && !old_data_stop_time.edited {
+            if !data_stop_time.stop_id.same(&old_data_stop_time.stop_id) {
                 dbg!("bingo");
                 // TODO make latlong_to_bitmap() here is expensive and could be avoided
                 let trips_coords_from_shapes = data.trips_coords_from_shapes();
