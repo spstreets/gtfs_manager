@@ -1,6 +1,17 @@
 // ignore unused warnings while prototyping
 #![allow(unused)]
 
+macro_rules! myprint {
+    ($($args: expr),*) => {
+        print!("{} [{}:{}] ", chrono::Utc::now().time(), file!(), line!());
+        $(
+            print!("{}", $args);
+        )*
+        println!("");
+    }
+}
+// pub(crate) use myprint;
+
 mod list_select;
 pub use list_select::ListItem;
 
