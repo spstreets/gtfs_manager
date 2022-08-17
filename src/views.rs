@@ -560,6 +560,7 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
         })
         .with_line_break_mode(LineBreaking::Clip),
     )
+    .controller(ListHoverController {})
     .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
         dbg!("got click");
         ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
@@ -1646,13 +1647,15 @@ fn parent_route_selected() -> impl Widget<AppData> {
 fn parent_trip_selected() -> impl Widget<AppData> {
     FilteredList::new(
         List::new(trip_ui_small).with_spacing(10.),
-        |trip: &MyTrip, filtered: &Option<String>| {
-            filtered.as_ref().map_or(false, |id| &trip.id == id)
+        |trip: &MyTrip, filtered: &Option<(usize, String)>| {
+            filtered
+                .as_ref()
+                .map_or(false, |(index, id)| &trip.id == id)
         },
     )
     .lens(druid::lens::Map::new(
         |data: &AppData| (data.trips.clone(), data.selected_trip_id.clone()),
-        |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+        |data: &mut AppData, inner: (Vector<MyTrip>, Option<(usize, String)>)| {
             data.trips = inner.0;
             data.selected_trip_id = inner.1;
         },
@@ -1726,13 +1729,15 @@ fn trip_selected() -> Box<dyn Widget<AppData>> {
             .with_child(
                 FilteredList::new(
                     List::new(trip_ui_small_selected).with_spacing(10.),
-                    |trip: &MyTrip, filtered: &Option<String>| {
-                        filtered.as_ref().map_or(false, |id| &trip.id == id)
+                    |trip: &MyTrip, filtered: &Option<(usize, String)>| {
+                        filtered
+                            .as_ref()
+                            .map_or(false, |(index, id)| &trip.id == id)
                     },
                 )
                 .lens(druid::lens::Map::new(
                     |data: &AppData| (data.trips.clone(), data.selected_trip_id.clone()),
-                    |data: &mut AppData, inner: (Vector<MyTrip>, Option<String>)| {
+                    |data: &mut AppData, inner: (Vector<MyTrip>, Option<(usize, String)>)| {
                         data.trips = inner.0;
                         data.selected_trip_id = inner.1;
                     },
@@ -1743,15 +1748,15 @@ fn trip_selected() -> Box<dyn Widget<AppData>> {
                 Scroll::new(
                     FilteredList::new(
                         List::new(stop_time_ui_small).with_spacing(10.),
-                        |stop_time: &MyStopTime, filtered: &Option<String>| {
+                        |stop_time: &MyStopTime, filtered: &Option<(usize, String)>| {
                             filtered
                                 .as_ref()
-                                .map_or(false, |id| &stop_time.trip_id == id)
+                                .map_or(false, |(index, id)| &stop_time.trip_id == id)
                         },
                     )
                     .lens(druid::lens::Map::new(
                         |data: &AppData| (data.stop_times.clone(), data.selected_trip_id.clone()),
-                        |data: &mut AppData, inner: (Vector<MyStopTime>, Option<String>)| {
+                        |data: &mut AppData, inner: (Vector<MyStopTime>, Option<(usize,String)>)| {
                             data.stop_times = inner.0;
                             data.selected_trip_id = inner.1;
                         },
@@ -1852,7 +1857,7 @@ pub fn main_widget() -> impl Widget<AppData> {
         |selector: &(
             Option<Option<String>>,
             Option<String>,
-            Option<String>,
+            Option<(usize, String)>,
             Option<(String, u16)>,
             Option<String>,
         ),
@@ -1947,4 +1952,51 @@ impl<W: Widget<MyStop>> Controller<MyStop, W> for ScrollToMeController {
         }
         child.update(ctx, old_data, data, env)
     }
+}
+
+struct ListHoverController;
+impl<W: Widget<MyStopTime>> Controller<MyStopTime, W> for ListHoverController {
+    // fn event(
+    //     &mut self,
+    //     child: &mut W,
+    //     ctx: &mut EventCtx,
+    //     event: &Event,
+    //     data: &mut MyStop,
+    //     env: &Env,
+    // ) {
+    //     child.event(ctx, event, data, env);
+    //     if let Event::MouseDown(_) = event {
+    //         ctx.scroll_to_view();
+    //     }
+    // }
+
+    fn lifecycle(
+        &mut self,
+        child: &mut W,
+        ctx: &mut druid::LifeCycleCtx,
+        event: &LifeCycle,
+        data: &MyStopTime,
+        env: &Env,
+    ) {
+        // child.lifecycle(ctx, event, data, env)
+        match event {
+            LifeCycle::HotChanged(hot) => {}
+            _ => {}
+        }
+    }
+
+    // fn update(
+    //     &mut self,
+    //     child: &mut W,
+    //     ctx: &mut UpdateCtx,
+    //     old_data: &MyStop,
+    //     data: &MyStop,
+    //     env: &Env,
+    // ) {
+    //     if data.scroll_to_me > old_data.scroll_to_me {
+    //         dbg!("scroll_to_view");
+    //         ctx.scroll_to_view();
+    //     }
+    //     child.update(ctx, old_data, data, env)
+    // }
 }

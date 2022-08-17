@@ -378,9 +378,16 @@ impl AppDelegate<AppData> for Delegate {
             }
             druid::Handled::Yes
         } else if let Some(trip_id) = cmd.get(SELECT_TRIP) {
-            if data.selected_trip_id != Some(trip_id.clone()) {
-                data.selected_trip_id = Some(trip_id.clone());
-            }
+            println!("select trip");
+            let trip_index = data
+                .trips
+                .iter()
+                .enumerate()
+                .find(|(index, trip)| &trip.id == trip_id)
+                .unwrap()
+                .0;
+            data.selected_trip_id = Some((trip_index, trip_id.clone()));
+            dbg!(&data.selected_trip_id);
             data.selected_stop_time_id = None;
             data.selected_stop_id = None;
 
@@ -407,6 +414,7 @@ impl AppDelegate<AppData> for Delegate {
             data.selected_trip_id = None;
             data.selected_stop_time_id = None;
             data.selected_stop_id = None;
+            // data.selected_trip_path = None;
 
             for trip in data.trips.iter_mut() {
                 trip.selected = false;

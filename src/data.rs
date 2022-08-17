@@ -1,7 +1,7 @@
 use chrono::Utc;
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::kurbo::BezPath;
-use druid::{Data, Lens, Point, Widget, WidgetExt};
+use druid::{Data, Lens, Point, Rect, Widget, WidgetExt};
 use gtfs_structures::{
     Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, Pathway,
     PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Shape, Stop, StopTime,
@@ -491,6 +491,7 @@ impl ZoomLevel {
     }
 }
 
+// #[derive(Clone, Data, Lens)]
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct AppData {
     pub show_deleted: bool,
@@ -513,10 +514,19 @@ pub struct AppData {
     // pub stop_times_other: Vec<MyStopTime>,
     pub selected_agency_id: Option<Option<String>>,
     pub selected_route_id: Option<String>,
-    pub selected_trip_id: Option<String>,
+    // (index, id)
+    pub selected_trip_id: Option<(usize,String)>,
     pub selected_stop_time_id: Option<(String, u16)>,
     pub hovered_stop_time_id: Option<(String, u16)>,
     pub selected_stop_id: Option<String>,
+
+    // pub all_trip_paths_bitmap_grouped: Vector<(Rect, Vector<usize>)>,
+    #[data(ignore)]
+    #[lens(ignore)]
+    pub hovered_trip_paths: Vector<usize>,
+    // #[data(ignore)]
+    // #[lens(ignore)]
+    // pub selected_trip_path: Option<usize>,
 
     #[data(ignore)]
     #[lens(ignore)]
@@ -962,6 +972,10 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         hovered_stop_time_id: None,
         selected_stop_id: None,
         expanded: true,
+
+        // all_trip_paths_bitmap_grouped: Vector::new(),
+        hovered_trip_paths: Vector::new(),
+        // selected_trip_path: None,
 
         stop_time_range_from_trip_id,
         stop_index_from_id,
