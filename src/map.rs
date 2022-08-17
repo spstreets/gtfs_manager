@@ -163,14 +163,23 @@ impl MapWidget {
                 for (index, ((id, color, text_color, trip_path))) in
                     self.all_trip_paths_combined.iter().enumerate()
                 {
-                    for seg in trip_path.segments() {
-                        if rect.contains(seg.as_line().unwrap().p0)
-                            || rect.contains(seg.as_line().unwrap().p1)
-                        {
-                            group_paths.push(index);
-                            break;
-                        }
+                    let path_bounding_box = trip_path.bounding_box();
+                    if path_bounding_box.contains(Point::new(rect.x0, rect.y0))
+                        || path_bounding_box.contains(Point::new(rect.x1, rect.y0))
+                        || path_bounding_box.contains(Point::new(rect.x1, rect.y1))
+                        || path_bounding_box.contains(Point::new(rect.x0, rect.y1))
+                    {
+                        group_paths.push(index);
                     }
+                    // TODO below should produce less false positives than above, thus making searching for hovered paths quicker but doesn't handle segments which travel all the way through a rect. Use below but fall back to above when seg longer than rect
+                    // for seg in trip_path.segments() {
+                    //     if rect.contains(seg.as_line().unwrap().p0)
+                    //         || rect.contains(seg.as_line().unwrap().p1)
+                    //     {
+                    //         group_paths.push(index);
+                    //         break;
+                    //     }
+                    // }
                 }
                 all_trip_paths_bitmap_grouped.push((rect, group_paths));
             }
@@ -378,7 +387,7 @@ impl MapWidget {
             let (trip_id, color, text_color, path) =
                 self.all_trip_paths_combined.get(*index).unwrap();
             dbg!(trip_id);
-            dbg!(path);
+            // dbg!(path);
             ctx.stroke(path, &Color::WHITE, path_wb);
             ctx.stroke(path, &Color::BLACK, path_bb);
             ctx.stroke(path, color, path_width);
