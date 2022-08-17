@@ -638,12 +638,11 @@ impl MapWidget {
         // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
         let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
         let path_width2 = path_width * path_width;
-        for (i, box_group) in self.all_trip_paths_bitmap_grouped.iter().enumerate() {
+        for (i, (rect, path_indexes)) in self.all_trip_paths_bitmap_grouped.iter().enumerate() {
             // for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
-            let (rect, path_indexes) = box_group;
+            // let (rect, path_indexes) = box_group;
             if rect.contains(translated_mouse_position) {
-                dbg!(rect);
-                dbg!(path_indexes);
+                // dbg!(rect);
                 // println!("in box: {}", i);
                 for index in path_indexes {
                     let (_trip_id, _color, _text_color, path) =
@@ -790,7 +789,7 @@ impl Widget<AppData> for MapWidget {
 
                 // panning
                 if let Some(drag_start) = self.drag_last_pos {
-                    println!("mouse move: drag");
+                    // println!("mouse move: drag");
                     if mouse_event.buttons.has_left() {
                         let drag_vector = mouse_event.pos.to_vec2() - drag_start.to_vec2();
                         // TODO no idea why I need to reverse the drag vector here! the direction of the drag vector is the same that we want to change the focal point...
@@ -808,7 +807,7 @@ impl Widget<AppData> for MapWidget {
 
                 // hovering
                 } else {
-                    println!("mouse move: check for highlight");
+                    // println!("mouse move: check for highlight");
                     self.mouse_position = Some(mouse_event.pos);
 
                     // if in normal mode check for path and stop_time hovers
@@ -833,24 +832,24 @@ impl Widget<AppData> for MapWidget {
                                 );
                             } else {
                                 // check if hovering a path
-                                println!("mouse move: check for hover: path");
+                                // println!("mouse move: check for hover: path");
                                 let hovered_trip_paths =
                                     self.find_hovered_paths(data, ctx, mouse_event.pos);
 
                                 if data.hovered_trip_paths != hovered_trip_paths {
-                                    println!("mouse move: highlights changed");
+                                    // println!("mouse move: highlights changed");
                                     data.hovered_trip_paths = hovered_trip_paths;
                                     ctx.request_paint();
                                 }
                             }
                         } else {
                             // check if hovering a path
-                            println!("mouse move: check for hover: path");
+                            // println!("mouse move: check for hover: path");
                             let hovered_trip_paths =
                                 self.find_hovered_paths(data, ctx, mouse_event.pos);
 
                             if data.hovered_trip_paths != hovered_trip_paths {
-                                println!("mouse move: highlights changed");
+                                // println!("mouse move: highlights changed");
                                 data.hovered_trip_paths = hovered_trip_paths;
                                 ctx.request_paint();
                             }
