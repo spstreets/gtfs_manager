@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use chrono::Utc;
 use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::image::buffer::Rows;
 use druid::lens::{self, LensExt};
@@ -1978,11 +1979,18 @@ impl<W: Widget<MyStopTime>> Controller<MyStopTime, W> for ListHoverController {
         data: &MyStopTime,
         env: &Env,
     ) {
-        // child.lifecycle(ctx, event, data, env)
         match event {
-            LifeCycle::HotChanged(hot) => {}
+            LifeCycle::HotChanged(hot) => {
+                myprint!("submit stop_time hover cmd");
+                ctx.submit_command(HOVER_STOP_TIME.with(if *hot {
+                    Some((data.trip_id.clone(), data.stop_sequence))
+                } else {
+                    None
+                }))
+            },
             _ => {}
         }
+        child.lifecycle(ctx, event, data, env)
     }
 
     // fn update(

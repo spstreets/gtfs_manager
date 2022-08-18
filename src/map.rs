@@ -134,7 +134,7 @@ pub struct MapWidget {
 }
 impl MapWidget {
     pub fn new() -> MapWidget {
-        println!("new widget");
+        myprint!("new widget");
         let mut map_widget = MapWidget::default();
         map_widget.speed = 1.;
         map_widget.recreate_bitmap = true;
@@ -143,7 +143,7 @@ impl MapWidget {
     }
 
     fn group_paths_into_rects(&self) -> Vec<(Rect, Vec<usize>)> {
-        println!("{} paint: redraw base: group paths", Utc::now());
+        myprint!("paint: redraw base: group paths");
         let mut all_trip_paths_bitmap_grouped = Vec::new();
         for m in 0..NUMBER_TILES_WIDTH {
             for n in 0..NUMBER_TILES_WIDTH {
@@ -186,6 +186,29 @@ impl MapWidget {
         }
         all_trip_paths_bitmap_grouped
     }
+    fn update_single_path_in_grouped_rects(&mut self, trip_index: usize, trip_path: BezPath) {
+        myprint!("paint: redraw base: udpate single group paths");
+        let path_bounding_box = trip_path.bounding_box();
+        for (rect, group_paths) in &mut self.all_trip_paths_bitmap_grouped {
+            // remove previous references if any
+            let new_group_paths = group_paths
+                .iter()
+                .filter(|index| index != &&trip_index)
+                .cloned()
+                .collect::<Vec<_>>();
+            *group_paths = new_group_paths;
+
+            // check if rect intersects with bounding box and add trip index to group
+            if path_bounding_box.contains(Point::new(rect.x0, rect.y0))
+                || path_bounding_box.contains(Point::new(rect.x1, rect.y0))
+                || path_bounding_box.contains(Point::new(rect.x1, rect.y1))
+                || path_bounding_box.contains(Point::new(rect.x0, rect.y1))
+            {
+                group_paths.push(trip_index);
+            }
+        }
+    }
+
     fn latlong_to_canvas(latlong: Point, latlong_rect: Rect, canvas_max_dimension: f64) -> Point {
         let latlong_origin_vec = latlong - latlong_rect.origin();
         // flip latlong vec since latlong coord system has origin bottom left and canvas uses top left
@@ -332,7 +355,7 @@ impl MapWidget {
         });
     }
     fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
-        println!("draw highlights");
+        myprint!("draw highlights");
         // what is ctx.save() for? doing transforms which we want to be temporary
         ctx.save();
 
@@ -422,7 +445,7 @@ impl MapWidget {
         ctx.restore();
     }
     fn draw_stop_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
-        dbg!("draw_stop_highlights");
+        myprint!("draw_stop_highlights");
         ctx.save();
 
         let transformed_focal_point = self
@@ -876,7 +899,7 @@ impl Widget<AppData> for MapWidget {
                 // only handle up click if the down click was on the map
                 if let Some(click_down_pos) = self.down_click_pos {
                     if mouse_event.pos == click_down_pos {
-                        println!("mouse_up: same pos");
+                        myprint!("mouse_up: same pos");
                         // if mouse inside minimap
                         let minimap_rect =
                             ctx.size().to_rect().scale_from_origin(MINIMAP_PROPORTION);
@@ -967,10 +990,11 @@ impl Widget<AppData> for MapWidget {
     ) {
         // TODO is this ok or need to loop through and compare items?
         // need to differentiate between visible/selected/zoomed to determine whether we need to set self.redraw_base
-        println!("update");
+        myprint!("update");
         // if selected trip changes
+        myprint!("update: check: selected_trip_id");
         if !data.selected_trip_id.same(&old_data.selected_trip_id) {
-            println!("update: selected_trip: paint");
+            println!("{} update: selected_trip: paint", Utc::now());
             // TODO can't mutate data here, make sure below is being handled somewhere else
             // data.selected_trip_path = data.selected_trip_id.as_ref().map(|selected_trip_id| {
             //     self.all_trip_paths_combined
@@ -1002,18 +1026,20 @@ impl Widget<AppData> for MapWidget {
         }
 
         // if new stop_time is hovered
+        myprint!("update: check: hovered_stop_time_id");
         if !data
             .hovered_stop_time_id
             .same(&old_data.hovered_stop_time_id)
         {
-            println!("update: hovered_stop_time_id: paint");
+            myprint!("update: hovered_stop_time_id: paint");
             ctx.request_paint();
         }
         // if new route is selected
+        myprint!("update: check: selected_route_id");
         if !data.selected_route_id.same(&old_data.selected_route_id)
             && data.selected_trip_id.is_none()
         {
-            println!("update: selected_route: paint");
+            myprint!("update: selected_route: paint");
             if let Some(route_id) = &data.selected_route_id {
                 let trip_ids = data
                     .trips
@@ -1032,8 +1058,9 @@ impl Widget<AppData> for MapWidget {
         }
         // TODO should also check if agency is selected and highlight it's paths, but this will kill performance everytime we select SPTRANS in order to select a different route... also app should start with SPTRANS unselected
 
+        myprint!("update: check: trips");
         if !data.trips.same(&old_data.trips) {
-            println!("update: trips: paint");
+            myprint!("update: trips: paint");
 
             // only want to redraw base when a new trip is added, so leave for now
             // self.redraw_base = true;
@@ -1041,6 +1068,7 @@ impl Widget<AppData> for MapWidget {
         }
 
         // check for stop_times which have been edited
+        myprint!("update: check: data_stop_time.stop_id");
         for (i, (data_stop_time, old_data_stop_time)) in data
             .stop_times
             .iter()
@@ -1048,7 +1076,7 @@ impl Widget<AppData> for MapWidget {
             .enumerate()
         {
             if !data_stop_time.stop_id.same(&old_data_stop_time.stop_id) {
-                dbg!("recreate path from stop coords");
+                myprint!("recreate path from stop coords");
                 // TODO make latlong_to_bitmap() here is expensive and could be avoided
                 let trips_coords_from_shapes = data.trips_coords_from_shapes();
                 let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
@@ -1074,27 +1102,31 @@ impl Widget<AppData> for MapWidget {
                 let text_color = Color::rgb8(r, g, b);
                 let coords = data.trip_coords_from_stop_coords(data_stop_time.trip_id.clone());
 
-                self.all_trip_paths_combined[trip_index] = (
-                    trip.id.clone(),
-                    color,
-                    text_color,
-                    bez_path_from_coords_iter(coords.iter().map(|coord| latlong_to_bitmap(*coord))),
-                );
+                let new_path =
+                    bez_path_from_coords_iter(coords.iter().map(|coord| latlong_to_bitmap(*coord)));
+                self.all_trip_paths_combined[trip_index] =
+                    (trip.id.clone(), color, text_color, new_path.clone());
                 self.recreate_bitmap = true;
-                self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
+
+                // remove existing references to trip in grouped paths, then calculate groups for new path and add those
+                // self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
+                self.update_single_path_in_grouped_rects(trip_index, new_path);
                 ctx.request_paint();
             }
         }
 
+        myprint!("update: check: map_zoom_level");
         if !data.map_zoom_level.same(&&old_data.map_zoom_level) {
-            println!("update: map_zoom_level: paint");
+            myprint!("update: map_zoom_level: paint");
             ctx.request_paint();
         }
+
+        myprint!("update: check: map_stop_selection_mode");
         if !data
             .map_stop_selection_mode
             .same(&old_data.map_stop_selection_mode)
         {
-            println!("update: map_stop_selection_mode: paint");
+            myprint!("update: map_stop_selection_mode: paint");
             ctx.request_paint();
         }
 
@@ -1117,7 +1149,7 @@ impl Widget<AppData> for MapWidget {
         //     let size = Size::new(300.0, 300.0);
         //     bc.constrain(size)
         // }
-        println!("layout");
+        myprint!("layout");
         let size = Size::new(100.0, 100.0);
         bc.constrain(size);
         let max = bc.max().height.min(bc.max().width);
@@ -1135,7 +1167,7 @@ impl Widget<AppData> for MapWidget {
 
         // todo encode gtfs coords and painting coords into two distinct types for clarity
 
-        println!("paint");
+        myprint!("paint");
         let size = ctx.size();
         let rect = size.to_rect();
         ctx.clip(rect);
@@ -1161,18 +1193,21 @@ impl Widget<AppData> for MapWidget {
 
         // TODO come up with proper heuristic based on the size of coords or density of paths to determine when to switch to immediate mode, so that it generalises to maps other than SP
         if self.cached_image_map.contains_key(&data.map_zoom_level) {
-            println!("paint: use cache");
+            myprint!("paint: draw bitmap");
+
             self.draw_bitmap_onto_paint_context(data, ctx);
             // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
         } else {
-            println!("paint: immediate mode");
+            myprint!("paint: draw immediate mode");
             self.draw_paths_onto_paint_ctx(data, ctx);
         }
         if !data.map_stop_selection_mode {
+            myprint!("paint: draw highlights");
             self.draw_highlights(data, ctx);
         } else {
             self.draw_stop_highlights(data, ctx);
         }
+        myprint!("paint: draw minimap");
         self.draw_minimap(data, ctx);
     }
 
@@ -1200,7 +1235,7 @@ impl Widget<AppData> for MapWidget {
 
                 // TODO should be making data in update or on_added, not paint
                 // translate trip paths to a given canvas size and store colors
-                println!("{} paint: redraw base: make paths", Utc::now());
+                myprint!("paint: redraw base: make paths");
                 self.all_trip_paths_from_shapes = trips_coords_from_shapes
                     .iter()
                     .zip(data.trips.iter())

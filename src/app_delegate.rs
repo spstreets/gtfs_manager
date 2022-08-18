@@ -31,6 +31,7 @@ pub const NEW_TRIP: Selector<String> = Selector::new("new.trip");
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
 pub const EDIT_STOP_TIME_UPDATE: Selector<String> = Selector::new("edit.stop_time.update");
 pub const EDIT_STOP_TIME_CHOOSE: Selector = Selector::new("edit.stop_time.choose");
+pub const HOVER_STOP_TIME: Selector<Option<(String, u16)>> = Selector::new("hover.stop_time");
 pub const SELECT_STOP_LIST: Selector<String> = Selector::new("select.stop.list");
 pub const SELECT_STOP_MAP: Selector<String> = Selector::new("select.stop.map");
 pub const SELECT_AGENCY: Selector<Option<String>> = Selector::new("select.agency");
@@ -75,7 +76,7 @@ impl AppDelegate<AppData> for Delegate {
         data: &mut AppData,
         env: &Env,
     ) -> druid::Handled {
-        dbg!("got cmd");
+        myprint!("got cmd");
         if let Some(item_delete) = cmd.get(ITEM_DELETE) {
             dbg!(item_delete);
 
@@ -204,8 +205,7 @@ impl AppDelegate<AppData> for Delegate {
 
             // delete edits
         } else if let Some(item) = cmd.get(ITEM_NEW_CHILD) {
-            println!("new child");
-            dbg!(item);
+            myprint!("new child");
             let (item_type, parent_id) = item;
 
             // data.edits.clear();
@@ -315,7 +315,7 @@ impl AppDelegate<AppData> for Delegate {
             data.selected_stop_time_id = None;
             druid::Handled::Yes
         } else if let Some(stop_id) = cmd.get(SELECT_STOP_LIST) {
-            dbg!("select_stop_list");
+            myprint!("select_stop_list");
             data.selected_stop_id = Some(stop_id.clone());
             for stop in data.stops.iter_mut() {
                 if &stop.id == stop_id {
@@ -334,7 +334,7 @@ impl AppDelegate<AppData> for Delegate {
         } else if let Some(agency_id) = cmd.get(SELECT_AGENCY) {
             // TODO why is the if statement needed?
             if data.selected_agency_id != Some(agency_id.clone()) {
-                dbg!("update agency");
+                myprint!("update agency");
                 data.selected_agency_id = Some(agency_id.clone());
             }
 
@@ -378,7 +378,7 @@ impl AppDelegate<AppData> for Delegate {
             }
             druid::Handled::Yes
         } else if let Some(trip_id) = cmd.get(SELECT_TRIP) {
-            println!("select trip");
+            myprint!("select trip");
             let trip_index = data
                 .trips
                 .iter()
@@ -399,7 +399,7 @@ impl AppDelegate<AppData> for Delegate {
                 }
             }
 
-            dbg!("filter and assign stop times");
+            myprint!("filter and assign stop times");
             // data.stop_times = data
             //     .all_stop_times
             //     .iter()
@@ -446,8 +446,15 @@ impl AppDelegate<AppData> for Delegate {
             }
 
             druid::Handled::Yes
+        } else if let Some(stop_time_id) = cmd.get(HOVER_STOP_TIME) {
+            // let (trip_id, stop_sequence) = stop_time_pk;
+            // set the new stop id
+            println!("hover stop_time {:?}", data.selected_stop_time_id);
+            data.hovered_stop_time_id = stop_time_id.clone();
+
+            druid::Handled::Yes
         } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {
-            println!("select stop_time");
+            myprint!("select stop_time");
             data.selected_stop_time_id = Some(stop_time_pk.clone());
             // These below will already be set when navigating the list, but won't necessarily be when selecting the map?? No...
             // data.selected_route_id

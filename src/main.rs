@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let initial_data = if path.exists() {
         println!("{:?} json: read from disk", Utc::now());
         let file = fs::File::open(path)?;
-        
+
         println!("{:?} json: deserialize", Utc::now());
         let input = File::open(path)?;
         let buffered = BufReader::new(input);
