@@ -44,6 +44,8 @@ const ANNOTATION: FontDescriptor = FontDescriptor::new(FontFamily::SYSTEM_UI)
     .with_weight(FontWeight::THIN)
     .with_size(10.0);
 
+pub const VARIABLE_STOP_TIME_BORDER_COLOR: Key<Color> =
+    Key::new("druid-help.stop-time.border-color");
 const VARIABLE_SELECTED_ITEM_BORDER_COLOR: Key<Color> =
     Key::new("druid-help.list-item.background-color");
 const SELECTED_ITEM_BORDER_COLOR: Color = Color::RED;
@@ -230,6 +232,7 @@ pub fn unselected_item_container<T: Data>(child: impl Widget<T> + 'static) -> im
         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
         // .border(SELECTED_ITEM_BORDER_COLOR, VARIABLE_ITEM_BORDER_WIDTH)
         // .border(SELECTED_ITEM_BORDER_COLOR, SELECTED_ITEM_BORDER_WIDTH)
+        .border(VARIABLE_STOP_TIME_BORDER_COLOR, 2.)
         .fix_width(NARROW_LIST_WIDTH)
 }
 // pub fn selected_item_container<T: Data>(child: impl Widget<T> + 'static) -> impl Widget<T> {
@@ -561,6 +564,19 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
         })
         .with_line_break_mode(LineBreaking::Clip),
     )
+    .env_scope(|env, stop_time| {
+        myprint!("set env");
+        myprint!(stop_time.hovered);
+        env.set(
+            VARIABLE_STOP_TIME_BORDER_COLOR,
+            if stop_time.hovered {
+                Color::WHITE
+            } else {
+                Color::rgb(54. / 255., 58. / 255., 74. / 255.)
+            },
+        )
+    })
+    // .border(Color::WHITE, 2.)
     .controller(ListHoverController {})
     .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
         dbg!("got click");
@@ -1987,7 +2003,7 @@ impl<W: Widget<MyStopTime>> Controller<MyStopTime, W> for ListHoverController {
                 } else {
                     None
                 }))
-            },
+            }
             _ => {}
         }
         child.lifecycle(ctx, event, data, env)

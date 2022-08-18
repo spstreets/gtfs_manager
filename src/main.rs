@@ -24,7 +24,10 @@ use std::io::BufReader;
 use std::path::Path;
 use std::rc::Rc;
 
-use gtfs_manager::{main_widget, make_initial_data, AppData, Delegate, ListItem, MapWidget};
+use gtfs_manager::{
+    main_widget, make_initial_data, AppData, Delegate, ListItem, MapWidget,
+    VARIABLE_STOP_TIME_BORDER_COLOR,
+};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -101,6 +104,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("launching app");
     AppLauncher::with_window(main_window)
+        .configure_env(|env, _state| {
+            env.set(
+                VARIABLE_STOP_TIME_BORDER_COLOR,
+                Color::rgb(54. / 255., 58. / 255., 74. / 255.),
+            );
+        })
         .delegate(Delegate {})
         // .log_to_console()
         .launch(initial_data)?;

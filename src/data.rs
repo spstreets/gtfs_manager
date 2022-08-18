@@ -87,7 +87,7 @@ pub struct MyStopTime {
     pub live: bool,
     pub selected: bool,
     pub show_editing: bool,
-    pub hover: bool,
+    pub hovered: bool,
     pub edited: bool,
 
     pub trip_id: String,
@@ -835,7 +835,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                 live: true,
                 selected: false,
                 show_editing: false,
-                hover: false,
+                hovered: false,
                 edited: false,
 
                 trip_id: stop_time.trip_id.clone(),

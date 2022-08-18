@@ -447,10 +447,35 @@ impl AppDelegate<AppData> for Delegate {
 
             druid::Handled::Yes
         } else if let Some(stop_time_id) = cmd.get(HOVER_STOP_TIME) {
+            // TODO this is all way too heavy and needs simplifying
+
             // let (trip_id, stop_sequence) = stop_time_pk;
             // set the new stop id
             println!("hover stop_time {:?}", data.selected_stop_time_id);
+            let previous_hovered_stop_time_id = data.hovered_stop_time_id.clone();
             data.hovered_stop_time_id = stop_time_id.clone();
+
+            // need to also store hover state on MyStopTime because when dynamically setting border color for widget we are lensed to MyStopTime and don't have access to AppData
+            // if we have a hovered stop_time, then set MyStopTime.hovered = true
+            if let Some((trip_id, stop_sequence)) = stop_time_id {
+                let range = data.stop_time_range_from_trip_id.get(trip_id).unwrap();
+                for i in range.0..range.1 {
+                    let stop_time = data.stop_times.get_mut(i).unwrap();
+                    if &stop_time.stop_sequence == stop_sequence {
+                        stop_time.hovered = true;
+                    } else {
+                        stop_time.hovered = false;
+                    }
+                }
+            }
+            // if we have None, then clear MyStopTime.hovered = true for previously selected trip
+            if let Some((trip_id, stop_sequence)) = previous_hovered_stop_time_id {
+                let range = data.stop_time_range_from_trip_id.get(&trip_id).unwrap();
+                for i in range.0..range.1 {
+                    let stop_time = data.stop_times.get_mut(i).unwrap();
+                    stop_time.hovered = false;
+                }
+            }
 
             druid::Handled::Yes
         } else if let Some(stop_time_pk) = cmd.get(SELECT_STOP_TIME) {
