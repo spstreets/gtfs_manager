@@ -117,6 +117,38 @@ pub struct MyStopTime {
     #[serde(skip)]
     pub latlong: Point,
 }
+impl MyStopTime {
+    pub fn new(trip_id: String, stop_id: String) -> MyStopTime {
+        MyStopTime {
+            live: true,
+            selected: false,
+            show_editing: false,
+            hovered: false,
+            edited: true,
+
+            trip_id,
+            arrival_time: None,
+            departure_time: None,
+            stop_id,
+            stop_sequence: 99,
+            stop_headsign: None,
+            pickup_type: MyPickupDropOffType(PickupDropOffType::Regular),
+            drop_off_type: MyPickupDropOffType(PickupDropOffType::Regular),
+            continuous_pickup: MyContinuousPickupDropOff(ContinuousPickupDropOff::Continuous),
+            continuous_drop_off: MyContinuousPickupDropOff(ContinuousPickupDropOff::Continuous),
+            shape_dist_traveled: None,
+            timepoint: MyTimepointType(TimepointType::Approximate),
+
+            //  stop_time: Option<Rc<RawStopTime>>,
+            //  stop: Option<Rc<Stop>>,
+            stop_time: None,
+            stop: None,
+            stop_name: "stop name".to_string(),
+            // (lon, lat)
+            latlong: Point::ORIGIN,
+        }
+    }
+}
 impl ListItem for MyStopTime {
     fn new_child(&mut self) -> String {
         todo!()
@@ -494,6 +526,9 @@ impl ZoomLevel {
 // #[derive(Clone, Data, Lens)]
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct AppData {
+    /// if true insert before else after
+    pub insert_stop_time_before: Option<bool>,
+
     pub show_deleted: bool,
     pub show_edits: bool,
     pub show_actions: bool,
@@ -515,7 +550,7 @@ pub struct AppData {
     pub selected_agency_id: Option<Option<String>>,
     pub selected_route_id: Option<String>,
     // (index, id)
-    pub selected_trip_id: Option<(usize,String)>,
+    pub selected_trip_id: Option<(usize, String)>,
     pub selected_stop_time_id: Option<(String, u16)>,
     pub hovered_stop_time_id: Option<(String, u16)>,
     pub selected_stop_id: Option<String>,
@@ -527,7 +562,6 @@ pub struct AppData {
     // #[data(ignore)]
     // #[lens(ignore)]
     // pub selected_trip_path: Option<usize>,
-
     #[data(ignore)]
     #[lens(ignore)]
     pub stop_time_range_from_trip_id: HashMap<String, (usize, usize)>,
@@ -957,6 +991,8 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
 
     println!("{:?} make app_data with stops", Utc::now());
     let app_data = AppData {
+        insert_stop_time_before: None,
+
         show_deleted: true,
         show_edits: false,
         show_actions: false,
@@ -976,7 +1012,6 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // all_trip_paths_bitmap_grouped: Vector::new(),
         hovered_trip_paths: Vector::new(),
         // selected_trip_path: None,
-
         stop_time_range_from_trip_id,
         stop_index_from_id,
         shapes_from_trip_id,

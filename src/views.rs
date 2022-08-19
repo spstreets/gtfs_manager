@@ -565,8 +565,6 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
         .with_line_break_mode(LineBreaking::Clip),
     )
     .env_scope(|env, stop_time| {
-        myprint!("set env");
-        myprint!(stop_time.hovered);
         env.set(
             VARIABLE_STOP_TIME_BORDER_COLOR,
             if stop_time.hovered {
@@ -814,6 +812,19 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
     Flex::column()
         // .with_child(title)
         // .with_spacer(SPACING_1)
+        .with_child(
+            Flex::row()
+                .with_child(Button::new("add stop before").on_click(
+                    |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+                        ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(true))
+                    },
+                ))
+                .with_child(Button::new("add stop after").on_click(
+                    |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+                        ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(false))
+                    },
+                )),
+        )
         .with_child(fields)
         // .with_child(
         //     FilteredList::new(
