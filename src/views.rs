@@ -575,7 +575,7 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
         )
     })
     // .border(Color::WHITE, 2.)
-    .controller(ListHoverController {})
+    .controller(StopTimeHoverController {})
     .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
         dbg!("got click");
         ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
@@ -1982,8 +1982,9 @@ impl<W: Widget<MyStop>> Controller<MyStop, W> for ScrollToMeController {
     }
 }
 
-struct ListHoverController;
-impl<W: Widget<MyStopTime>> Controller<MyStopTime, W> for ListHoverController {
+// TODO using lifecycle for hover effects seems like a bad idea and probably not performant. Not sure what else to do though since we can't mutate data in lifecycle
+struct StopTimeHoverController;
+impl<W: Widget<MyStopTime>> Controller<MyStopTime, W> for StopTimeHoverController {
     // fn event(
     //     &mut self,
     //     child: &mut W,
@@ -2034,4 +2035,46 @@ impl<W: Widget<MyStopTime>> Controller<MyStopTime, W> for ListHoverController {
     //     }
     //     child.update(ctx, old_data, data, env)
     // }
+}
+
+struct TripHoverController;
+impl<W: Widget<MyTrip>> Controller<MyTrip, W> for TripHoverController {
+    fn lifecycle(
+        &mut self,
+        child: &mut W,
+        ctx: &mut druid::LifeCycleCtx,
+        event: &LifeCycle,
+        data: &MyTrip,
+        env: &Env,
+    ) {
+        match event {
+            LifeCycle::HotChanged(hot) => {
+                myprint!("submit trip hover cmd");
+                ctx.submit_command(HOVER_TRIP.with(if *hot { Some(data.id.clone()) } else { None }))
+            }
+            _ => {}
+        }
+        child.lifecycle(ctx, event, data, env)
+    }
+}
+
+struct RouteHoverController;
+impl<W: Widget<MyRoute>> Controller<MyRoute, W> for RouteHoverController {
+    fn lifecycle(
+        &mut self,
+        child: &mut W,
+        ctx: &mut druid::LifeCycleCtx,
+        event: &LifeCycle,
+        data: &MyRoute,
+        env: &Env,
+    ) {
+        match event {
+            LifeCycle::HotChanged(hot) => {
+                myprint!("submit route hover cmd");
+                ctx.submit_command(HOVER_ROUTE.with(if *hot { Some(data.id.clone()) } else { None }))
+            }
+            _ => {}
+        }
+        child.lifecycle(ctx, event, data, env)
+    }
 }

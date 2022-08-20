@@ -39,6 +39,9 @@ pub const ADD_STOP_TIME_CHOOSE: Selector<bool> = Selector::new("add.stop_time.ch
 // pub const ADD_STOP_TIME_UPDATE: Selector<String> = Selector::new("add.stop_time.update");
 
 pub const HOVER_STOP_TIME: Selector<Option<(String, u16)>> = Selector::new("hover.stop_time");
+pub const HOVER_TRIP: Selector<Option<String>> = Selector::new("hover.trip");
+pub const HOVER_ROUTE: Selector<Option<String>> = Selector::new("hover.route");
+
 pub const SELECT_STOP_LIST: Selector<String> = Selector::new("select.stop.list");
 pub const SELECT_STOP_MAP: Selector<String> = Selector::new("select.stop.map");
 pub const SELECT_AGENCY: Selector<Option<String>> = Selector::new("select.agency");
