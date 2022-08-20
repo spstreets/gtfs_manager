@@ -3,9 +3,9 @@ use druid::im::{ordmap, vector, OrdMap, Vector};
 use druid::kurbo::BezPath;
 use druid::{Data, Lens, Point, Rect, Widget, WidgetExt};
 use gtfs_structures::{
-    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs, Pathway,
-    PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Shape, Stop, StopTime,
-    StopTransfer, TimepointType, Trip,
+    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs,
+    LocationType, Pathway, PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType,
+    Shape, Stop, StopTime, StopTransfer, TimepointType, Trip,
 };
 use rgb::RGB8;
 use serde::{Deserialize, Serialize};
@@ -62,6 +62,34 @@ pub struct MyStop {
     // stop_time: RawStopTime,
     #[serde(skip)]
     pub latlong: Point,
+}
+impl MyStop {
+    pub fn new(latlong: Point) -> MyStop {
+        MyStop {
+            live: true,
+            selected: false,
+            scroll_to_me: 0,
+            id: Uuid::new_v4().to_string(),
+            code: None,
+            name: "new stop".to_string(),
+            description: "".to_string(),
+            location_type: MyLocationType(LocationType::StopPoint),
+            parent_station: None,
+            zone_id: None,
+            url: None,
+            longitude: Some(latlong.x),
+            latitude: Some(latlong.y),
+            timezone: None,
+            wheelchair_boarding: MyAvailability(Availability::Available),
+            level_id: None,
+            platform_code: None,
+            transfers: 0,
+            pathways: 0,
+            // pub stop: Option<Rc<Stop>>,
+            stop: None,
+            latlong,
+        }
+    }
 }
 impl ListItem for MyStop {
     fn new_child(&mut self) -> String {

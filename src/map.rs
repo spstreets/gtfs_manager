@@ -74,7 +74,7 @@ impl NormalPoint {
     }
 }
 
-// -> (xmin, ymin, xmax, ymax)
+/// returns a bounding box rect for all latlong points. Note (x0,y0) is the bottom left of the rect.
 fn min_max_trips_coords(trips: &Vec<Vec<Point>>) -> Rect {
     let x_iter = trips
         .iter()
@@ -211,11 +211,13 @@ impl MapWidget {
 
     fn latlong_to_canvas(latlong: Point, latlong_rect: Rect, canvas_max_dimension: f64) -> Point {
         let latlong_origin_vec = latlong - latlong_rect.origin();
+        // NOTE since (x0,y0) is the bottom left of latlong_rect, we need to flip the xaxis to match the top left origin of canvas
         // flip latlong vec since latlong coord system has origin bottom left and canvas uses top left
         let flipped_latlong_origin_vec = Vec2::new(
             latlong_origin_vec.x,
             latlong_rect.height() - latlong_origin_vec.y,
         );
+        // below we are effectively pretending that we have extended latlong_rect's shortest side to match it's longest side so it is now square (since this makes no material difference) so that we can then convert is to canvas space, it just means that the portion of the canvas equivalent to the portion of the rect we extended will have no points in it
         (flipped_latlong_origin_vec * canvas_max_dimension / latlong_rect.size().max_side())
             .to_point()
     }
@@ -409,7 +411,6 @@ impl MapWidget {
         if let Some((index, id)) = &data.selected_trip_id {
             let (trip_id, color, text_color, path) =
                 self.all_trip_paths_combined.get(*index).unwrap();
-            dbg!(trip_id);
             // dbg!(path);
             ctx.stroke(path, &Color::WHITE, path_wb);
             ctx.stroke(path, &Color::BLACK, path_bb);
@@ -638,7 +639,7 @@ impl MapWidget {
         .to_point();
         // dbg!(translated_mouse_position);
 
-        // a and b are vectorised normalised relative to the total size of the map ie ctx.size() * zoom
+        // a and b are vectors normalised relative to the total size of the map ie ctx.size() * zoom
         // a is the vector from the viewport origin to the mouse position
         // b is the vector from the map origin to the viewport origin
         // a + b therefore gives the normalised vector of the mouse relative to the origin which can be used to place the mouse on the REFERENCE_SIZE ctx.
@@ -911,6 +912,7 @@ impl Widget<AppData> for MapWidget {
                             self.down_click_pos = None;
                             ctx.request_paint();
                         } else {
+                            // select a trip, stop_time, or stop
                             if !data.map_stop_selection_mode {
                                 // TODO differentiate between stop click and path click
                                 // TODO looping over every stop kills performance. Need to do something like calculate beforehand which stops are within a tile, find which tile the cursor is in and only loop over those stops. At this point, it might also be worth tiling the bitmaps
@@ -957,11 +959,73 @@ impl Widget<AppData> for MapWidget {
                                         ctx.submit_command(SELECT_NOTHING);
                                     }
                                 }
+
+                            // stop selection
                             } else {
+                                // select an existing stop
                                 if let Some(hovered_stop_id) = &self.hovered_stop_id {
                                     ctx.submit_command(
                                         EDIT_STOP_TIME_UPDATE.with(hovered_stop_id.clone()),
                                     );
+                                    ctx.request_paint();
+                                    data.map_stop_selection_mode = false;
+
+                                // add a new stop
+                                } else {
+                                    // get square latlon
+                                    let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                                    let long_lat_rect =
+                                        min_max_trips_coords(&trips_coords_from_shapes);
+
+                                    // normalise mouse position
+                                    let fp = self
+                                        .focal_point
+                                        .to_point_within_size(Size::new(1., 1.))
+                                        .to_vec2();
+                                    let b = fp
+                                        - Size::new(
+                                            1. / (data.map_zoom_level.to_f64() * 2.),
+                                            1. / (data.map_zoom_level.to_f64() * 2.),
+                                        )
+                                        .to_vec2();
+                                    let a = mouse_event.pos.to_vec2()
+                                        / (ctx.size().max_side() * data.map_zoom_level.to_f64());
+                                    let normalised_mouse_position = b + a;
+                                    dbg!(normalised_mouse_position);
+
+                                    // Note long_lat_rect_square represents a coord system with bottom left origin
+                                    // We need to account for the fact the long_lat_rect is not square, so normalised_mouse_position (1,1) would actually fall outside of long_lat_rect. The easiest way to do this is to make long_lat_rect square
+                                    let max_side = long_lat_rect.size().max_side();
+                                    let long_lat_rect_square = Rect::new(
+                                        long_lat_rect.x0,
+                                        long_lat_rect.y1 - max_side,
+                                        long_lat_rect.x0 + max_side,
+                                        long_lat_rect.y1,
+                                    );
+                                    let latlong = Point::new(
+                                        long_lat_rect_square.x0
+                                            + long_lat_rect_square.width()
+                                                * normalised_mouse_position.x,
+                                        long_lat_rect_square.y1
+                                            - long_lat_rect_square.height()
+                                                * normalised_mouse_position.y,
+                                    );
+
+                                    ctx.submit_command(NEW_STOP.with(latlong));
+
+                                    // TODO maybe this is not the best place to do this?
+                                    // need to recreate self.stop_circles
+                                    let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                                    let long_lat_rect =
+                                        min_max_trips_coords(&trips_coords_from_shapes);
+                                    let latlong_to_bitmap = |coord: Point| {
+                                        MapWidget::latlong_to_canvas(
+                                            coord,
+                                            long_lat_rect,
+                                            REFERENCE_SIZE as f64,
+                                        )
+                                    };
+                                    self.stop_circles.push(latlong_to_bitmap(latlong));
                                     ctx.request_paint();
                                     data.map_stop_selection_mode = false;
                                 }
@@ -1279,6 +1343,7 @@ impl Widget<AppData> for MapWidget {
 
                 let size = ctx.size();
                 // find size of path data
+                // NOTE (x0,y0) is the bottom left of the rect
                 let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
 
                 let latlong_to_bitmap = |coord: Point| {

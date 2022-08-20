@@ -32,6 +32,7 @@ pub const NEW_TRIP: Selector<String> = Selector::new("new.trip");
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
 pub const EDIT_STOP_TIME_CHOOSE: Selector = Selector::new("edit.stop_time.choose");
 pub const EDIT_STOP_TIME_UPDATE: Selector<String> = Selector::new("edit.stop_time.update");
+pub const NEW_STOP: Selector<Point> = Selector::new("new.stop");
 
 // (trip_id, stop_sequence, before) so before: true, after: false
 pub const ADD_STOP_TIME_CHOOSE: Selector<bool> = Selector::new("add.stop_time.choose");
@@ -304,6 +305,97 @@ impl AppDelegate<AppData> for Delegate {
             data.trips.push_front(new_trip);
 
             druid::Handled::Yes
+        } else if let Some(latlong) = cmd.get(NEW_STOP) {
+            let new_stop = MyStop::new(*latlong);
+
+            // need to resort stops? no, stops are not sorted
+            data.stops.push_back(new_stop.clone());
+
+            // let mut stop_index_from_id = HashMap::new();
+            // data.stops.iter().enumerate().for_each(|(i, stop)| {
+            //     stop_index_from_id.insert(stop.id.clone(), i);
+            // });
+            data.stop_index_from_id
+                .insert(new_stop.id.clone(), data.stops.len() - 1);
+
+            // determine whether stop selected is for updating a stop_time or creating a new one
+
+            // create new stop_time
+            if let Some(insert_stop_time_before) = data.insert_stop_time_before {
+                // data.stop_times is sorted and it's order is assumed fixed by stop_time_range_from_trip_id
+                // stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
+                // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
+
+                // need to insert the new stop_time, update all the stop_sequences for the other stop_times in that trip, then resort stop_times (not actually necessary), and recreate stop_time_range_from_trip_id (might be avoidable if we store actual stop_times in a HashMap)
+
+                if let Some((trip_id, stop_sequence)) = &data.selected_stop_time_id {
+                    // could maybe use data.stop_times.insert_ord(item) ???
+                    let (selected_stop_time_index, _) = data
+                        .stop_times
+                        .iter()
+                        .enumerate()
+                        .find(|(index, stop_time)| {
+                            &stop_time.trip_id == trip_id
+                                && &stop_time.stop_sequence == stop_sequence
+                        })
+                        .unwrap();
+
+                    // recalcuate n_stops for MyTrip
+                    let trip = data
+                        .trips
+                        .iter_mut()
+                        .find(|trip| &trip.id == trip_id)
+                        .unwrap();
+                    trip.n_stops += 1;
+
+                    // insert new stop_time
+                    data.stop_times.insert(
+                        if insert_stop_time_before {
+                            selected_stop_time_index
+                        } else {
+                            selected_stop_time_index + 1
+                        },
+                        MyStopTime::new(trip_id.clone(), new_stop.id.clone()),
+                    );
+                    // udpate stop_time_range_from_trip_id (important to do this first to get correct range to update stop_sequences)
+
+                    // data.stop_time_range_from_trip_id = stop_time_range_from_trip_id;
+                    data.stop_time_range_from_trip_id =
+                        make_stop_time_range_from_trip_id(&data.stop_times);
+
+                    // udpate all stop_sequences for that trip
+                    let range = data.stop_time_range_from_trip_id.get(trip_id).unwrap();
+                    let mut stop_sequence_inc = 1;
+                    for i in range.0..range.1 {
+                        let stop_time = data.stop_times.get_mut(i).unwrap();
+                        stop_time.stop_sequence = stop_sequence_inc;
+                        stop_sequence_inc += 1;
+                    }
+
+                    data.insert_stop_time_before = None;
+                } else {
+                    panic!("shouldn't be able to select a stop here ");
+                }
+
+                // update existing stop_time
+            } else {
+                if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
+                    let selected_stop_time = data
+                        .stop_times
+                        .iter_mut()
+                        .find(|stop_time| {
+                            stop_time.trip_id == selected_stop_time_id.0
+                                && stop_time.stop_sequence == selected_stop_time_id.1
+                        })
+                        .unwrap();
+                    selected_stop_time.stop_id = new_stop.id.clone();
+                    selected_stop_time.edited = true;
+                } else {
+                    panic!("shouldn't be able to select a stop here ");
+                }
+            }
+
+            druid::Handled::Yes
         } else if let Some(before) = cmd.get(ADD_STOP_TIME_CHOOSE) {
             data.map_stop_selection_mode = true;
             data.insert_stop_time_before = Some(*before);
@@ -459,6 +551,15 @@ impl AppDelegate<AppData> for Delegate {
                                 && &stop_time.stop_sequence == stop_sequence
                         })
                         .unwrap();
+
+                    // recalcuate n_stops for MyTrip
+                    let trip = data
+                        .trips
+                        .iter_mut()
+                        .find(|trip| &trip.id == trip_id)
+                        .unwrap();
+                    trip.n_stops += 1;
+
                     // insert new stop_time
                     data.stop_times.insert(
                         if insert_stop_time_before {
@@ -469,25 +570,10 @@ impl AppDelegate<AppData> for Delegate {
                         MyStopTime::new(trip_id.clone(), stop_id.clone()),
                     );
                     // udpate stop_time_range_from_trip_id (important to do this first to get correct range to update stop_sequences)
-                    let mut stop_time_range_from_trip_id = HashMap::new();
-                    let mut trip_start_index = 0;
-                    let mut trip_end_index = 0;
-                    let mut current_trip = data.stop_times[0].trip_id.clone();
-                    // let stop_times2 = data.gtfs.stop_times.clone();
-                    for stop_time in &data.stop_times {
-                        // when we arrive at a new section of trip_id's insert the index range into to map, update the current trip, and reset the range start index
-                        if current_trip != stop_time.trip_id {
-                            stop_time_range_from_trip_id
-                                .insert(current_trip.clone(), (trip_start_index, trip_end_index));
-                            current_trip = stop_time.trip_id.clone();
-                            trip_start_index = trip_end_index;
-                        }
-                        trip_end_index += 1;
-                    }
-                    // insert final trip id
-                    stop_time_range_from_trip_id
-                        .insert(current_trip.clone(), (trip_start_index, trip_end_index));
-                    data.stop_time_range_from_trip_id = stop_time_range_from_trip_id;
+
+                    // data.stop_time_range_from_trip_id = stop_time_range_from_trip_id;
+                    data.stop_time_range_from_trip_id =
+                        make_stop_time_range_from_trip_id(&data.stop_times);
 
                     // udpate all stop_sequences for that trip
                     let range = data.stop_time_range_from_trip_id.get(trip_id).unwrap();
@@ -581,4 +667,27 @@ impl AppDelegate<AppData> for Delegate {
             druid::Handled::No
         }
     }
+}
+
+fn make_stop_time_range_from_trip_id(
+    stop_times: &Vector<MyStopTime>,
+) -> HashMap<String, (usize, usize)> {
+    let mut stop_time_range_from_trip_id = HashMap::new();
+    let mut trip_start_index = 0;
+    let mut trip_end_index = 0;
+    let mut current_trip = stop_times[0].trip_id.clone();
+    // let stop_times2 = data.gtfs.stop_times.clone();
+    for stop_time in stop_times {
+        // when we arrive at a new section of trip_id's insert the index range into to map, update the current trip, and reset the range start index
+        if current_trip != stop_time.trip_id {
+            stop_time_range_from_trip_id
+                .insert(current_trip.clone(), (trip_start_index, trip_end_index));
+            current_trip = stop_time.trip_id.clone();
+            trip_start_index = trip_end_index;
+        }
+        trip_end_index += 1;
+    }
+    // insert final trip id
+    stop_time_range_from_trip_id.insert(current_trip.clone(), (trip_start_index, trip_end_index));
+    stop_time_range_from_trip_id
 }
