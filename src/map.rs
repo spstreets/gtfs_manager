@@ -187,7 +187,7 @@ impl MapWidget {
         all_trip_paths_bitmap_grouped
     }
     fn update_single_path_in_grouped_rects(&mut self, trip_index: usize, trip_path: BezPath) {
-        myprint!("paint: redraw base: udpate single group paths");
+        myprint!("fn: update_single_path_in_grouped_rects");
         let path_bounding_box = trip_path.bounding_box();
         for (rect, group_paths) in &mut self.all_trip_paths_bitmap_grouped {
             // remove previous references if any
@@ -991,7 +991,6 @@ impl Widget<AppData> for MapWidget {
                                     let a = mouse_event.pos.to_vec2()
                                         / (ctx.size().max_side() * data.map_zoom_level.to_f64());
                                     let normalised_mouse_position = b + a;
-                                    dbg!(normalised_mouse_position);
 
                                     // Note long_lat_rect_square represents a coord system with bottom left origin
                                     // We need to account for the fact the long_lat_rect is not square, so normalised_mouse_position (1,1) would actually fall outside of long_lat_rect. The easiest way to do this is to make long_lat_rect square
@@ -1142,6 +1141,7 @@ impl Widget<AppData> for MapWidget {
                 .zip(old_data.stop_times.iter())
                 .enumerate()
             {
+                // if stop_time has a new stop.id then update paths
                 if !data_stop_time.stop_id.same(&old_data_stop_time.stop_id) {
                     myprint!("recreate path from stop coords");
                     // TODO make latlong_to_bitmap() here is expensive and could be avoided
@@ -1185,6 +1185,7 @@ impl Widget<AppData> for MapWidget {
 
         // recreate trip path for trip with stop_time added or deleted
         } else {
+            myprint!("update: recreate trip path for trip with stop_time added or deleted");
             // find which trip has been updated
             let ((trip_index, trip), _) = data
                 .trips
