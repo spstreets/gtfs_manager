@@ -146,7 +146,7 @@ pub struct MyStopTime {
     pub latlong: Point,
 }
 impl MyStopTime {
-    pub fn new(trip_id: String, stop_id: String) -> MyStopTime {
+    pub fn new(trip_id: String, stop_id: String, stop_sequence: u16) -> MyStopTime {
         MyStopTime {
             live: true,
             selected: false,
@@ -158,7 +158,7 @@ impl MyStopTime {
             arrival_time: None,
             departure_time: None,
             stop_id,
-            stop_sequence: 99,
+            stop_sequence,
             stop_headsign: None,
             pickup_type: MyPickupDropOffType(PickupDropOffType::Regular),
             drop_off_type: MyPickupDropOffType(PickupDropOffType::Regular),
@@ -311,7 +311,7 @@ impl Data for MyRouteType {
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
 pub struct MyRoute {
-    pub new: bool,
+    pub new_item: bool,
     pub live: bool,
     pub visible: bool,
     pub expanded: bool,
@@ -335,7 +335,34 @@ pub struct MyRoute {
     #[data(ignore)]
     pub route: Option<Rc<Route>>,
     // pub trips: Vector<MyTrip>,
-    pub n_stops: usize,
+    pub n_trips: usize,
+}
+impl MyRoute {
+    pub fn new(agency_id: Option<String>) -> MyRoute {
+        MyRoute {
+            new_item: true,
+            live: true,
+            visible: true,
+            expanded: false,
+            selected: false,
+            show_editing: false,
+
+            id: Uuid::new_v4().to_string(),
+            short_name: "Short name".to_string(),
+            long_name: "Long name".to_string(),
+            desc: None,
+            route_type: MyRouteType(RouteType::Bus),
+            url: None,
+            agency_id,
+            order: None,
+            color: MyRGB8(RGB8::new(255, 255, 255)),
+            text_color: MyRGB8(RGB8::new(0, 0, 0)),
+            continuous_pickup: MyContinuousPickupDropOff(ContinuousPickupDropOff::Continuous),
+            continuous_drop_off: MyContinuousPickupDropOff(ContinuousPickupDropOff::Continuous),
+            route: None,
+            n_trips: 0,
+        }
+    }
 }
 impl ListItem for MyRoute {
     fn new_child(&mut self) -> String {
@@ -419,7 +446,7 @@ pub struct MyAgency {
 impl ListItem for MyAgency {
     fn new_child(&mut self) -> String {
         let new_route = MyRoute {
-            new: true,
+            new_item: true,
             live: true,
             visible: true,
             expanded: false,
@@ -441,7 +468,7 @@ impl ListItem for MyAgency {
 
             route: None,
             // trips: Vector::new(),
-            n_stops: 0,
+            n_trips: 0,
         };
         let new_route_id = new_route.id();
         // self.routes.push_front(new_route);
@@ -598,7 +625,7 @@ pub struct AppData {
     pub stop_index_from_id: HashMap<String, usize>,
     #[data(ignore)]
     #[lens(ignore)]
-    pub shapes_from_trip_id: HashMap<String, Range<usize>>,
+    pub shapes_range_from_shape_id: HashMap<String, Range<usize>>,
 
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
@@ -730,19 +757,21 @@ impl AppData {
                 //     .map(|shape| (shape.sequence, (shape.longitude, shape.latitude)))
                 //     .collect::<Vec<_>>();
 
-                let range = self
-                    .shapes_from_trip_id
-                    .get(trip.shape_id.as_ref().unwrap())
-                    .unwrap();
-                let mut shapes = self.gtfs.shapes[range.start..range.end]
-                    .iter()
-                    .map(|shape| (shape.sequence, Point::new(shape.longitude, shape.latitude)))
-                    .collect::<Vec<_>>();
-                shapes.sort_by(|shape1, shape2| shape1.0.cmp(&shape2.0));
-                shapes
-                    .iter()
-                    .map(|(_sequence, coords)| *coords)
-                    .collect::<Vec<_>>()
+                if let Some(shape_id) = &trip.shape_id {
+                    let range = self.shapes_range_from_shape_id.get(shape_id).unwrap();
+                    let mut shapes = self.gtfs.shapes[range.start..range.end]
+                        .iter()
+                        .map(|shape| (shape.sequence, Point::new(shape.longitude, shape.latitude)))
+                        .collect::<Vec<_>>();
+                    shapes.sort_by(|shape1, shape2| shape1.0.cmp(&shape2.0));
+                    shapes
+                        .iter()
+                        .map(|(_sequence, coords)| *coords)
+                        .collect::<Vec<_>>()
+                } else {
+                    // TODO handle new trips which don't have shapes
+                    Vec::new()
+                }
             })
             .collect::<Vec<_>>()
     }
@@ -988,7 +1017,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         .map(|(_, x)| x)
         // limiting>
         .map(|route| MyRoute {
-            new: false,
+            new_item: false,
             live: true,
             visible: true,
             expanded: false,
@@ -1010,7 +1039,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
 
             route: Some(Rc::new(route.clone())),
             // trips: Vector::new(),
-            n_stops: trips
+            n_trips: trips
                 .iter()
                 .filter(|trip| trip.route_id == route.id)
                 .count(),
@@ -1042,7 +1071,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // selected_trip_path: None,
         stop_time_range_from_trip_id,
         stop_index_from_id,
-        shapes_from_trip_id,
+        shapes_range_from_shape_id: shapes_from_trip_id,
 
         agencies,
         routes,

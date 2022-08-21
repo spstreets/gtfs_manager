@@ -28,14 +28,17 @@ pub const ITEM_DELETE: Selector<(String, String)> = Selector::new("item.delete")
 pub const ITEM_UPDATE: Selector<(String, String)> = Selector::new("item.update");
 // (<item type>, <parent id>)
 pub const ITEM_NEW_CHILD: Selector<(String, String)> = Selector::new("item.new.child");
-pub const NEW_TRIP: Selector<String> = Selector::new("new.trip");
 pub const EDIT_DELETE: Selector<usize> = Selector::new("edit.delete");
 pub const EDIT_STOP_TIME_CHOOSE: Selector = Selector::new("edit.stop_time.choose");
 pub const EDIT_STOP_TIME_UPDATE: Selector<String> = Selector::new("edit.stop_time.update");
 pub const NEW_STOP: Selector<Point> = Selector::new("new.stop");
 
-// (trip_id, stop_sequence, before) so before: true, after: false
+/// Selector(trip_id, stop_sequence, before) so before: true, after: false
 pub const ADD_STOP_TIME_CHOOSE: Selector<bool> = Selector::new("add.stop_time.choose");
+/// Selector<route id>
+pub const ADD_TRIP: Selector<String> = Selector::new("add.trip");
+/// Selector<agency id>
+pub const ADD_ROUTE: Selector<Option<String>> = Selector::new("add.route");
 // pub const ADD_STOP_TIME_UPDATE: Selector<String> = Selector::new("add.stop_time.update");
 
 pub const HOVER_STOP_TIME: Selector<Option<(String, u16)>> = Selector::new("hover.stop_time");
@@ -303,12 +306,19 @@ impl AppDelegate<AppData> for Delegate {
             // }
             data.actions.retain(|edit| edit.id != *edit_id);
             druid::Handled::Yes
-        } else if let Some(route_id) = cmd.get(NEW_TRIP) {
-            let new_trip = MyTrip::new(route_id.clone());
-            data.trips.push_front(new_trip);
+        } else if let Some(agency_id) = cmd.get(ADD_ROUTE) {
+            let new_route = MyRoute::new(agency_id.clone());
+            data.routes.push_front(new_route);
+
+            druid::Handled::Yes
+        } else if let Some(route_id) = cmd.get(ADD_TRIP) {
+            data.map_stop_selection_mode = true;
+            // let new_trip = MyTrip::new(route_id.clone());
+            // data.trips.push_front(new_trip);
 
             druid::Handled::Yes
         } else if let Some(latlong) = cmd.get(NEW_STOP) {
+            myprint!("handle NEW_STOP command");
             let new_stop = MyStop::new(*latlong);
 
             // need to resort stops? no, stops are not sorted
@@ -321,17 +331,20 @@ impl AppDelegate<AppData> for Delegate {
             data.stop_index_from_id
                 .insert(new_stop.id.clone(), data.stops.len() - 1);
 
-            // determine whether stop selected is for updating a stop_time or creating a new one
+            // first we need to determine whether we are adding to an existing trip, or creating a new trip by looking at whether a stop_time is selected or only route, else panic
 
-            // create new stop_time
-            if let Some(insert_stop_time_before) = data.insert_stop_time_before {
-                // data.stop_times is sorted and it's order is assumed fixed by stop_time_range_from_trip_id
-                // stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
-                // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
+            // update existing trip
+            if let Some((trip_id, stop_sequence)) = &data.selected_stop_time_id {
+                // determine whether stop selected is for updating a stop_time or creating a new one
 
-                // need to insert the new stop_time, update all the stop_sequences for the other stop_times in that trip, then resort stop_times (not actually necessary), and recreate stop_time_range_from_trip_id (might be avoidable if we store actual stop_times in a HashMap)
+                // create new stop_time
+                if let Some(insert_stop_time_before) = data.insert_stop_time_before {
+                    // data.stop_times is sorted and it's order is assumed fixed by stop_time_range_from_trip_id
+                    // stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
+                    // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
 
-                if let Some((trip_id, stop_sequence)) = &data.selected_stop_time_id {
+                    // need to insert the new stop_time, update all the stop_sequences for the other stop_times in that trip, then resort stop_times (not actually necessary), and recreate stop_time_range_from_trip_id (might be avoidable if we store actual stop_times in a HashMap)
+
                     // could maybe use data.stop_times.insert_ord(item) ???
                     let (selected_stop_time_index, _) = data
                         .stop_times
@@ -358,7 +371,7 @@ impl AppDelegate<AppData> for Delegate {
                         } else {
                             selected_stop_time_index + 1
                         },
-                        MyStopTime::new(trip_id.clone(), new_stop.id.clone()),
+                        MyStopTime::new(trip_id.clone(), new_stop.id.clone(), 99),
                     );
                     // udpate stop_time_range_from_trip_id (important to do this first to get correct range to update stop_sequences)
 
@@ -376,26 +389,139 @@ impl AppDelegate<AppData> for Delegate {
                     }
 
                     data.insert_stop_time_before = None;
-                } else {
-                    panic!("shouldn't be able to select a stop here ");
-                }
 
-                // update existing stop_time
-            } else {
-                if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
+                    // update existing stop_time
+                } else {
                     let selected_stop_time = data
                         .stop_times
                         .iter_mut()
                         .find(|stop_time| {
-                            stop_time.trip_id == selected_stop_time_id.0
-                                && stop_time.stop_sequence == selected_stop_time_id.1
+                            &stop_time.trip_id == trip_id
+                                && &stop_time.stop_sequence == stop_sequence
                         })
                         .unwrap();
                     selected_stop_time.stop_id = new_stop.id.clone();
                     selected_stop_time.edited = true;
-                } else {
-                    panic!("shouldn't be able to select a stop here ");
                 }
+
+            // new trip
+            } else if let Some(selected_route_id) = &data.selected_route_id {
+                // data.map_stop_selection_mode = true;
+                let mut new_trip = MyTrip::new(selected_route_id.clone());
+                new_trip.n_stops = 1;
+                data.trips.push_front(new_trip.clone());
+
+                // insert new stop_time
+                data.stop_times.push_back(MyStopTime::new(
+                    new_trip.id.clone(),
+                    new_stop.id.clone(),
+                    1,
+                ));
+                // udpate stop_time_range_from_trip_id (important to do this first to get correct range to update stop_sequences)
+
+                data.stop_time_range_from_trip_id =
+                    make_stop_time_range_from_trip_id(&data.stop_times);
+            } else {
+                panic!("shouldn't be able to select a stop here ");
+            }
+
+            druid::Handled::Yes
+        } else if let Some(_) = cmd.get(EDIT_STOP_TIME_CHOOSE) {
+            // let (trip_id, stop_sequence) = stop_time_pk;
+            data.map_stop_selection_mode = true;
+
+            druid::Handled::Yes
+        } else if let Some(stop_id) = cmd.get(EDIT_STOP_TIME_UPDATE) {
+            // first we need to determine whether we are adding to an existing trip, or creating a new trip by looking at whether a stop_time is selected or only route, else panic
+
+            if let Some((trip_id, stop_sequence)) = &data.selected_stop_time_id {
+                // determine whether stop selected is for updating a stop_time or creating a new one
+
+                // data.stop_times is sorted and it's order is assumed fixed by stop_time_range_from_trip_id
+                // stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
+                // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
+
+                // need to insert the new stop_time, update all the stop_sequences for the other stop_times in that trip, then resort stop_times (not actually necessary), and recreate stop_time_range_from_trip_id (might be avoidable if we store actual stop_times in a HashMap)
+
+                // insert new stop_time before or after selected stop_time
+                if let Some(insert_stop_time_before) = data.insert_stop_time_before {
+                    // could maybe use data.stop_times.insert_ord(item) ???
+                    let (selected_stop_time_index, _) = data
+                        .stop_times
+                        .iter()
+                        .enumerate()
+                        .find(|(index, stop_time)| {
+                            &stop_time.trip_id == trip_id
+                                && &stop_time.stop_sequence == stop_sequence
+                        })
+                        .unwrap();
+
+                    // recalcuate n_stops for MyTrip
+                    let trip = data
+                        .trips
+                        .iter_mut()
+                        .find(|trip| &trip.id == trip_id)
+                        .unwrap();
+                    trip.n_stops += 1;
+
+                    // insert new stop_time
+                    data.stop_times.insert(
+                        if insert_stop_time_before {
+                            selected_stop_time_index
+                        } else {
+                            selected_stop_time_index + 1
+                        },
+                        MyStopTime::new(trip_id.clone(), stop_id.clone(), 99),
+                    );
+                    // udpate stop_time_range_from_trip_id (important to do this first to get correct range to update stop_sequences)
+
+                    // data.stop_time_range_from_trip_id = stop_time_range_from_trip_id;
+                    data.stop_time_range_from_trip_id =
+                        make_stop_time_range_from_trip_id(&data.stop_times);
+
+                    // udpate all stop_sequences for that trip
+                    let range = data.stop_time_range_from_trip_id.get(trip_id).unwrap();
+                    let mut stop_sequence_inc = 1;
+                    for i in range.0..range.1 {
+                        let stop_time = data.stop_times.get_mut(i).unwrap();
+                        stop_time.stop_sequence = stop_sequence_inc;
+                        stop_sequence_inc += 1;
+                    }
+                    data.insert_stop_time_before = None;
+
+                // edit existing stop time
+                } else {
+                    // set the new stop id
+                    println!(
+                        "update stop_time {:?} to stop_id: {}",
+                        data.selected_stop_time_id, stop_id
+                    );
+                    let selected_stop_time = data
+                        .stop_times
+                        .iter_mut()
+                        .find(|stop_time| {
+                            &stop_time.trip_id == trip_id
+                                && &stop_time.stop_sequence == stop_sequence
+                        })
+                        .unwrap();
+                    selected_stop_time.stop_id = stop_id.clone();
+                    selected_stop_time.edited = true;
+                }
+            } else if let Some(selected_route_id) = &data.selected_route_id {
+                // data.map_stop_selection_mode = true;
+                let mut new_trip = MyTrip::new(selected_route_id.clone());
+                new_trip.n_stops = 1;
+                data.trips.push_front(new_trip.clone());
+
+                // insert new stop_time
+                data.stop_times
+                    .push_back(MyStopTime::new(new_trip.id.clone(), stop_id.clone(), 1));
+                // udpate stop_time_range_from_trip_id (important to do this first to get correct range to update stop_sequences)
+
+                data.stop_time_range_from_trip_id =
+                    make_stop_time_range_from_trip_id(&data.stop_times);
+            } else {
+                panic!("shouldn't be able to select a stop here ");
             }
 
             druid::Handled::Yes
@@ -528,90 +654,6 @@ impl AppDelegate<AppData> for Delegate {
             for trip in data.trips.iter_mut() {
                 trip.selected = false;
             }
-            druid::Handled::Yes
-        } else if let Some(_) = cmd.get(EDIT_STOP_TIME_CHOOSE) {
-            // let (trip_id, stop_sequence) = stop_time_pk;
-            data.map_stop_selection_mode = true;
-
-            druid::Handled::Yes
-        } else if let Some(stop_id) = cmd.get(EDIT_STOP_TIME_UPDATE) {
-            // determine whether stop selected is for updating a stop_time or creating a new one
-
-            if let Some(insert_stop_time_before) = data.insert_stop_time_before {
-                // data.stop_times is sorted and it's order is assumed fixed by stop_time_range_from_trip_id
-                // stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
-                // stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
-
-                // need to insert the new stop_time, update all the stop_sequences for the other stop_times in that trip, then resort stop_times (not actually necessary), and recreate stop_time_range_from_trip_id (might be avoidable if we store actual stop_times in a HashMap)
-                if let Some((trip_id, stop_sequence)) = &data.selected_stop_time_id {
-                    // could maybe use data.stop_times.insert_ord(item) ???
-                    let (selected_stop_time_index, _) = data
-                        .stop_times
-                        .iter()
-                        .enumerate()
-                        .find(|(index, stop_time)| {
-                            &stop_time.trip_id == trip_id
-                                && &stop_time.stop_sequence == stop_sequence
-                        })
-                        .unwrap();
-
-                    // recalcuate n_stops for MyTrip
-                    let trip = data
-                        .trips
-                        .iter_mut()
-                        .find(|trip| &trip.id == trip_id)
-                        .unwrap();
-                    trip.n_stops += 1;
-
-                    // insert new stop_time
-                    data.stop_times.insert(
-                        if insert_stop_time_before {
-                            selected_stop_time_index
-                        } else {
-                            selected_stop_time_index + 1
-                        },
-                        MyStopTime::new(trip_id.clone(), stop_id.clone()),
-                    );
-                    // udpate stop_time_range_from_trip_id (important to do this first to get correct range to update stop_sequences)
-
-                    // data.stop_time_range_from_trip_id = stop_time_range_from_trip_id;
-                    data.stop_time_range_from_trip_id =
-                        make_stop_time_range_from_trip_id(&data.stop_times);
-
-                    // udpate all stop_sequences for that trip
-                    let range = data.stop_time_range_from_trip_id.get(trip_id).unwrap();
-                    let mut stop_sequence_inc = 1;
-                    for i in range.0..range.1 {
-                        let stop_time = data.stop_times.get_mut(i).unwrap();
-                        stop_time.stop_sequence = stop_sequence_inc;
-                        stop_sequence_inc += 1;
-                    }
-                    data.insert_stop_time_before = None;
-                } else {
-                    panic!("shouldn't be able to select a stop here ");
-                }
-            } else {
-                // set the new stop id
-                println!(
-                    "update stop_time {:?} to stop_id: {}",
-                    data.selected_stop_time_id, stop_id
-                );
-                if let Some(selected_stop_time_id) = &data.selected_stop_time_id {
-                    let selected_stop_time = data
-                        .stop_times
-                        .iter_mut()
-                        .find(|stop_time| {
-                            stop_time.trip_id == selected_stop_time_id.0
-                                && stop_time.stop_sequence == selected_stop_time_id.1
-                        })
-                        .unwrap();
-                    selected_stop_time.stop_id = stop_id.clone();
-                    selected_stop_time.edited = true;
-                } else {
-                    panic!("shouldn't be able to select a stop here ");
-                }
-            }
-
             druid::Handled::Yes
         } else if let Some(stop_time_id) = cmd.get(HOVER_STOP_TIME) {
             // TODO this is all way too heavy and needs simplifying

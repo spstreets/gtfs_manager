@@ -961,6 +961,8 @@ impl Widget<AppData> for MapWidget {
                                 }
 
                             // stop selection
+                            // adding existing or new stops to existing or new trips
+                            // here were are only submitting commands with either and existing stop's id, or a new stops latlong coord. It is the up to the handlers in AppDelegate to determine what to do with them, ie add to an existing trip, or create a new trip
                             } else {
                                 // select an existing stop
                                 if let Some(hovered_stop_id) = &self.hovered_stop_id {
@@ -1185,51 +1187,54 @@ impl Widget<AppData> for MapWidget {
 
         // recreate trip path for trip with stop_time added or deleted
         } else {
-            myprint!("update: recreate trip path for trip with stop_time added or deleted");
-            // find which trip has been updated
-            let ((trip_index, trip), _) = data
-                .trips
-                .iter()
-                .enumerate()
-                .zip(old_data.trips.iter())
-                .find(|((trip_index, trip), old_trip)| {
-                    let data_range = data.stop_time_range_from_trip_id.get(&trip.id).unwrap();
-                    let data_size = data_range.1 - data_range.0;
-                    let old_data_range =
-                        old_data.stop_time_range_from_trip_id.get(&trip.id).unwrap();
-                    let old_data_size = old_data_range.1 - old_data_range.0;
-                    data_size != old_data_size
-                })
-                .unwrap();
+            // first ensure we actually have an updated trip, rather than an entirely new trip
+            if data.trips.len() == old_data.trips.len() {
+                // find which trip has been updated
+                let ((trip_index, trip), _) = data
+                    .trips
+                    .iter()
+                    .enumerate()
+                    .zip(old_data.trips.iter())
+                    .find(|((trip_index, trip), old_trip)| {
+                        let data_range = data.stop_time_range_from_trip_id.get(&trip.id).unwrap();
+                        let data_size = data_range.1 - data_range.0;
+                        let old_data_range =
+                            old_data.stop_time_range_from_trip_id.get(&trip.id).unwrap();
+                        let old_data_size = old_data_range.1 - old_data_range.0;
+                        data_size != old_data_size
+                    })
+                    .unwrap();
+                myprint!("update: recreate trip path for trip with stop_time added or deleted");
 
-            // TODO make latlong_to_bitmap() here is expensive and could be avoided
-            let trips_coords_from_shapes = data.trips_coords_from_shapes();
-            let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
-            let latlong_to_bitmap = |coord: Point| {
-                MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
-            };
+                // TODO making latlong_to_bitmap() here is expensive and could be avoided
+                let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
+                let latlong_to_bitmap = |coord: Point| {
+                    MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
+                };
 
-            let route = data
-                .routes
-                .iter()
-                .find(|route| route.id == trip.route_id)
-                .unwrap();
-            let RGB { r, g, b } = route.color.0;
-            let color = Color::rgb8(r, g, b);
-            let RGB { r, g, b } = route.text_color.0;
-            let text_color = Color::rgb8(r, g, b);
-            let coords = data.trip_coords_from_stop_coords(trip.id.clone());
+                let route = data
+                    .routes
+                    .iter()
+                    .find(|route| route.id == trip.route_id)
+                    .unwrap();
+                let RGB { r, g, b } = route.color.0;
+                let color = Color::rgb8(r, g, b);
+                let RGB { r, g, b } = route.text_color.0;
+                let text_color = Color::rgb8(r, g, b);
+                let coords = data.trip_coords_from_stop_coords(trip.id.clone());
 
-            let new_path =
-                bez_path_from_coords_iter(coords.iter().map(|coord| latlong_to_bitmap(*coord)));
-            self.all_trip_paths_combined[trip_index] =
-                (trip.id.clone(), color, text_color, new_path.clone());
-            self.recreate_bitmap = true;
+                let new_path =
+                    bez_path_from_coords_iter(coords.iter().map(|coord| latlong_to_bitmap(*coord)));
+                self.all_trip_paths_combined[trip_index] =
+                    (trip.id.clone(), color, text_color, new_path.clone());
+                self.recreate_bitmap = true;
 
-            // remove existing references to trip in grouped paths, then calculate groups for new path and add those
-            // self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
-            self.update_single_path_in_grouped_rects(trip_index, new_path);
-            ctx.request_paint();
+                // remove existing references to trip in grouped paths, then calculate groups for new path and add those
+                // self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
+                self.update_single_path_in_grouped_rects(trip_index, new_path);
+                ctx.request_paint();
+            }
         }
 
         myprint!("update: check: map_zoom_level");

@@ -545,7 +545,18 @@ pub fn selected_stop_time_ui_small() -> impl Widget<MyStopTime> {
             format!("{}: {}", data.stop_sequence, data.stop_name)
         })
         .with_line_break_mode(LineBreaking::Clip),
-        Checkbox::new("fields").lens(MyStopTime::show_editing),
+        Flex::column()
+            .with_child(Button::new("add stop before").on_click(
+                |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+                    ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(true))
+                },
+            ))
+            .with_child(Checkbox::new("fields").lens(MyStopTime::show_editing))
+            .with_child(Button::new("add stop after").on_click(
+                |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+                    ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(false))
+                },
+            )),
         Either::new(
             |data: &MyStopTime, _: &_| data.show_editing,
             stop_time_ui(),
@@ -812,19 +823,6 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
     Flex::column()
         // .with_child(title)
         // .with_spacer(SPACING_1)
-        .with_child(
-            Flex::row()
-                .with_child(Button::new("add stop before").on_click(
-                    |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
-                        ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(true))
-                    },
-                ))
-                .with_child(Button::new("add stop after").on_click(
-                    |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
-                        ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(false))
-                    },
-                )),
-        )
         .with_child(fields)
         // .with_child(
         //     FilteredList::new(
@@ -1093,10 +1091,16 @@ pub fn route_ui_small_selected() -> impl Widget<MyRoute> {
                     .with_line_break_mode(LineBreaking::Clip),
             )
             .with_child(Label::new(|data: &MyRoute, _env: &_| {
-                format!("Trips: {}", data.n_stops)
+                format!("Trips: {}", data.n_trips)
             }))
             .cross_axis_alignment(CrossAxisAlignment::Start),
-        Checkbox::new("fields").lens(MyRoute::show_editing),
+        Flex::column()
+            .with_child(Button::new("add trip").on_click(
+                |ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+                    ctx.submit_command(ADD_TRIP.with(data.id.clone()))
+                },
+            ))
+            .with_child(Checkbox::new("fields").lens(MyRoute::show_editing)),
         Either::new(
             |data: &MyRoute, _: &_| data.show_editing,
             route_ui(),
@@ -1118,7 +1122,7 @@ pub fn route_ui_small() -> impl Widget<MyRoute> {
                     .with_line_break_mode(LineBreaking::Clip),
             )
             .with_child(Label::new(|data: &MyRoute, _env: &_| {
-                format!("Trips: {}", data.n_stops)
+                format!("Trips: {}", data.n_trips)
             }))
             .cross_axis_alignment(CrossAxisAlignment::Start),
     )
@@ -1415,7 +1419,13 @@ pub fn agency_ui_small_selected() -> impl Widget<MyAgency> {
                 format!("Routes: {}", data.n_stops)
             }))
             .cross_axis_alignment(CrossAxisAlignment::Start),
-        Checkbox::new("fields").lens(MyAgency::show_editing),
+        Flex::column()
+            .with_child(Button::new("add route").on_click(
+                |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+                    ctx.submit_command(ADD_ROUTE.with(data.id.clone()))
+                },
+            ))
+            .with_child(Checkbox::new("fields").lens(MyAgency::show_editing)),
         Either::new(
             |data: &MyAgency, _: &_| data.show_editing,
             agency_ui(),
@@ -2071,7 +2081,11 @@ impl<W: Widget<MyRoute>> Controller<MyRoute, W> for RouteHoverController {
         match event {
             LifeCycle::HotChanged(hot) => {
                 myprint!("submit route hover cmd");
-                ctx.submit_command(HOVER_ROUTE.with(if *hot { Some(data.id.clone()) } else { None }))
+                ctx.submit_command(HOVER_ROUTE.with(if *hot {
+                    Some(data.id.clone())
+                } else {
+                    None
+                }))
             }
             _ => {}
         }
