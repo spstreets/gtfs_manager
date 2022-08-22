@@ -22,12 +22,8 @@ pub trait ListItem {
     fn new_child(&mut self) -> String;
     fn update_all(&mut self, value: bool);
     fn id(&self) -> String;
-    fn n_stops(&self) -> usize {
-        99
-    }
-    fn show_editing(&self) -> bool {
-        false
-    }
+    fn n_stops(&self) -> usize;
+    fn show_editing(&self) -> bool;
     fn item_type(&self) -> String;
     // fn data_info(&self) -> String;
     fn data_info(&self) -> String {
@@ -106,6 +102,12 @@ impl ListItem for MyStop {
     }
     fn id(&self) -> String {
         self.id.clone()
+    }
+    fn n_stops(&self) -> usize {
+        99
+    }
+    fn show_editing(&self) -> bool {
+        false
     }
     fn item_type(&self) -> String {
         "stop".to_string()
@@ -192,6 +194,12 @@ impl ListItem for MyStopTime {
     }
     fn id(&self) -> String {
         self.stop_id.clone()
+    }
+    fn n_stops(&self) -> usize {
+        99
+    }
+    fn show_editing(&self) -> bool {
+        self.show_editing
     }
     fn item_type(&self) -> String {
         "stop_time".to_string()
@@ -417,6 +425,12 @@ impl ListItem for MyRoute {
     fn id(&self) -> String {
         self.id.clone()
     }
+    fn n_stops(&self) -> usize {
+        self.n_trips
+    }
+    fn show_editing(&self) -> bool {
+        self.show_editing
+    }
     fn item_type(&self) -> String {
         "route".to_string()
     }
@@ -496,6 +510,12 @@ impl ListItem for MyAgency {
     fn id(&self) -> String {
         // todo handle agency.id == None
         self.id.as_ref().unwrap().clone()
+    }
+    fn n_stops(&self) -> usize {
+        self.n_stops
+    }
+    fn show_editing(&self) -> bool {
+        self.show_editing
     }
     fn item_type(&self) -> String {
         "agency".to_string()
@@ -662,6 +682,12 @@ impl ListItem for AppData {
     }
     fn id(&self) -> String {
         "null".to_string()
+    }
+    fn n_stops(&self) -> usize {
+        99
+    }
+    fn show_editing(&self) -> bool {
+        false
     }
     fn item_type(&self) -> String {
         "null".to_string()

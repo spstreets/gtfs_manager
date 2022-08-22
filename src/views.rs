@@ -538,34 +538,59 @@ pub fn stop_ui() -> impl Widget<MyStop> {
 //         ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
 //     })
 // }
-pub fn selected_stop_time_ui_small() -> impl Widget<MyStopTime> {
-    selected_item_container(
+pub fn stop_time_selection() -> impl Widget<MyStopTime> {
+    main_selected(
+        "Stop",
+        "",
         Label::new(|data: &MyStopTime, _env: &_| {
             format!("{}: {}", data.stop_sequence, data.stop_name)
         })
         .with_line_break_mode(LineBreaking::Clip),
-        Flex::column()
+        Flex::row()
             .with_child(Button::new("add stop before").on_click(
                 |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
                     ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(true))
                 },
             ))
-            .with_child(Checkbox::new("fields").lens(MyStopTime::show_editing))
             .with_child(Button::new("add stop after").on_click(
                 |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
                     ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(false))
                 },
             )),
-        Either::new(
-            |data: &MyStopTime, _: &_| data.show_editing,
-            stop_time_ui(),
-            Flex::column(),
-        ),
+        MyStopTime::show_editing,
+        stop_time_fields(),
+        |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+            dbg!("got click");
+            ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
+        },
     )
-    .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
-        dbg!("got click");
-        ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
-    })
+    // selected_item_container(
+    //     Label::new(|data: &MyStopTime, _env: &_| {
+    //         format!("{}: {}", data.stop_sequence, data.stop_name)
+    //     })
+    //     .with_line_break_mode(LineBreaking::Clip),
+    //     Flex::column()
+    //         .with_child(Button::new("add stop before").on_click(
+    //             |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+    //                 ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(true))
+    //             },
+    //         ))
+    //         .with_child(Checkbox::new("fields").lens(MyStopTime::show_editing))
+    //         .with_child(Button::new("add stop after").on_click(
+    //             |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+    //                 ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(false))
+    //             },
+    //         )),
+    //     Either::new(
+    //         |data: &MyStopTime, _: &_| data.show_editing,
+    //         stop_time_fields(),
+    //         Flex::column(),
+    //     ),
+    // )
+    // .on_click(|ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+    //     dbg!("got click");
+    //     ctx.submit_command(SELECT_STOP_TIME.with((data.trip_id.clone(), data.stop_sequence)))
+    // })
 }
 pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
     unselected_item_container(
@@ -592,7 +617,7 @@ pub fn stop_time_ui_small() -> impl Widget<MyStopTime> {
 }
 
 // todo make a custom checkbox which has data (String, bool) so the label value can be taken from the data AND be clickable
-pub fn stop_time_ui() -> impl Widget<MyStopTime> {
+pub fn stop_time_fields() -> impl Widget<MyStopTime> {
     // let title = Flex::row()
     //     .with_child(Checkbox::new("").lens(MyStopTime::selected))
     //     .with_default_spacer()
@@ -839,7 +864,7 @@ pub fn stop_time_ui() -> impl Widget<MyStopTime> {
 }
 
 pub fn trip_ui_small() -> impl Widget<MyTrip> {
-    unselected_item_container(
+    ui_small_generalised(
         Flex::row()
             .with_child(Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id)))
             .with_child(Label::new(|data: &MyTrip, _env: &_| {
@@ -847,10 +872,10 @@ pub fn trip_ui_small() -> impl Widget<MyTrip> {
             }))
             .main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .cross_axis_alignment(CrossAxisAlignment::Start),
+        |ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
+            ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
+        },
     )
-    .on_click(|ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
-        ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
-    })
 }
 pub fn trip_ui_small_selected_old() -> impl Widget<MyTrip> {
     selected_item_container(
@@ -870,24 +895,34 @@ pub fn trip_ui_small_selected_old() -> impl Widget<MyTrip> {
         ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
     })
 }
-pub fn trip_ui_small_selected_generalised<T: Data + ListItem>(
-    name: &str,
-    children_name: &str,
-    fields: impl Widget<T> + 'static,
+
+pub fn main_selected<T: Data + ListItem>(
+    type_name: &str,
+    children_type_name: &str,
+    // selected: bool,
+    name: impl Widget<T> + 'static,
+    other_controls: impl Widget<T> + 'static,
     checkbox_lens: impl Lens<T, bool> + 'static,
-    f: impl Fn(&mut EventCtx, &mut T, &Env) + 'static,
+    fields: impl Widget<T> + 'static,
+    on_click: impl Fn(&mut EventCtx, &mut T, &Env) + 'static,
 ) -> impl Widget<T> {
     Flex::column()
         .with_child(
             Flex::row()
-                .with_child(Label::new(name).with_font(ANNOTATION))
+                .with_child(Label::new(type_name).with_font(ANNOTATION))
                 .with_child(
                     Flex::row()
                         .with_child(delete_item_button())
-                        .with_child(Checkbox::new("fields").lens(checkbox_lens)),
+                        .with_child(Checkbox::new("fields").lens(checkbox_lens))
+                        .with_child(other_controls),
                 )
                 .with_child(
-                    Label::new(format!("Number of {}s", children_name)).with_font(ANNOTATION),
+                    Label::new(if children_type_name.len() == 0 {
+                        "".to_string()
+                    } else {
+                        format!("Number of {children_type_name}s")
+                    })
+                    .with_font(ANNOTATION),
                 )
                 .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                 .fix_height(20.)
@@ -898,7 +933,8 @@ pub fn trip_ui_small_selected_generalised<T: Data + ListItem>(
                 Flex::column()
                     .with_child(
                         Flex::row()
-                            .with_child(Label::new(|data: &T, _env: &_| format!("{}", data.id())))
+                            // .with_child(name.with_line_break_mode(LineBreaking::Clip))
+                            .with_child(name)
                             .with_child(Label::new(|data: &T, _env: &_| {
                                 format!("{}", data.n_stops())
                             }))
@@ -914,7 +950,7 @@ pub fn trip_ui_small_selected_generalised<T: Data + ListItem>(
                     ))
                     .cross_axis_alignment(CrossAxisAlignment::Start),
             )
-            .on_click(f),
+            .on_click(on_click),
         )
 }
 pub fn trip_ui_small_selected() -> impl Widget<MyTrip> {
@@ -1133,38 +1169,60 @@ pub fn trip_fields() -> impl Widget<MyTrip> {
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
-pub fn route_ui_small_selected() -> impl Widget<MyRoute> {
-    selected_item_container(
-        Flex::column()
+pub fn route_selection() -> impl Widget<MyRoute> {
+    main_selected(
+        "Route",
+        "Trip",
+        Flex::row()
             .with_child(
-                Flex::row()
-                    .with_child(
-                        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
-                            .with_line_break_mode(LineBreaking::Clip)
-                            .fix_width(100.),
-                    )
-                    .with_child(
-                        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
-                            .with_line_break_mode(LineBreaking::Clip),
-                    ),
+                Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
+                    .with_line_break_mode(LineBreaking::Clip)
+                    .fix_width(100.),
             )
-            .cross_axis_alignment(CrossAxisAlignment::Start),
-        Flex::column()
-            .with_child(Button::new("add trip").on_click(
-                |ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
-                    ctx.submit_command(ADD_TRIP.with(data.id.clone()))
-                },
-            ))
-            .with_child(Checkbox::new("fields").lens(MyRoute::show_editing)),
-        Either::new(
-            |data: &MyRoute, _: &_| data.show_editing,
-            route_ui(),
-            Flex::column(),
-        ),
+            .with_child(
+                Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
+                    .with_line_break_mode(LineBreaking::Clip),
+            ),
+        Button::new("add trip").on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+            ctx.submit_command(ADD_TRIP.with(data.id.clone()))
+        }),
+        MyRoute::show_editing,
+        route_ui(),
+        |ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+            ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
+        },
     )
-    .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
-        ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
-    })
+    // selected_item_container(
+    //     Flex::column()
+    //         .with_child(
+    //             Flex::row()
+    //                 .with_child(
+    //                     Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
+    //                         .with_line_break_mode(LineBreaking::Clip)
+    //                         .fix_width(100.),
+    //                 )
+    //                 .with_child(
+    //                     Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
+    //                         .with_line_break_mode(LineBreaking::Clip),
+    //                 ),
+    //         )
+    //         .cross_axis_alignment(CrossAxisAlignment::Start),
+    //     Flex::column()
+    //         .with_child(Button::new("add trip").on_click(
+    //             |ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+    //                 ctx.submit_command(ADD_TRIP.with(data.id.clone()))
+    //             },
+    //         ))
+    //         .with_child(Checkbox::new("fields").lens(MyRoute::show_editing)),
+    //     Either::new(
+    //         |data: &MyRoute, _: &_| data.show_editing,
+    //         route_ui(),
+    //         Flex::column(),
+    //     ),
+    // )
+    // .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+    //     ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
+    // })
 }
 
 pub fn naming_item_type<T: Data>(item_type_name: &str, column: Flex<T>) -> impl Widget<T> {
@@ -1175,25 +1233,21 @@ pub fn naming_item_type<T: Data>(item_type_name: &str, column: Flex<T>) -> impl 
 }
 
 pub fn route_ui_small() -> impl Widget<MyRoute> {
-    unselected_item_container(
-        Flex::column()
+    ui_small_generalised(
+        Flex::row()
             .with_child(
-                Flex::row()
-                    .with_child(
-                        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
-                            .with_line_break_mode(LineBreaking::Clip)
-                            .fix_width(100.),
-                    )
-                    .with_child(
-                        Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
-                            .with_line_break_mode(LineBreaking::Clip),
-                    ),
+                Label::new(|data: &MyRoute, _env: &_| format!("{}", data.short_name))
+                    .with_line_break_mode(LineBreaking::Clip)
+                    .fix_width(100.),
             )
-            .cross_axis_alignment(CrossAxisAlignment::Start),
+            .with_child(
+                Label::new(|data: &MyRoute, _env: &_| format!("{}", data.long_name))
+                    .with_line_break_mode(LineBreaking::Clip),
+            ),
+        |ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
+            ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
+        },
     )
-    .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
-        ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
-    })
 }
 // pub fn route_ui_small() -> impl Widget<MyRoute> {
 //     selected_item_container(Label::new(|data: &MyRoute, _env: &_| {
@@ -1459,41 +1513,65 @@ pub fn route_ui() -> impl Widget<MyRoute> {
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
-pub fn agency_ui_small() -> impl Widget<MyAgency> {
+pub fn ui_small_generalised<T: Data + ListItem>(
+    label: impl Widget<T> + 'static,
+    on_click: impl Fn(&mut EventCtx, &mut T, &Env) + 'static,
+) -> impl Widget<T> {
     unselected_item_container(
-        Flex::column()
-            .with_child(Label::new(|data: &MyAgency, _env: &_| {
-                format!("{}", data.name)
+        Flex::row()
+            .with_child(label)
+            .with_child(Label::new(|data: &T, _env: &_| {
+                format!("{}", data.n_stops())
             }))
-            .cross_axis_alignment(CrossAxisAlignment::Start),
+            .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+            .expand_width(),
     )
-    .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
-        ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
-    })
+    .on_click(on_click)
+}
+pub fn agency_ui_small() -> impl Widget<MyAgency> {
+    ui_small_generalised(
+        Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name)),
+        |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+            ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
+        },
+    )
 }
 pub fn agency_ui_small_selected() -> impl Widget<MyAgency> {
-    selected_item_container(
-        Flex::column()
-            .with_child(Label::new(|data: &MyAgency, _env: &_| {
-                format!("{}", data.name)
-            }))
-            .cross_axis_alignment(CrossAxisAlignment::Start),
-        Flex::column()
-            .with_child(Button::new("add route").on_click(
-                |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
-                    ctx.submit_command(ADD_ROUTE.with(data.id.clone()))
-                },
-            ))
-            .with_child(Checkbox::new("fields").lens(MyAgency::show_editing)),
-        Either::new(
-            |data: &MyAgency, _: &_| data.show_editing,
-            agency_ui(),
-            Flex::column(),
-        ),
+    main_selected(
+        "Agency",
+        "Route",
+        Label::new(|data: &MyAgency, _env: &_| format!("{}", data.name)),
+        Button::new("add route").on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+            ctx.submit_command(ADD_ROUTE.with(data.id.clone()))
+        }),
+        MyAgency::show_editing,
+        agency_ui(),
+        |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+            ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
+        },
     )
-    .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
-        ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
-    })
+    // selected_item_container(
+    //     Flex::column()
+    //         .with_child(Label::new(|data: &MyAgency, _env: &_| {
+    //             format!("{}", data.name)
+    //         }))
+    //         .cross_axis_alignment(CrossAxisAlignment::Start),
+    //     Flex::column()
+    //         .with_child(Button::new("add route").on_click(
+    //             |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+    //                 ctx.submit_command(ADD_ROUTE.with(data.id.clone()))
+    //             },
+    //         ))
+    //         .with_child(Checkbox::new("fields").lens(MyAgency::show_editing)),
+    //     Either::new(
+    //         |data: &MyAgency, _: &_| data.show_editing,
+    //         agency_ui(),
+    //         Flex::column(),
+    //     ),
+    // )
+    // .on_click(|ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
+    //     ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
+    // })
 }
 pub fn agency_ui() -> impl Widget<MyAgency> {
     // let title = Flex::row()
@@ -1670,10 +1748,10 @@ fn edit() -> impl Widget<Edit> {
 //     .rounded(CORNER_RADIUS)
 // }
 
-fn agency_selected() -> Box<dyn Widget<AppData>> {
+fn agency_selected_view() -> Box<dyn Widget<AppData>> {
     Box::new(
         Flex::column()
-            .with_child(Label::new("Agency").with_font(ANNOTATION))
+            // .with_child(Label::new("Agency").with_font(ANNOTATION))
             .with_child(
                 FilteredList::new(
                     List::new(agency_ui_small_selected).with_spacing(CHILD_LIST_SPACING),
@@ -1690,7 +1768,7 @@ fn agency_selected() -> Box<dyn Widget<AppData>> {
                 )),
             )
             .with_spacer(10.)
-            .with_child(Label::new("Routes").with_font(ANNOTATION))
+            .with_child(title_row("Routes", "Trip"))
             .with_flex_child(
                 Scroll::new(
                     FilteredList::new(
@@ -1715,80 +1793,94 @@ fn agency_selected() -> Box<dyn Widget<AppData>> {
 }
 
 fn parent_agency_selected() -> impl Widget<AppData> {
-    FilteredList::new(
-        List::new(agency_ui_small).with_spacing(CHILD_LIST_SPACING),
-        |agency: &MyAgency, filtered: &Option<Option<String>>| {
-            filtered.as_ref().map_or(false, |id| &agency.id == id)
-        },
-    )
-    .lens(druid::lens::Map::new(
-        |data: &AppData| (data.agencies.clone(), data.selected_agency_id.clone()),
-        |data: &mut AppData, inner: (Vector<MyAgency>, Option<Option<String>>)| {
-            data.agencies = inner.0;
-            data.selected_agency_id = inner.1;
-        },
-    ))
+    Flex::column()
+        .with_child(title_row("Agency", "Route"))
+        .with_child(
+            FilteredList::new(
+                List::new(agency_ui_small).with_spacing(CHILD_LIST_SPACING),
+                |agency: &MyAgency, filtered: &Option<Option<String>>| {
+                    filtered.as_ref().map_or(false, |id| &agency.id == id)
+                },
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.agencies.clone(), data.selected_agency_id.clone()),
+                |data: &mut AppData, inner: (Vector<MyAgency>, Option<Option<String>>)| {
+                    data.agencies = inner.0;
+                    data.selected_agency_id = inner.1;
+                },
+            )),
+        )
 }
 fn parent_route_selected() -> impl Widget<AppData> {
-    FilteredList::new(
-        List::new(route_ui_small).with_spacing(CHILD_LIST_SPACING),
-        |route: &MyRoute, filtered: &Option<String>| {
-            filtered.as_ref().map_or(false, |id| &route.id == id)
-        },
-    )
-    .lens(druid::lens::Map::new(
-        |data: &AppData| (data.routes.clone(), data.selected_route_id.clone()),
-        |data: &mut AppData, inner: (Vector<MyRoute>, Option<String>)| {
-            data.routes = inner.0;
-            data.selected_route_id = inner.1;
-        },
-    ))
+    Flex::column()
+        .with_child(title_row("Route", "Trip"))
+        .with_child(
+            FilteredList::new(
+                List::new(route_ui_small).with_spacing(CHILD_LIST_SPACING),
+                |route: &MyRoute, filtered: &Option<String>| {
+                    filtered.as_ref().map_or(false, |id| &route.id == id)
+                },
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.routes.clone(), data.selected_route_id.clone()),
+                |data: &mut AppData, inner: (Vector<MyRoute>, Option<String>)| {
+                    data.routes = inner.0;
+                    data.selected_route_id = inner.1;
+                },
+            )),
+        )
 }
 fn parent_trip_selected() -> impl Widget<AppData> {
-    FilteredList::new(
-        List::new(trip_ui_small).with_spacing(CHILD_LIST_SPACING),
-        |trip: &MyTrip, filtered: &Option<(usize, String)>| {
-            filtered
-                .as_ref()
-                .map_or(false, |(index, id)| &trip.id == id)
-        },
-    )
-    .lens(druid::lens::Map::new(
-        |data: &AppData| (data.trips.clone(), data.selected_trip_id.clone()),
-        |data: &mut AppData, inner: (Vector<MyTrip>, Option<(usize, String)>)| {
-            data.trips = inner.0;
-            data.selected_trip_id = inner.1;
-        },
-    ))
+    Flex::column()
+        .with_child(title_row("Trip", "Stop"))
+        .with_child(
+            FilteredList::new(
+                List::new(trip_ui_small).with_spacing(CHILD_LIST_SPACING),
+                |trip: &MyTrip, filtered: &Option<(usize, String)>| {
+                    filtered
+                        .as_ref()
+                        .map_or(false, |(index, id)| &trip.id == id)
+                },
+            )
+            .lens(druid::lens::Map::new(
+                |data: &AppData| (data.trips.clone(), data.selected_trip_id.clone()),
+                |data: &mut AppData, inner: (Vector<MyTrip>, Option<(usize, String)>)| {
+                    data.trips = inner.0;
+                    data.selected_trip_id = inner.1;
+                },
+            )),
+        )
 }
 fn parent_stop_time_selected() -> impl Widget<AppData> {
-    FilteredList::new(
-        List::new(stop_time_ui_small).with_spacing(CHILD_LIST_SPACING),
-        |stop_time: &MyStopTime, filtered: &Option<(String, u16)>| {
-            filtered.as_ref().map_or(false, |id| {
-                stop_time.trip_id == id.0 && stop_time.stop_sequence == id.1
-            })
-        },
+    Flex::column().with_child(title_row("Stop", "")).with_child(
+        FilteredList::new(
+            List::new(stop_time_ui_small).with_spacing(CHILD_LIST_SPACING),
+            |stop_time: &MyStopTime, filtered: &Option<(String, u16)>| {
+                filtered.as_ref().map_or(false, |id| {
+                    stop_time.trip_id == id.0 && stop_time.stop_sequence == id.1
+                })
+            },
+        )
+        .lens(druid::lens::Map::new(
+            |data: &AppData| (data.stop_times.clone(), data.selected_stop_time_id.clone()),
+            |data: &mut AppData, inner: (Vector<MyStopTime>, Option<(String, u16)>)| {
+                data.stop_times = inner.0;
+                data.selected_stop_time_id = inner.1;
+            },
+        )),
     )
-    .lens(druid::lens::Map::new(
-        |data: &AppData| (data.stop_times.clone(), data.selected_stop_time_id.clone()),
-        |data: &mut AppData, inner: (Vector<MyStopTime>, Option<(String, u16)>)| {
-            data.stop_times = inner.0;
-            data.selected_stop_time_id = inner.1;
-        },
-    ))
 }
 
-fn route_selected() -> Box<dyn Widget<AppData>> {
+fn route_selected_view() -> Box<dyn Widget<AppData>> {
     Box::new(
         Flex::column()
-            .with_child(Label::new("Agency").with_font(ANNOTATION))
+            // .with_child(Label::new("Agency").with_font(ANNOTATION))
             .with_child(parent_agency_selected())
             .with_spacer(10.)
-            .with_child(Label::new("Route").with_font(ANNOTATION))
+            // .with_child(Label::new("Route").with_font(ANNOTATION))
             .with_child(
                 FilteredList::new(
-                    List::new(route_ui_small_selected).with_spacing(CHILD_LIST_SPACING),
+                    List::new(route_selection).with_spacing(CHILD_LIST_SPACING),
                     |route: &MyRoute, filtered: &Option<String>| {
                         filtered.as_ref().map_or(false, |id| &route.id == id)
                     },
@@ -1803,7 +1895,7 @@ fn route_selected() -> Box<dyn Widget<AppData>> {
             )
             .with_spacer(10.)
             // .with_child(Label::new("Trips").with_font(ANNOTATION))
-            .with_child(title_row("Trips", "Number of Stops"))
+            .with_child(title_row("Trips", "Stop"))
             .with_flex_child(
                 Scroll::new(
                     FilteredList::new(
@@ -1830,8 +1922,10 @@ fn route_selected() -> Box<dyn Widget<AppData>> {
 fn title_row<T: Data>(name1: &str, name2: &str) -> impl Widget<T> {
     Flex::row()
         .with_child(Label::new(name1).with_font(ANNOTATION))
-        .with_child(Label::new(name2).with_font(ANNOTATION))
+        .with_child(Label::new(format!("Number of {name2}s")).with_font(ANNOTATION))
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+        .cross_axis_alignment(CrossAxisAlignment::End)
+        .fix_height(30.)
         .expand_width()
 }
 
@@ -1854,24 +1948,26 @@ fn list_of_stop_times() -> impl Widget<AppData> {
         )),
     )
 }
-fn trip_selected() -> Box<dyn Widget<AppData>> {
+fn trip_selected_view() -> Box<dyn Widget<AppData>> {
     Box::new(
         Flex::column()
-            .with_child(Label::new("Agency").with_font(ANNOTATION))
+            // .with_child(Label::new("Agency").with_font(ANNOTATION))
             .with_child(parent_agency_selected())
             .with_spacer(10.)
-            .with_child(Label::new("Route").with_font(ANNOTATION))
+            // .with_child(Label::new("Route").with_font(ANNOTATION))
             .with_child(parent_route_selected())
             .with_spacer(10.)
             // .with_child(Label::new("Trip").with_font(ANNOTATION))
             .with_child(
                 FilteredList::new(
                     List::new(|| {
-                        trip_ui_small_selected_generalised(
+                        main_selected(
                             "Trip",
                             "Stop",
-                            trip_fields(),
+                            Label::new(|data: &MyTrip, _env: &_| format!("{}", data.id)),
+                            Flex::row(),
                             MyTrip::show_editing,
+                            trip_fields(),
                             |ctx: &mut EventCtx, data: &mut MyTrip, _: &_| {
                                 ctx.submit_command(SELECT_TRIP.with(data.id.clone()))
                             },
@@ -1893,29 +1989,29 @@ fn trip_selected() -> Box<dyn Widget<AppData>> {
                 )),
             )
             .with_spacer(10.)
-            .with_child(Label::new("Stops").with_font(ANNOTATION))
+            .with_child(title_row("Stops", ""))
             .with_flex_child(list_of_stop_times(), 1.)
             .cross_axis_alignment(CrossAxisAlignment::Start)
             .fix_width(NARROW_LIST_WIDTH),
     )
 }
 
-fn stop_time_selected() -> Box<dyn Widget<AppData>> {
+fn stop_time_selected_view() -> Box<dyn Widget<AppData>> {
     Box::new(
         Flex::column()
-            .with_child(Label::new("Agency").with_font(ANNOTATION))
+            // .with_child(Label::new("Agency").with_font(ANNOTATION))
             .with_child(parent_agency_selected())
             .with_spacer(10.)
-            .with_child(Label::new("Route").with_font(ANNOTATION))
+            // .with_child(Label::new("Route").with_font(ANNOTATION))
             .with_child(parent_route_selected())
             .with_spacer(10.)
-            .with_child(Label::new("Trip").with_font(ANNOTATION))
+            // .with_child(Label::new("Trip").with_font(ANNOTATION))
             .with_child(parent_trip_selected())
             .with_spacer(10.)
-            .with_child(Label::new("Stop").with_font(ANNOTATION))
+            // .with_child(Label::new("Stop").with_font(ANNOTATION))
             .with_child(
                 FilteredList::new(
-                    List::new(selected_stop_time_ui_small).with_spacing(CHILD_LIST_SPACING),
+                    List::new(stop_time_selection).with_spacing(CHILD_LIST_SPACING),
                     |stop_time: &MyStopTime, filtered: &Option<(String, u16)>| {
                         filtered.as_ref().map_or(false, |id| {
                             stop_time.trip_id == id.0 && stop_time.stop_sequence == id.1
@@ -1936,7 +2032,7 @@ fn stop_time_selected() -> Box<dyn Widget<AppData>> {
     )
 }
 
-fn list_stop_selected() -> Box<dyn Widget<AppData>> {
+fn list_stop_selected_view() -> Box<dyn Widget<AppData>> {
     Box::new(
         Flex::column()
             .with_child(parent_agency_selected())
@@ -2014,20 +2110,24 @@ pub fn main_widget() -> impl Widget<AppData> {
 
             if *selector == (None, None, None, None, None) {
                 Box::new(
-                    List::new(agency_ui_small)
-                        .with_spacing(CHILD_LIST_SPACING)
-                        .lens(AppData::agencies),
+                    Flex::column()
+                        .with_child(title_row("Agency", "Route"))
+                        .with_child(
+                            List::new(agency_ui_small)
+                                .with_spacing(CHILD_LIST_SPACING)
+                                .lens(AppData::agencies),
+                        ),
                 )
             } else if data.selected_agency_id.is_some() && data.selected_route_id == None {
-                agency_selected()
+                agency_selected_view()
             } else if data.selected_route_id.is_some() && data.selected_trip_id.is_none() {
-                route_selected()
+                route_selected_view()
             } else if data.selected_trip_id.is_some() && data.selected_stop_time_id.is_none() {
-                trip_selected()
+                trip_selected_view()
             } else if data.selected_stop_time_id.is_some() && data.selected_stop_id.is_none() {
-                stop_time_selected()
+                stop_time_selected_view()
             } else if data.selected_stop_id.is_some() {
-                list_stop_selected()
+                list_stop_selected_view()
             } else {
                 panic!("unexpected item selection combination")
             }
