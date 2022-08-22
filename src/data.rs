@@ -22,6 +22,12 @@ pub trait ListItem {
     fn new_child(&mut self) -> String;
     fn update_all(&mut self, value: bool);
     fn id(&self) -> String;
+    fn n_stops(&self) -> usize {
+        99
+    }
+    fn show_editing(&self) -> bool {
+        false
+    }
     fn item_type(&self) -> String;
     // fn data_info(&self) -> String;
     fn data_info(&self) -> String {
@@ -264,6 +270,12 @@ impl ListItem for MyTrip {
     }
     fn id(&self) -> String {
         self.id.clone()
+    }
+    fn n_stops(&self) -> usize {
+        self.n_stops
+    }
+    fn show_editing(&self) -> bool {
+        self.show_editing
     }
     fn item_type(&self) -> String {
         "trip".to_string()
