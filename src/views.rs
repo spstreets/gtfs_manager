@@ -925,7 +925,7 @@ pub fn main_selected<T: Data + ListItem>(
                     .with_font(ANNOTATION),
                 )
                 .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .fix_height(20.)
+                .fix_height(30.)
                 .expand_width(),
         )
         .with_child(
@@ -1922,7 +1922,14 @@ fn route_selected_view() -> Box<dyn Widget<AppData>> {
 fn title_row<T: Data>(name1: &str, name2: &str) -> impl Widget<T> {
     Flex::row()
         .with_child(Label::new(name1).with_font(ANNOTATION))
-        .with_child(Label::new(format!("Number of {name2}s")).with_font(ANNOTATION))
+        .with_child(
+            Label::new(if name2.len() == 0 {
+                "".to_string()
+            } else {
+                format!("Number of {name2}s",)
+            })
+            .with_font(ANNOTATION),
+        )
         .main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .cross_axis_alignment(CrossAxisAlignment::End)
         .fix_height(30.)
