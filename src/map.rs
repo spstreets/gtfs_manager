@@ -2,8 +2,7 @@ use chrono::Utc;
 use druid::im::Vector;
 use druid::kurbo::{BezPath, Circle, ParamCurveNearest, Shape};
 use druid::piet::{
-    CairoImage, CairoRenderContext, Device, FontFamily, ImageFormat, InterpolationMode, Text,
-    TextLayoutBuilder,
+    Device, FontFamily, ImageFormat, InterpolationMode, PietImage, Text, TextLayoutBuilder,
 };
 use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
 use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
@@ -121,11 +120,11 @@ pub struct MapWidget {
     drag_last_pos: Option<Point>,
     // focal_point should be a lat long coord which is then converted as required, in order to preserve focus between zoom levels. but then we have to dertmine what the ORIGIN coord is. better to just have focal point as a point in [0,1] space.
     focal_point: NormalPoint,
-    minimap_image: Option<CairoImage>,
-    cached_image_small: Option<CairoImage>,
-    cached_image_large: Option<CairoImage>,
-    cached_image_map: HashMap<ZoomLevel, CairoImage>,
-    cached_image_vec: Vec<CairoImage>,
+    minimap_image: Option<PietImage>,
+    cached_image_small: Option<PietImage>,
+    cached_image_large: Option<PietImage>,
+    cached_image_map: HashMap<ZoomLevel, PietImage>,
+    cached_image_vec: Vec<PietImage>,
     recreate_bitmap: bool,
     stop_selection_mode: bool,
     // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
@@ -280,7 +279,7 @@ impl MapWidget {
     fn draw_shapes_onto_bitmap_ctx(
         &self,
         data: &AppData,
-        ctx: &mut CairoRenderContext,
+        ctx: &mut impl RenderContext,
         bitmap_size: usize,
         zoom_level: ZoomLevel,
     ) {
@@ -306,12 +305,7 @@ impl MapWidget {
         // draw paths
         ctx.restore();
     }
-    fn make_bitmap(
-        &self,
-        data: &AppData,
-        ctx: &mut CairoRenderContext,
-        zoom_level: ZoomLevel,
-    ) -> CairoImage {
+    fn make_bitmap(&self, data: &AppData, ctx: &mut PaintCtx, zoom_level: ZoomLevel) -> PietImage {
         let mut cached_image;
         {
             let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
