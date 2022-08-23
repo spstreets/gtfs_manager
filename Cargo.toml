@@ -12,7 +12,8 @@ druid = { git = "https://github.com/linebender/druid", features = ["im", "image"
 # gtfs-structures = { version = "0.32.2" }
 # gtfs-structures = { path = "../gtfs-structure", default-features = false }
 # gtfs-structures = { path = "../gtfs-structure" }
-gtfs-structures = { git = "https://github.com/maxwell8888/gtfs-structure" }
+# gtfs-structures = { git = "https://github.com/maxwell8888/gtfs-structure" }
+gtfs-structures = { git = "https://github.com/maxwell8888/gtfs-structure", branch = "without_serde_changes" }
 # chrono = "0.2.16"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"

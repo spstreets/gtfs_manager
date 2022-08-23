@@ -650,7 +650,7 @@ pub fn stop_time_fields() -> impl Widget<MyStopTime> {
         .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "arrival_time",
-            option_string().lens(MyStopTime::arrival_time),
+            option_u32().lens(MyStopTime::arrival_time),
             |data: &MyStopTime, _: &_| match &data.stop_time {
                 Some(stop_time) => stop_time.arrival_time != data.arrival_time,
                 None => true,
@@ -659,7 +659,7 @@ pub fn stop_time_fields() -> impl Widget<MyStopTime> {
         .with_spacer(FIELD_SPACER_SIZE)
         .with_child(field_row(
             "departure_time",
-            option_string().lens(MyStopTime::departure_time),
+            option_u32().lens(MyStopTime::departure_time),
             |data: &MyStopTime, _: &_| match &data.stop_time {
                 Some(stop_time) => stop_time.departure_time != data.departure_time,
                 None => true,
