@@ -225,6 +225,7 @@ pub fn unselected_item_container<T: Data>(child: impl Widget<T> + 'static) -> im
 pub fn selected_item_container2<T: Data + ListItem>(
     child: impl Widget<T> + 'static,
 ) -> impl Widget<T> {
+    // Container::new(child)
     Container::new(child.padding((10., 10., 10., 10.)))
         .rounded(CORNER_RADIUS)
         .background(Color::rgb(54. / 255., 58. / 255., 74. / 255.))
@@ -556,7 +557,8 @@ pub fn stop_time_selection() -> impl Widget<MyStopTime> {
                 |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
                     ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(false))
                 },
-            )),
+            ))
+            .cross_axis_alignment(CrossAxisAlignment::End),
         MyStopTime::show_editing,
         stop_time_fields(),
         |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
@@ -845,7 +847,7 @@ pub fn stop_time_fields() -> impl Widget<MyStopTime> {
 
     Flex::column()
         // .with_child(title)
-        // .with_spacer(SPACING_1)
+        .with_spacer(FIELDS_TOP_PADDING)
         .with_child(fields)
         // .with_child(
         //     FilteredList::new(
@@ -914,7 +916,8 @@ pub fn main_selected<T: Data + ListItem>(
                     Flex::row()
                         .with_child(delete_item_button())
                         .with_child(Checkbox::new("fields").lens(checkbox_lens))
-                        .with_child(other_controls),
+                        .with_child(other_controls)
+                        .cross_axis_alignment(CrossAxisAlignment::End),
                 )
                 .with_child(
                     Label::new(if children_type_name.len() == 0 {
@@ -925,6 +928,7 @@ pub fn main_selected<T: Data + ListItem>(
                     .with_font(ANNOTATION),
                 )
                 .main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                .cross_axis_alignment(CrossAxisAlignment::End)
                 .fix_height(30.)
                 .expand_width(),
         )
@@ -939,10 +943,10 @@ pub fn main_selected<T: Data + ListItem>(
                                 format!("{}", data.n_stops())
                             }))
                             .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                            .cross_axis_alignment(CrossAxisAlignment::Start)
+                            // .cross_axis_alignment(CrossAxisAlignment::Start)
                             .expand_width(),
                     )
-                    .with_spacer(20.)
+                    // .with_spacer(20.)
                     .with_child(Either::new(
                         |data: &T, _: &_| data.show_editing(),
                         fields,
@@ -1161,6 +1165,7 @@ pub fn trip_fields() -> impl Widget<MyTrip> {
     Flex::column()
         // .with_child(title)
         // .with_spacer(SPACING_1)
+        .with_spacer(FIELDS_TOP_PADDING)
         .with_child(fields)
         // .with_spacer(SPACING_1)
         // .with_child(children_header)
@@ -1187,7 +1192,7 @@ pub fn route_selection() -> impl Widget<MyRoute> {
             ctx.submit_command(ADD_TRIP.with(data.id.clone()))
         }),
         MyRoute::show_editing,
-        route_ui(),
+        route_fields(),
         |ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
             ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
         },
@@ -1257,7 +1262,7 @@ pub fn route_ui_small() -> impl Widget<MyRoute> {
 //         ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
 //     })
 // }
-pub fn route_ui() -> impl Widget<MyRoute> {
+pub fn route_fields() -> impl Widget<MyRoute> {
     // let title = Flex::row()
     //     .with_child(Checkbox::new("").lens(MyRoute::visible))
     //     .with_default_spacer()
@@ -1505,6 +1510,7 @@ pub fn route_ui() -> impl Widget<MyRoute> {
     Flex::column()
         // .with_child(title)
         // .with_spacer(SPACING_1)
+        .with_spacer(FIELDS_TOP_PADDING)
         .with_child(fields)
         // .with_spacer(SPACING_1)
         // .with_child(children_header)
@@ -1545,7 +1551,7 @@ pub fn agency_ui_small_selected() -> impl Widget<MyAgency> {
             ctx.submit_command(ADD_ROUTE.with(data.id.clone()))
         }),
         MyAgency::show_editing,
-        agency_ui(),
+        agency_fields(),
         |ctx: &mut EventCtx, data: &mut MyAgency, _: &_| {
             ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
         },
@@ -1573,7 +1579,7 @@ pub fn agency_ui_small_selected() -> impl Widget<MyAgency> {
     //     ctx.submit_command(SELECT_AGENCY.with(data.id.clone()))
     // })
 }
-pub fn agency_ui() -> impl Widget<MyAgency> {
+pub fn agency_fields() -> impl Widget<MyAgency> {
     // let title = Flex::row()
     //     .with_child(Either::new(
     //         |data: &MyAgency, _env: &Env| data.live,
@@ -1698,6 +1704,7 @@ pub fn agency_ui() -> impl Widget<MyAgency> {
     Flex::column()
         // .with_child(title)
         // .with_spacer(SPACING_1)
+        .with_spacer(FIELDS_TOP_PADDING)
         .with_child(fields)
         // .with_spacer(SPACING_1)
         // .with_child(children_header)
@@ -1797,7 +1804,8 @@ fn parent_agency_selected() -> impl Widget<AppData> {
         .with_child(title_row("Agency", "Route"))
         .with_child(
             FilteredList::new(
-                List::new(agency_ui_small).with_spacing(CHILD_LIST_SPACING),
+                // List::new(agency_ui_small).with_spacing(CHILD_LIST_SPACING),
+                List::new(agency_ui_small),
                 |agency: &MyAgency, filtered: &Option<Option<String>>| {
                     filtered.as_ref().map_or(false, |id| &agency.id == id)
                 },
@@ -1880,7 +1888,8 @@ fn route_selected_view() -> Box<dyn Widget<AppData>> {
             // .with_child(Label::new("Route").with_font(ANNOTATION))
             .with_child(
                 FilteredList::new(
-                    List::new(route_selection).with_spacing(CHILD_LIST_SPACING),
+                    // List::new(route_selection).with_spacing(CHILD_LIST_SPACING),
+                    List::new(route_selection),
                     |route: &MyRoute, filtered: &Option<String>| {
                         filtered.as_ref().map_or(false, |id| &route.id == id)
                     },

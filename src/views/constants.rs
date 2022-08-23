@@ -19,6 +19,7 @@ use gtfs_structures::ContinuousPickupDropOff;
 use rgb::RGB8;
 
 // parameters
+pub const FIELDS_TOP_PADDING: f64 = 20.;
 pub const SPACING_1: f64 = 20.;
 // const NARROW_LIST_WIDTH: f64 = 200.;
 pub const NARROW_LIST_WIDTH: f64 = 600.;
