@@ -906,7 +906,7 @@ dependencies = [
 [[package]]
 name = "gtfs-structures"
 version = "0.32.2"
-source = "git+https://github.com/maxwell8888/gtfs-structure?branch=without_serde_changes#826fa0aa7dae44329fd7a6eb2561aa170f19a1bb"
+source = "git+https://github.com/maxwell8888/gtfs-structure?branch=without_serde_changes#0ace9a4cbeb91a7cc2e7c6541d93702d0d29ba78"
 dependencies = [
  "bytes",
  "chrono",

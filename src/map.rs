@@ -145,6 +145,11 @@ impl MapWidget {
     fn group_paths_into_rects(&self) -> Vec<(Rect, Vec<usize>)> {
         myprint!("paint: redraw base: group paths");
         let mut all_trip_paths_bitmap_grouped = Vec::new();
+        let bounding_boxes = self
+            .all_trip_paths_combined
+            .iter()
+            .map(|(id, color, text_color, trip_path)| trip_path.bounding_box())
+            .collect::<Vec<_>>();
         for m in 0..NUMBER_TILES_WIDTH {
             for n in 0..NUMBER_TILES_WIDTH {
                 let rect = Rect::from_origin_size(
@@ -160,10 +165,14 @@ impl MapWidget {
                 let mut group_paths = Vec::new();
                 // TODO maybe only store the parts of the path actually in the box, so that when checking for hover later, we are not comparing parts of the path that we know are not in the box. A further optimization would be to deduplicate line segments that are shared by all trips in the route
                 // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
-                for (index, ((id, color, text_color, trip_path))) in
-                    self.all_trip_paths_combined.iter().enumerate()
+
+                for ((index, (id, color, text_color, trip_path)), path_bounding_box) in self
+                    .all_trip_paths_combined
+                    .iter()
+                    .enumerate()
+                    .zip(bounding_boxes.iter())
                 {
-                    let path_bounding_box = trip_path.bounding_box();
+                    // let path_bounding_box = trip_path.bounding_box();
                     if path_bounding_box.contains(Point::new(rect.x0, rect.y0))
                         || path_bounding_box.contains(Point::new(rect.x1, rect.y0))
                         || path_bounding_box.contains(Point::new(rect.x1, rect.y1))
@@ -1411,13 +1420,18 @@ impl Widget<AppData> for MapWidget {
                 //     .collect::<Vec<_>>();
 
                 self.all_trip_paths_combined = self.all_trip_paths_from_shapes.clone();
+                myprint!("finished paint: redraw base: make paths");
+                myprint!("paint: redraw base: group paths");
                 self.all_trip_paths_bitmap_grouped = self.group_paths_into_rects();
+                myprint!("finished paint: redraw base: group paths");
 
+                myprint!("paint: redraw base: make circles");
                 self.stop_circles = data
                     .stops
                     .iter()
                     .map(|stop| latlong_to_bitmap(stop.latlong))
                     .collect::<Vec<_>>();
+                myprint!("finished paint: redraw base: make circles");
             }
             _ => {}
         }
