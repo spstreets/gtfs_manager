@@ -18,6 +18,8 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::ops::Div;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use crate::app_delegate::*;
 use crate::data::*;
@@ -308,6 +310,7 @@ impl MapWidget {
     fn make_bitmap(&self, data: &AppData, ctx: &mut PaintCtx, zoom_level: ZoomLevel) -> PietImage {
         let mut cached_image;
         {
+            myprint!("make_bitmap: draw to bitmap");
             let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
             let mut device = Device::new().unwrap();
             // 0.1 makes the image very small
@@ -321,6 +324,7 @@ impl MapWidget {
 
             piet_context.finish().unwrap();
             let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+            myprint!("make_bitmap: make_image");
             cached_image = ctx
                 .make_image(
                     bitmap_size,
@@ -1062,7 +1066,7 @@ impl Widget<AppData> for MapWidget {
         // if selected trip changes
         myprint!("update: check: selected_trip_id");
         if !data.selected_trip_id.same(&old_data.selected_trip_id) {
-            println!("{} update: selected_trip: paint", Utc::now());
+            myprint!("update: selected_trip: paint");
             // TODO can't mutate data here, make sure below is being handled somewhere else
             // data.selected_trip_path = data.selected_trip_id.as_ref().map(|selected_trip_id| {
             //     self.all_trip_paths_combined
@@ -1300,16 +1304,67 @@ impl Widget<AppData> for MapWidget {
         // ctx.fill(rect, &Color::WHITE);
 
         if self.recreate_bitmap {
-            println!("{} paint: redraw base: make image", Utc::now());
+            myprint!("paint: redraw base: make image start");
             self.recreate_bitmap = false;
 
+            // single threaded runs in about 4secs
+            // for (_name, zoom_level) in ZoomLevel::radio_group_vec() {
+            //     // panning the map is laggy for *all* zoom levels if we create bitmaps at x10 or greater
+            //     if zoom_level.to_usize() < 10 {
+            //         self.cached_image_map
+            //             .insert(zoom_level, self.make_bitmap(data, ctx, zoom_level));
+            //     }
+            // }
+
+            // multi threaded runs in about 2.5secs
+            let mut handles = Vec::new();
             for (_name, zoom_level) in ZoomLevel::radio_group_vec() {
                 // panning the map is laggy for *all* zoom levels if we create bitmaps at x10 or greater
                 if zoom_level.to_usize() < 10 {
-                    self.cached_image_map
-                        .insert(zoom_level, self.make_bitmap(data, ctx, zoom_level));
+                    let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
+                    let all_trip_paths_combined = self.all_trip_paths_combined.clone();
+                    let handle = thread::spawn(move || {
+                        myprint!("start drawing image: {}", zoom_level.to_usize());
+                        let mut device = Device::new().unwrap();
+                        let mut target =
+                            device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
+                        let mut piet_context = target.render_context();
+
+                        piet_context.save();
+                        let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
+                        piet_context
+                            .transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
+                        for (_trip_id, color, _text_color, path) in &all_trip_paths_combined {
+                            piet_context.stroke(path, color, path_width);
+                        }
+                        piet_context.restore();
+
+                        piet_context.finish().unwrap();
+                        let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+                        myprint!("finish drawing image: {}", zoom_level.to_usize());
+                        (image_buf, zoom_level)
+                    });
+                    handles.push(handle);
                 }
             }
+            for handle in handles {
+                let (image_buf, zoom_level) = handle.join().unwrap();
+                myprint!("start making image: {}", zoom_level.to_usize());
+                let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
+                let bitmap2 = ctx
+                    .make_image(
+                        bitmap_size,
+                        bitmap_size,
+                        image_buf.raw_pixels(),
+                        ImageFormat::RgbaPremul,
+                    )
+                    .unwrap();
+                self.cached_image_map.insert(zoom_level, bitmap2);
+                myprint!("finish making image: {}", zoom_level.to_usize());
+            }
+
+            myprint!("paint: redraw base: make image finish");
+
             if self.minimap_image.is_none() {
                 self.minimap_image =
                     Some(self.cached_image_map.get(&ZoomLevel::One).unwrap().clone());

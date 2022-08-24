@@ -432,6 +432,7 @@ impl AppDelegate<AppData> for Delegate {
 
             druid::Handled::Yes
         } else if let Some(stop_id) = cmd.get(EDIT_STOP_TIME_UPDATE) {
+            myprint!("cmd.get(EDIT_STOP_TIME_UPDATE)");
             // first we need to determine whether we are adding to an existing trip, or creating a new trip by looking at whether a stop_time is selected or only route, else panic
 
             if let Some((trip_id, stop_sequence)) = &data.selected_stop_time_id {
