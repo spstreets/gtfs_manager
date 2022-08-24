@@ -22,7 +22,7 @@ pub trait ListItem {
     fn new_child(&mut self) -> String;
     fn update_all(&mut self, value: bool);
     fn id(&self) -> String;
-    fn n_stops(&self) -> usize;
+    fn n_stops(&self) -> Option<usize>;
     fn show_editing(&self) -> bool;
     fn item_type(&self) -> String;
     // fn data_info(&self) -> String;
@@ -103,8 +103,8 @@ impl ListItem for MyStop {
     fn id(&self) -> String {
         self.id.clone()
     }
-    fn n_stops(&self) -> usize {
-        99
+    fn n_stops(&self) -> Option<usize> {
+        None
     }
     fn show_editing(&self) -> bool {
         false
@@ -195,8 +195,8 @@ impl ListItem for MyStopTime {
     fn id(&self) -> String {
         self.stop_id.clone()
     }
-    fn n_stops(&self) -> usize {
-        99
+    fn n_stops(&self) -> Option<usize> {
+        None
     }
     fn show_editing(&self) -> bool {
         self.show_editing
@@ -279,8 +279,8 @@ impl ListItem for MyTrip {
     fn id(&self) -> String {
         self.id.clone()
     }
-    fn n_stops(&self) -> usize {
-        self.n_stops
+    fn n_stops(&self) -> Option<usize> {
+        Some(self.n_stops)
     }
     fn show_editing(&self) -> bool {
         self.show_editing
@@ -425,8 +425,8 @@ impl ListItem for MyRoute {
     fn id(&self) -> String {
         self.id.clone()
     }
-    fn n_stops(&self) -> usize {
-        self.n_trips
+    fn n_stops(&self) -> Option<usize> {
+        Some(self.n_trips)
     }
     fn show_editing(&self) -> bool {
         self.show_editing
@@ -511,8 +511,8 @@ impl ListItem for MyAgency {
         // todo handle agency.id == None
         self.id.as_ref().unwrap().clone()
     }
-    fn n_stops(&self) -> usize {
-        self.n_stops
+    fn n_stops(&self) -> Option<usize> {
+        Some(self.n_stops)
     }
     fn show_editing(&self) -> bool {
         self.show_editing
@@ -683,8 +683,8 @@ impl ListItem for AppData {
     fn id(&self) -> String {
         "null".to_string()
     }
-    fn n_stops(&self) -> usize {
-        99
+    fn n_stops(&self) -> Option<usize> {
+        None
     }
     fn show_editing(&self) -> bool {
         false

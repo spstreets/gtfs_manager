@@ -940,7 +940,11 @@ pub fn main_selected<T: Data + ListItem>(
                             // .with_child(name.with_line_break_mode(LineBreaking::Clip))
                             .with_child(name)
                             .with_child(Label::new(|data: &T, _env: &_| {
-                                format!("{}", data.n_stops())
+                                if let Some(n_stops) = data.n_stops() {
+                                    n_stops.to_string()
+                                } else {
+                                    "".to_string()
+                                }
                             }))
                             .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                             // .cross_axis_alignment(CrossAxisAlignment::Start)
@@ -1527,7 +1531,11 @@ pub fn ui_small_generalised<T: Data + ListItem>(
         Flex::row()
             .with_child(label)
             .with_child(Label::new(|data: &T, _env: &_| {
-                format!("{}", data.n_stops())
+                if let Some(n_stops) = data.n_stops() {
+                    n_stops.to_string()
+                } else {
+                    "".to_string()
+                }
             }))
             .main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .expand_width(),
