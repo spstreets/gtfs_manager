@@ -1,4 +1,4 @@
-# Gtfs Manager
+# GTFS Manager
 
 A cross-platform app for viewing and editing GTFS data.  
 Built with [Druid](https://github.com/linebender/druid), a rust native UI toolkit.
@@ -27,7 +27,7 @@ Contributions and collaborators are welcome.
 
 Note: Whilst the App should compile for Windows, Mac, and Linux, it has only been tested on Linux, and therefore you may come across problems with the other platforms.
 
-We suggest you update to the latest version of `rustc` before trying to install Gtfs Manager, to ensure you meet the minimum supported rust version:
+We suggest you update to the latest version of `rustc` before trying to install GTFS Manager, to ensure you meet the minimum supported rust version:
 
 ```bash
 rustup update
