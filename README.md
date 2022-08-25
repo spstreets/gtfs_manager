@@ -3,12 +3,12 @@
 A cross-platform app for viewing and editing GTFS data.  
 Built with [Druid](https://github.com/linebender/druid), a rust native UI toolkit.
 
+https://user-images.githubusercontent.com/28952593/186720187-fa4b0359-a5a0-4f10-919c-a43182c4b998.mp4
+
 ## Status
 
 The current state of the app is a rough prototype and further work is required.  
 Contributions and collaborators are welcome.
-
-https://user-images.githubusercontent.com/28952593/186720187-fa4b0359-a5a0-4f10-919c-a43182c4b998.mp4
 
 ### Current features
 
