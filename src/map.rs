@@ -129,7 +129,10 @@ pub struct MapWidget {
     // minimap_image: Option<PietImage>,
     cached_image_small: Option<PietImage>,
     cached_image_large: Option<PietImage>,
-    cached_image_map: HashMap<ZoomLevel, Arc<Mutex<MyImage>>>,
+
+    // cached_image_map: HashMap<ZoomLevel, Arc<Mutex<MyImage>>>,
+    /// (paths, stops)
+    cached_image_map: HashMap<ZoomLevel, (Arc<Mutex<MyImage>>, Arc<Mutex<MyImage>>)>,
     cached_image_vec: Vec<PietImage>,
     recreate_bitmap: bool,
     stop_selection_mode: bool,
@@ -341,6 +344,31 @@ impl MapWidget {
         cached_image
     }
 
+    fn draw_stops_bitmap_onto_paint_context(&self, data: &AppData, ctx: &mut PaintCtx) {
+        ctx.with_save(|ctx: &mut PaintCtx| {
+            let rect = ctx.size().to_rect();
+            let zoom = data.map_zoom_level.to_f64();
+            let transformed_focal_point = self
+                .focal_point
+                .to_point_within_size(ctx.size() * zoom)
+                .to_vec2()
+                * -1.;
+            ctx.transform(Affine::translate(transformed_focal_point));
+
+            // this makes the focal point the center, rather than top left
+            let center_adjust = ctx.size() * 0.5;
+            ctx.transform(Affine::translate(center_adjust.to_vec2()));
+            // do we need zoom if the BITMAP is already sized to it's zoom level? Yes because we are not scaling the bitmap, but the rect which we are drawing it into
+            ctx.transform(Affine::scale(zoom));
+            let bitmap = self.cached_image_map.get(&data.map_zoom_level).unwrap();
+            ctx.draw_image(
+                &bitmap.1.lock().unwrap().0,
+                // rect.scale_from_origin(zoom),
+                rect,
+                InterpolationMode::Bilinear,
+            );
+        });
+    }
     // TODO base should include any highlights that don't require a hover, eg selection, deleted, since we don't want to draw these cases when panning. But to make this performant, need to keep the base map, draw it, draw highlights on top, then save this image for use when panning or hovering
     fn draw_bitmap_onto_paint_context(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.with_save(|ctx: &mut PaintCtx| {
@@ -360,7 +388,7 @@ impl MapWidget {
             ctx.transform(Affine::scale(zoom));
             let bitmap = self.cached_image_map.get(&data.map_zoom_level).unwrap();
             ctx.draw_image(
-                &bitmap.lock().unwrap().0,
+                &bitmap.0.lock().unwrap().0,
                 // rect.scale_from_origin(zoom),
                 rect,
                 InterpolationMode::Bilinear,
@@ -456,6 +484,70 @@ impl MapWidget {
         }
         ctx.restore();
     }
+    fn draw_stop_highlights_onto_bitmap_ctx(
+        &self,
+        data: &AppData,
+        ctx: &mut impl RenderContext,
+        bitmap_size: usize,
+        zoom_level: ZoomLevel,
+    ) {
+        myprint!("draw_stop_highlights_onto_bitmap_ctx");
+        let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
+
+        let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
+        let s_circle = path_width * SMALL_CIRCLE_MULT;
+
+        ctx.save();
+        ctx.transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
+        for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+            ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
+            ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
+        }
+
+        ctx.restore();
+    }
+
+    fn draw_highlighted_stop(&self, data: &AppData, ctx: &mut PaintCtx) {
+        myprint!("draw_stop_highlights");
+        ctx.save();
+
+        let transformed_focal_point = self
+            .focal_point
+            .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64())
+            // .to_point_within_size(BITMAP_SIZE_REFERENCE as f64 * data.map_zoom_level.to_f64())
+            .to_vec2()
+            * -1.;
+        ctx.transform(Affine::translate(transformed_focal_point));
+        let center_adjust = ctx.size() * 0.5;
+        ctx.transform(Affine::translate(center_adjust.to_vec2()));
+        ctx.transform(Affine::scale(data.map_zoom_level.to_f64()));
+        let ctx_max_side = ctx.size().max_side();
+        ctx.transform(Affine::scale(ctx_max_side / REFERENCE_SIZE as f64));
+
+        let path_width = data.map_zoom_level.path_width(ctx.size().max_side()) * PATH_HIGHLIGHTED;
+
+        let l_circle_wb = path_width * LARGE_CIRCLE_WHITE_BACKGROUND_MULT;
+        let l_circle_bb = path_width * LARGE_CICLE_BLACK_BACKGROUND_MULT;
+        let l_circle = path_width * LARGE_CIRCLE_MULT;
+
+        if let Some(stop_id) = &self.hovered_stop_id {
+            let point = self
+                .stop_circles
+                .iter()
+                .zip(data.stops.iter())
+                .find_map(|(point, stop)| {
+                    if &stop.id == stop_id {
+                        Some(point)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            ctx.fill(Circle::new(*point, l_circle_bb), &Color::BLACK);
+            ctx.fill(Circle::new(*point, l_circle), &Color::WHITE);
+        }
+        ctx.restore();
+    }
     fn draw_stop_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
         myprint!("draw_stop_highlights");
         ctx.save();
@@ -516,6 +608,7 @@ impl MapWidget {
                     .cached_image_map
                     .get(&ZoomLevel::One)
                     .unwrap()
+                    .0
                     .lock()
                     .unwrap()
                     .0,
@@ -1420,7 +1513,9 @@ impl Widget<AppData> for MapWidget {
                     let old_bitmap = self.cached_image_map.get(&zoom_level).cloned();
                     let background_color = grey_background_color.clone();
 
-                    let handle = thread::spawn(move || {
+                    let stop_circles = self.stop_circles.clone();
+
+                    let paths_handle = thread::spawn(move || {
                         myprint!("start drawing image: {}", zoom_level.to_usize());
                         let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
 
@@ -1445,11 +1540,11 @@ impl Widget<AppData> for MapWidget {
                                 donut.line_to(Point::new(inner_rect.x1, inner_rect.y1));
                                 donut.line_to(Point::new(inner_rect.x0, inner_rect.y1));
                                 donut.close_path();
-                                
+
                                 piet_context.save();
                                 piet_context.clip(donut);
                                 piet_context.draw_image(
-                                    &bitmap.lock().unwrap().0,
+                                    &bitmap.0.lock().unwrap().0,
                                     rect,
                                     InterpolationMode::Bilinear,
                                 );
@@ -1496,14 +1591,52 @@ impl Widget<AppData> for MapWidget {
                         myprint!("finish drawing image: {}", zoom_level.to_usize());
                         (image_buf, zoom_level)
                     });
-                    handles.push(handle);
+
+                    let stops_handle = thread::spawn(move || {
+                        myprint!("start drawing stops image: {}", zoom_level.to_usize());
+
+                        // setup bitmap target
+                        let mut device = Device::new().unwrap();
+                        let mut target =
+                            device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
+                        let mut piet_context = target.render_context();
+
+                        // scale
+                        piet_context.save();
+                        piet_context
+                            .transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
+                        // for (_trip_id, color, _text_color, path) in &all_trip_paths_combined {
+                        //     piet_context.stroke(path, color, path_width);
+                        // }
+                        let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
+                        let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
+                        let s_circle = path_width * SMALL_CIRCLE_MULT;
+                        // for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+                        //     ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
+                        //     ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
+                        // }
+                        for point in stop_circles {
+                            piet_context.fill(Circle::new(point, s_circle_bb), &Color::BLACK);
+                            piet_context.fill(Circle::new(point, s_circle), &Color::WHITE);
+                        }
+
+                        piet_context.restore();
+
+                        piet_context.finish().unwrap();
+                        let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+                        myprint!("finish drawing stops image: {}", zoom_level.to_usize());
+                        (image_buf, zoom_level)
+                    });
+
+                    handles.push((paths_handle, stops_handle));
                 }
             }
-            for handle in handles {
-                let (image_buf, zoom_level) = handle.join().unwrap();
-                myprint!("start making image: {}", zoom_level.to_usize());
+
+            for (paths_handle, stops_handle) in handles {
+                let (image_buf, zoom_level) = paths_handle.join().unwrap();
                 let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
-                let bitmap2 = ctx
+                myprint!("start making image: {}", zoom_level.to_usize());
+                let paths_bitmap = ctx
                     .make_image(
                         bitmap_size,
                         bitmap_size,
@@ -1511,8 +1644,24 @@ impl Widget<AppData> for MapWidget {
                         ImageFormat::RgbaPremul,
                     )
                     .unwrap();
-                self.cached_image_map
-                    .insert(zoom_level, Arc::new(Mutex::new(MyImage(bitmap2))));
+
+                let (image_buf, zoom_level) = stops_handle.join().unwrap();
+                let stops_bitmap = ctx
+                    .make_image(
+                        bitmap_size,
+                        bitmap_size,
+                        image_buf.raw_pixels(),
+                        ImageFormat::RgbaPremul,
+                    )
+                    .unwrap();
+
+                self.cached_image_map.insert(
+                    zoom_level,
+                    (
+                        Arc::new(Mutex::new(MyImage(paths_bitmap))),
+                        Arc::new(Mutex::new(MyImage(stops_bitmap))),
+                    ),
+                );
                 myprint!("finish making image: {}", zoom_level.to_usize());
             }
 
@@ -1544,7 +1693,9 @@ impl Widget<AppData> for MapWidget {
             myprint!("paint: draw highlights");
             self.draw_highlights(data, ctx);
         } else {
-            self.draw_stop_highlights(data, ctx);
+            self.draw_stops_bitmap_onto_paint_context(data, ctx);
+            self.draw_highlighted_stop(data, ctx);
+            // self.draw_stop_highlights(data, ctx);
         }
         myprint!("paint: draw minimap");
         self.draw_minimap(data, ctx);
