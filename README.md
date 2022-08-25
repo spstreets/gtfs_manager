@@ -1,6 +1,6 @@
 # Gtfs Manager
 
-A cross-platform desktop GUI app for viewing and editing GTFS data.  
+A cross-platform app for viewing and editing GTFS data.  
 Built with [Druid](https://github.com/linebender/druid), a rust native UI toolkit.
 
 ## Status
