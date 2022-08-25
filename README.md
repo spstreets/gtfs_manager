@@ -1,6 +1,6 @@
 # Gtfs Manager
 
-A desktop GUI app for viewing and editing GTFS data.  
+A cross-platform desktop GUI app for viewing and editing GTFS data.  
 Built with [Druid](https://github.com/linebender/druid), a rust native UI toolkit.
 
 ## Status
@@ -12,18 +12,20 @@ Contributions and collaborators are welcome.
 
 -   Display GTFS data on a map with panning and zooming
 -   Select individual trips and stops and display their metadata
--   Add new routes, trips, and stops to the map
+-   Add new, or edit existing routes, trips, and stops on the map
 
 ### Future improvements
 
--   Managing Edits: Edit/undo, easily view changes that have been made to the dataset, compare two different datasets.
--   File management: Open, save, and close GTFS datasets from the file dialog.
--   Web version: host a compiled to wasm and rendered in web canvas (as supported by Druid) version in order to provide a convenient demo.
--   Database of GTFS data: Support discovering and importing datasets from https://www.transit.land/feeds.
--   Map background: Currently only the GTFS routes themselves are displayed on the map. Add a background map to provide context.
+-   Managing Edits. Edit/undo, easily view changes that have been made to the dataset, compare two different datasets.
+-   Open, save, and close GTFS datasets from the file dialog.
+-   Host a compiled to wasm and rendered in web canvas (as supported by Druid) version in order to provide a convenient demo.
+-   Support discovering and importing datasets from https://www.transit.land/feeds.
+-   Map background. Currently only the GTFS routes themselves are displayed on the map. Add a background map to provide context.
     Add much more...
 
 ## Usage instructions
+
+Note: Whilst the App should compile for Windows, Mac, and Linux, it has only been tested on Linux, and therefore you may come across problems with the other platforms.
 
 We suggest you update to the latest version of `rustc` before trying to install Gtfs Manager, to ensure you meet the minimum supported rust version:
 
