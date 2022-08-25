@@ -1433,38 +1433,51 @@ impl Widget<AppData> for MapWidget {
                         // if we have a previous bitmap redraw it the clip the bounding box of the updated path and redraw only that area
                         if let Some(bitmap) = old_bitmap {
                             myprint!("recreate from old bitmap");
-                            // draw previous bitmap
-                            piet_context.draw_image(
-                                &bitmap.lock().unwrap().0,
-                                rect,
-                                InterpolationMode::Bilinear,
-                            );
-
-                            // piet_context.save();
-
-                            // let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
-                            // piet_context.transform(Affine::scale(
-                            //     bitmap_size as f64 / REFERENCE_SIZE as f64,
-                            // ));
-
-                            // scale
-                            piet_context.save();
-                            piet_context.transform(Affine::scale(
-                                bitmap_size as f64 / REFERENCE_SIZE as f64,
-                            ));
-
-                            // redraw paths only in bounding box of updated path
                             if let Some(updated_path) = updated_path {
                                 let updated_path_bounding_box = updated_path.3.bounding_box();
+
+                                // draw previous bitmap
+                                // create donut shape for clipping
+                                let mut donut = rect.to_path(0.1);
+                                let inner_rect = updated_path_bounding_box;
+                                donut.move_to(inner_rect.origin());
+                                donut.line_to(Point::new(inner_rect.x1, inner_rect.y0));
+                                donut.line_to(Point::new(inner_rect.x1, inner_rect.y1));
+                                donut.line_to(Point::new(inner_rect.x0, inner_rect.y1));
+                                donut.close_path();
+                                
+                                piet_context.save();
+                                piet_context.clip(donut);
+                                piet_context.draw_image(
+                                    &bitmap.lock().unwrap().0,
+                                    rect,
+                                    InterpolationMode::Bilinear,
+                                );
+                                piet_context.restore();
+
+                                // piet_context.save();
+
+                                // let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
+                                // piet_context.transform(Affine::scale(
+                                //     bitmap_size as f64 / REFERENCE_SIZE as f64,
+                                // ));
+
+                                // scale
+                                piet_context.save();
+                                piet_context.transform(Affine::scale(
+                                    bitmap_size as f64 / REFERENCE_SIZE as f64,
+                                ));
+
+                                // redraw paths only in bounding box of updated path
                                 piet_context.clip(updated_path_bounding_box);
                                 // piet_context.fill(rect, &Color::RED);
-                                piet_context.fill(rect, &background_color);
+                                // piet_context.fill(rect, &background_color);
                                 for (_trip_id, color, _text_color, path) in &all_trip_paths_combined
                                 {
                                     piet_context.stroke(path, color, path_width);
                                 }
+                                piet_context.restore();
                             }
-                            piet_context.restore();
                         } else {
                             myprint!("draw entirely new bitmap");
                             // scale
