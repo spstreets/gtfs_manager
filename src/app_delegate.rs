@@ -91,7 +91,7 @@ impl AppDelegate<AppData> for Delegate {
             // data.edits.clear();
             for agency in data.agencies.iter_mut() {
                 if item_type == "agency" && &agency.id() == parent_id {
-                    agency.new_child();
+                    // agency.new_child();
                     data.actions.push_back(Action {
                         id: data.actions.len(),
                         edit_type: EditType::Create,

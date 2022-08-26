@@ -1,4 +1,3 @@
-use chrono::Utc;
 use druid::im::Vector;
 use druid::{Data, Lens, Point};
 use gtfs_structures::{
@@ -17,8 +16,6 @@ mod newtypes;
 pub use newtypes::*;
 
 pub trait ListItem {
-    fn new_child(&mut self) -> String;
-    fn update_all(&mut self, value: bool);
     fn id(&self) -> String;
     fn n_stops(&self) -> Option<usize>;
     fn show_editing(&self) -> bool;
@@ -92,12 +89,6 @@ impl MyStop {
     }
 }
 impl ListItem for MyStop {
-    fn new_child(&mut self) -> String {
-        todo!()
-    }
-    fn update_all(&mut self, value: bool) {
-        self.selected = value;
-    }
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -184,12 +175,6 @@ impl MyStopTime {
     }
 }
 impl ListItem for MyStopTime {
-    fn new_child(&mut self) -> String {
-        todo!()
-    }
-    fn update_all(&mut self, value: bool) {
-        self.selected = value;
-    }
     fn id(&self) -> String {
         self.stop_id.clone()
     }
@@ -264,16 +249,6 @@ impl MyTrip {
     }
 }
 impl ListItem for MyTrip {
-    fn new_child(&mut self) -> String {
-        todo!()
-    }
-    fn update_all(&mut self, _value: bool) {
-        // self.selected = value;
-        // self.stops.iter_mut().for_each(|stop| {
-        //     stop.selected = value;
-        //     // stop.update_all(value);
-        // });
-    }
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -383,43 +358,6 @@ impl MyRoute {
     }
 }
 impl ListItem for MyRoute {
-    fn new_child(&mut self) -> String {
-        let new_trip = MyTrip {
-            live: true,
-            visible: true,
-            selected: false,
-            expanded: false,
-            show_editing: false,
-            edited: false,
-
-            id: Uuid::new_v4().to_string(),
-            service_id: "needtogetcalendar.serviceid".to_string(),
-            route_id: self.id(),
-            shape_id: None,
-            trip_headsign: None,
-            trip_short_name: None,
-            direction_id: None,
-            block_id: None,
-            wheelchair_accessible: MyAvailability(Availability::InformationNotAvailable),
-            bikes_allowed: MyBikesAllowedType(BikesAllowedType::NoBikeInfo),
-
-            trip: None,
-            name: "new trip name".to_string(),
-            // stops: Vector::new(),
-            n_stops: 0,
-        };
-        let new_trip_id = new_trip.id();
-        // self.trips.push_front(new_trip);
-        println!("added new trip");
-        new_trip_id
-    }
-    fn update_all(&mut self, _value: bool) {
-        // self.selected = value;
-        // self.trips.iter_mut().for_each(|trip| {
-        //     trip.visible = value;
-        //     trip.update_all(value);
-        // });
-    }
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -468,43 +406,6 @@ pub struct MyAgency {
     pub n_stops: usize,
 }
 impl ListItem for MyAgency {
-    fn new_child(&mut self) -> String {
-        let new_route = MyRoute {
-            new_item: true,
-            live: true,
-            visible: true,
-            expanded: false,
-            selected: false,
-            show_editing: false,
-            id: Uuid::new_v4().to_string(),
-
-            short_name: "new route short name".to_string(),
-            long_name: "new route long name".to_string(),
-            desc: None,
-            route_type: MyRouteType(RouteType::Bus),
-            url: None,
-            agency_id: None,
-            order: None,
-            color: MyRGB8(RGB8::new(0, 0, 0)),
-            text_color: MyRGB8(RGB8::new(0, 0, 0)),
-            continuous_pickup: MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
-            continuous_drop_off: MyContinuousPickupDropOff(ContinuousPickupDropOff::NotAvailable),
-
-            route: None,
-            // trips: Vector::new(),
-            n_trips: 0,
-        };
-        let new_route_id = new_route.id();
-        // self.routes.push_front(new_route);
-        println!("added new route");
-        new_route_id
-    }
-    fn update_all(&mut self, _value: bool) {
-        // self.routes.iter_mut().for_each(|route| {
-        //     route.visible = value;
-        //     route.update_all(value);
-        // });
-    }
     fn id(&self) -> String {
         // todo handle agency.id == None
         self.id.as_ref().unwrap().clone()
@@ -603,7 +504,6 @@ impl ZoomLevel {
     }
     /// canvas_size / (zoom_f64 * 300.)
     pub fn path_width(&self, canvas_size: f64) -> f64 {
-        // canvas_size / (self.to_f64() * 300.)
         canvas_size / (self.to_f64() * 300.)
     }
 }
@@ -620,18 +520,7 @@ pub struct AppData {
     #[data(ignore)]
     #[lens(ignore)]
     pub gtfs: Rc<MyGtfs>,
-    // #[data(ignore)]
-    // #[lens(ignore)]
-    // pub trips_other2: Vec<RawTrip>,
-    // #[data(ignore)]
-    // #[lens(ignore)]
-    // pub stop_times_other2: Vec<RawStopTime>,
-    // #[data(ignore)]
-    // #[lens(ignore)]
-    // pub stops_other2: Vec<Stop>,
-    // #[data(ignore)]
-    // #[lens(ignore)]
-    // pub stop_times_other: Vec<MyStopTime>,
+
     pub selected_agency_id: Option<Option<String>>,
     pub selected_route_id: Option<String>,
     // (index, id)
@@ -670,14 +559,6 @@ pub struct AppData {
     pub map_stop_selection_mode: bool,
 }
 impl ListItem for AppData {
-    fn new_child(&mut self) -> String {
-        todo!()
-    }
-    fn update_all(&mut self, value: bool) {
-        self.agencies
-            .iter_mut()
-            .for_each(|agency| agency.update_all(value));
-    }
     fn id(&self) -> String {
         "null".to_string()
     }
@@ -735,20 +616,9 @@ impl AppData {
                             .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
                             .unwrap();
 
-                        // (
-                        //     stop_time.stop_sequence.clone(),
-                        //     (stop.longitude.unwrap(), stop.latitude.unwrap()),
-                        // )
-
                         Point::new(stop.longitude.unwrap(), stop.latitude.unwrap())
                     })
                     .collect::<Vec<_>>();
-                // stop_time_coords.sort_by(|stop_time1, stop_time2| stop_time1.0.cmp(&stop_time2.0));
-
-                // stop_time_coords
-                //     .iter()
-                //     .map(|(_stop_sequence, coords)| *coords)
-                //     .collect::<Vec<_>>()
                 stop_time_coords
             })
             .collect::<Vec<_>>()
@@ -759,40 +629,6 @@ impl AppData {
         self.trips
             .iter()
             .map(|trip| {
-                // let (start_index, end_index) = self
-                //     .stop_time_range_from_trip_id
-                //     .get(&trip.id)
-                //     .unwrap()
-                //     .clone();
-                // let mut stop_time_coords = self.gtfs.stop_times[start_index..end_index]
-                //     .iter()
-                //     .map(|stop_time| {
-                //         let stop = self
-                //             .stops
-                //             .get(*self.stop_index_from_id.get(&stop_time.stop_id).unwrap())
-                //             .unwrap();
-
-                //         (
-                //             stop_time.stop_sequence.clone(),
-                //             (stop.longitude.unwrap(), stop.latitude.unwrap()),
-                //         )
-                //     })
-                //     .collect::<Vector<_>>();
-                // stop_time_coords.sort_by(|stop_time1, stop_time2| stop_time1.0.cmp(&stop_time2.0));
-
-                // stop_time_coords
-                //     .iter()
-                //     .map(|(_stop_sequence, coords)| *coords)
-                //     .collect::<Vec<_>>()
-
-                // let mut shapes = self
-                //     .gtfs
-                //     .shapes
-                //     .iter()
-                //     .filter(|shape| &shape.id == trip.shape_id.as_ref().unwrap())
-                //     .map(|shape| (shape.sequence, (shape.longitude, shape.latitude)))
-                //     .collect::<Vec<_>>();
-
                 if let Some(shape_id) = &trip.shape_id {
                     let range = self.shapes_range_from_shape_id.get(shape_id).unwrap();
                     let mut shapes = self.gtfs.shapes[range.start..range.end]
@@ -811,17 +647,11 @@ impl AppData {
             })
             .collect::<Vec<_>>()
     }
-    // TODO shouldn't do filtering here, should include flags with coords so can do filtering later
-    // TODO should be recording whether agencies/routes are visible/selected here...
-    pub fn flat_trips(&self) -> Vec<(bool, MyTrip)> {
-        dbg!("make trip coords");
-        todo!()
-    }
 }
 
 pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
     // NOTE: must pay attention to when Vector<x> and gtfs.x are being sorted and ensure they are the same
-    println!("{:?} start make_initial_data", Utc::now());
+    myprint!("start make_initial_data");
     let agencies = gtfs.agencies.as_mut().unwrap();
     let routes = gtfs.routes.as_mut().unwrap();
     let trips = gtfs.trips.as_mut().unwrap();
@@ -829,12 +659,9 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
     let stops = gtfs.stops.as_mut().unwrap();
     let shapes = gtfs.shapes.as_mut().unwrap().as_ref().unwrap();
 
-    println!("{:?} do stop_times stuff", Utc::now());
+    myprint!("do stop_times stuff");
     // creates stop_time_range_from_trip_id which is a hashmap where each key is a trip_id pointing to the index range of it's stop times in the sorted stop_times below
     // need to be able to grab a slice of stop times by trip id to avoid doing the below loads of times:
-    // stop_times
-    //     .iter()
-    //     .filter(|stop_time| stop_time.trip_id == trip.id);
     trips.sort_by(|x1, x2| x1.id.cmp(&x2.id));
     stop_times.sort_by(|stop1, stop2| stop1.stop_sequence.cmp(&stop2.stop_sequence));
     stop_times.sort_by(|x1, x2| x1.trip_id.cmp(&x2.trip_id));
@@ -865,13 +692,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
 
     agencies.sort_by(|x1, x2| x1.name.cmp(&x2.name));
 
-    // let mut filtered_stop_ids = Vec::new();
-
-    // let stop_times_other2 = stop_times.clone();
-    // let trips_other2 = trips.clone();
-    // let stops_other2 = stops.clone();
-
-    // TODO should proabably just store stops in an im hashmap not vector, since below is brittle and will break is a stop is added/removed from stops vector.
+    // TODO should proabably just store stops in an im hashmap not vector, since below is will break if a stop is added/removed from stops vector.
     // hash map for getting a stop by stop_id
     let mut stop_index_from_id = HashMap::new();
     // let stops2 = self.gtfs.stops.clone();
@@ -898,7 +719,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
 
     routes.sort_by(|route1, route2| route1.short_name.cmp(&route2.short_name));
 
-    println!("{:?} create my_gtfs", Utc::now());
+    myprint!("create my_gtfs");
     // NOTE must make my_gtfs after doing sorting otherwise indexes/mappings/lookups will not be correct
     let my_gtfs = MyGtfs {
         agencies: agencies.clone(),
@@ -909,15 +730,9 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         shapes: shapes.clone(),
     };
 
-    // let limited = true;
-    println!("{:?} make agencies", Utc::now());
+    myprint!("make agencies");
     let agencies = agencies
         .iter()
-        // <limiting
-        // .enumerate()
-        // .filter(|(i, _)| if limited { *i < 5 } else { true })
-        // .map(|(_, x)| x)
-        // limiting>
         .map(|agency| MyAgency {
             show_deleted: true,
             live: true,
@@ -944,20 +759,11 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         })
         .collect::<Vector<_>>();
 
-    // let stops = stops
-    //     .iter()
-    //     .filter(|stop| filtered_stop_ids.contains(&stop.id))
-    //     .collect::<Vec<_>>();
-
-    // let (start_index, end_index) = stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
-    // let mut stops = stop_times[start_index..end_index]
-    println!("{:?} make stop_times", Utc::now());
+    myprint!("make stop_times");
     let stop_times = stop_times
         .iter()
-        // .filter(|stop_time| stop_time.trip_id == trip.id)
         .map(|stop_time| {
             let stop = stop_map.get(&stop_time.stop_id).unwrap();
-            // filtered_stop_ids.push(stop.id.clone());
             MyStopTime {
                 live: true,
                 selected: false,
@@ -997,16 +803,10 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         })
         .collect::<Vector<_>>();
 
-    println!("{:?} make trips", Utc::now());
+    myprint!("make trips");
     let trips = trips
         .iter()
-        .enumerate()
-        // <limiting
-        // .enumerate()
-        // .filter(|(i, _)| if limited { *i < 5 } else { true })
-        // .map(|(_, x)| x)
-        // limiting>
-        .map(|(_i, trip)| {
+        .map(|trip| {
             // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
             MyTrip {
                 live: true,
@@ -1039,19 +839,13 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
                     let (start, end) = stop_time_range_from_trip_id.get(&trip.id).unwrap();
                     end - start
                 },
-                // n_stops: 99,
             }
         })
         .collect::<Vector<_>>();
 
-    println!("{:?} make routes", Utc::now());
+    myprint!("make routes");
     let routes = routes
         .iter()
-        // <limiting
-        .enumerate()
-        // .filter(|(i, _)| if limited { *i < 40 } else { true })
-        .map(|(_, x)| x)
-        // limiting>
         .map(|route| MyRoute {
             new_item: false,
             live: true,
@@ -1082,7 +876,39 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         })
         .collect::<Vector<_>>();
 
-    println!("{:?} make app_data with stops", Utc::now());
+    myprint!("make stops");
+    let stops = stops
+        .iter()
+        .map(|stop| MyStop {
+            live: true,
+            selected: false,
+            scroll_to_me: 0,
+
+            id: stop.id.clone(),
+            code: stop.code.clone(),
+            name: stop.name.clone(),
+            description: stop.description.clone(),
+            location_type: MyLocationType(stop.location_type.clone()),
+            parent_station: stop.parent_station.clone(),
+            zone_id: stop.zone_id.clone(),
+            url: stop.url.clone(),
+            longitude: stop.longitude.clone(),
+            latitude: stop.latitude.clone(),
+            timezone: stop.timezone.clone(),
+            wheelchair_boarding: MyAvailability(stop.wheelchair_boarding.clone()),
+            level_id: stop.level_id.clone(),
+            platform_code: stop.platform_code.clone(),
+            transfers: stop.transfers.len(),
+            pathways: stop.pathways.len(),
+
+            // this adds 4 seconds
+            // stop: Some(Rc::new(stop.clone())),
+            stop: None,
+            latlong: Point::new(stop.longitude.unwrap(), stop.latitude.unwrap()),
+        })
+        .collect::<Vector<_>>();
+
+    myprint!("make app_data with stops");
     let app_data = AppData {
         insert_stop_time_before: None,
 
@@ -1090,10 +916,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         show_edits: false,
         show_actions: false,
         gtfs: Rc::new(my_gtfs),
-        // trips_other2: Vec::new(),
-        // stop_times_other2: Vec::new(),
-        // stops_other2: Vec::new(),
-        // stop_times_other: Vec::new(),
+
         selected_agency_id: None,
         selected_route_id: None,
         selected_trip_id: None,
@@ -1113,43 +936,13 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         routes,
         trips,
         stop_times,
-        stops: stops
-            .iter()
-            .map(|stop| MyStop {
-                live: true,
-                selected: false,
-                scroll_to_me: 0,
-
-                id: stop.id.clone(),
-                code: stop.code.clone(),
-                name: stop.name.clone(),
-                description: stop.description.clone(),
-                location_type: MyLocationType(stop.location_type.clone()),
-                parent_station: stop.parent_station.clone(),
-                zone_id: stop.zone_id.clone(),
-                url: stop.url.clone(),
-                longitude: stop.longitude.clone(),
-                latitude: stop.latitude.clone(),
-                timezone: stop.timezone.clone(),
-                wheelchair_boarding: MyAvailability(stop.wheelchair_boarding.clone()),
-                level_id: stop.level_id.clone(),
-                platform_code: stop.platform_code.clone(),
-                transfers: stop.transfers.len(),
-                pathways: stop.pathways.len(),
-
-                // this adds 4 seconds
-                // stop: Some(Rc::new(stop.clone())),
-                stop: None,
-                latlong: Point::new(stop.longitude.unwrap(), stop.latitude.unwrap()),
-            })
-            .collect::<Vector<_>>(),
-        // stops: Vector::new(),
+        stops,
         actions: Vector::new(),
         edits: Vector::new(),
         map_zoom_level: ZoomLevel::One,
         // map_zoom_level: ZoomLevel::Two,
         map_stop_selection_mode: false,
     };
-    println!("{:?} finish make_initial_data", Utc::now());
+    myprint!("finish make_initial_data");
     app_data
 }
