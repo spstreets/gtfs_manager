@@ -1,11 +1,9 @@
 use chrono::Utc;
-use druid::im::{ordmap, vector, OrdMap, Vector};
-use druid::kurbo::BezPath;
-use druid::{Data, Lens, Point, Rect, Widget, WidgetExt};
+use druid::im::Vector;
+use druid::{Data, Lens, Point};
 use gtfs_structures::{
-    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, DirectionType, Gtfs,
-    LocationType, Pathway, PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType,
-    Shape, Stop, StopTime, StopTransfer, TimepointType, Trip,
+    Agency, Availability, BikesAllowedType, ContinuousPickupDropOff, LocationType,
+    PickupDropOffType, RawGtfs, RawStopTime, RawTrip, Route, RouteType, Shape, Stop, TimepointType,
 };
 use rgb::RGB8;
 use serde::{Deserialize, Serialize};
@@ -269,7 +267,7 @@ impl ListItem for MyTrip {
     fn new_child(&mut self) -> String {
         todo!()
     }
-    fn update_all(&mut self, value: bool) {
+    fn update_all(&mut self, _value: bool) {
         // self.selected = value;
         // self.stops.iter_mut().for_each(|stop| {
         //     stop.selected = value;
@@ -415,7 +413,7 @@ impl ListItem for MyRoute {
         println!("added new trip");
         new_trip_id
     }
-    fn update_all(&mut self, value: bool) {
+    fn update_all(&mut self, _value: bool) {
         // self.selected = value;
         // self.trips.iter_mut().for_each(|trip| {
         //     trip.visible = value;
@@ -501,7 +499,7 @@ impl ListItem for MyAgency {
         println!("added new route");
         new_route_id
     }
-    fn update_all(&mut self, value: bool) {
+    fn update_all(&mut self, _value: bool) {
         // self.routes.iter_mut().for_each(|route| {
         //     route.visible = value;
         //     route.update_all(value);
@@ -729,7 +727,7 @@ impl AppData {
                     .get(&trip.id)
                     .unwrap()
                     .clone();
-                let mut stop_time_coords = self.gtfs.stop_times[start_index..end_index]
+                let stop_time_coords = self.gtfs.stop_times[start_index..end_index]
                     .iter()
                     .map(|stop_time| {
                         let stop = self
@@ -954,7 +952,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
     // let (start_index, end_index) = stop_time_range_from_trip_id.get(&trip.id).unwrap().clone();
     // let mut stops = stop_times[start_index..end_index]
     println!("{:?} make stop_times", Utc::now());
-    let mut stop_times = stop_times
+    let stop_times = stop_times
         .iter()
         // .filter(|stop_time| stop_time.trip_id == trip.id)
         .map(|stop_time| {
@@ -1008,7 +1006,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // .filter(|(i, _)| if limited { *i < 5 } else { true })
         // .map(|(_, x)| x)
         // limiting>
-        .map(|(i, trip)| {
+        .map(|(_i, trip)| {
             // adding the RawTrip to MyTrip is the tipping point which kills performance. Maybe AppData should just be storing a u32 index of the items position in the original RawGtfs data
             MyTrip {
                 live: true,
@@ -1047,7 +1045,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         .collect::<Vector<_>>();
 
     println!("{:?} make routes", Utc::now());
-    let mut routes = routes
+    let routes = routes
         .iter()
         // <limiting
         .enumerate()

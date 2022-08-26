@@ -1,24 +1,10 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
-use druid::im::{ordmap, vector, OrdMap, Vector};
+use druid::im::Vector;
 use druid::keyboard_types::Key;
-use druid::lens::{self, LensExt};
-use druid::text::{EditableText, TextStorage};
-use druid::widget::{
-    Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, FlexParams, Label,
-    LabelText, List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper, TextBox,
-};
-use druid::{
-    AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    FontWeight, Insets, Lens, LocalizedString, PaintCtx, Point, RenderContext, Selector, UnitPoint,
-    UpdateCtx, Widget, WidgetExt, WindowDesc,
-};
-use gtfs_structures::ContinuousPickupDropOff;
-use rgb::RGB8;
+use druid::{AppDelegate, Env, Event, Point, Selector};
 
 use crate::data::*;
-use crate::map::MapWidget;
 // use crate::my_trip_derived_lenses::route_id;
 
 // command selectors
@@ -57,11 +43,11 @@ pub struct Delegate;
 impl AppDelegate<AppData> for Delegate {
     fn event(
         &mut self,
-        ctx: &mut druid::DelegateCtx,
-        window_id: druid::WindowId,
+        _ctx: &mut druid::DelegateCtx,
+        _window_id: druid::WindowId,
         event: Event,
-        data: &mut AppData,
-        env: &Env,
+        _data: &mut AppData,
+        _env: &Env,
     ) -> Option<Event> {
         match &event {
             Event::KeyDown(key_event) => {
@@ -83,11 +69,11 @@ impl AppDelegate<AppData> for Delegate {
     }
     fn command(
         &mut self,
-        ctx: &mut druid::DelegateCtx,
-        target: druid::Target,
+        _ctx: &mut druid::DelegateCtx,
+        _target: druid::Target,
         cmd: &druid::Command,
         data: &mut AppData,
-        env: &Env,
+        _env: &Env,
     ) -> druid::Handled {
         myprint!("got cmd");
         if let Some(item_delete) = cmd.get(ITEM_DELETE) {
@@ -118,24 +104,20 @@ impl AppDelegate<AppData> for Delegate {
             }
             // druid::Handled::No
             druid::Handled::Yes
-
         } else if let Some(edit_id) = cmd.get(EDIT_DELETE) {
             dbg!(edit_id);
-            let edit = data.actions.get(*edit_id).unwrap();
+            let _edit = data.actions.get(*edit_id).unwrap();
             data.actions.retain(|edit| edit.id != *edit_id);
             druid::Handled::Yes
-
         } else if let Some(agency_id) = cmd.get(ADD_ROUTE) {
             let new_route = MyRoute::new(agency_id.clone());
             data.routes.push_front(new_route);
             druid::Handled::Yes
-
-        } else if let Some(route_id) = cmd.get(ADD_TRIP) {
+        } else if let Some(_route_id) = cmd.get(ADD_TRIP) {
             data.map_stop_selection_mode = true;
             // let new_trip = MyTrip::new(route_id.clone());
             // data.trips.push_front(new_trip);
             druid::Handled::Yes
-            
         } else if let Some(latlong) = cmd.get(NEW_STOP) {
             myprint!("handle NEW_STOP command");
             let new_stop = MyStop::new(*latlong);
@@ -169,7 +151,7 @@ impl AppDelegate<AppData> for Delegate {
                         .stop_times
                         .iter()
                         .enumerate()
-                        .find(|(index, stop_time)| {
+                        .find(|(_index, stop_time)| {
                             &stop_time.trip_id == trip_id
                                 && &stop_time.stop_sequence == stop_sequence
                         })
@@ -270,7 +252,7 @@ impl AppDelegate<AppData> for Delegate {
                         .stop_times
                         .iter()
                         .enumerate()
-                        .find(|(index, stop_time)| {
+                        .find(|(_index, stop_time)| {
                             &stop_time.trip_id == trip_id
                                 && &stop_time.stop_sequence == stop_sequence
                         })
@@ -438,7 +420,7 @@ impl AppDelegate<AppData> for Delegate {
                 .trips
                 .iter()
                 .enumerate()
-                .find(|(index, trip)| &trip.id == trip_id)
+                .find(|(_index, trip)| &trip.id == trip_id)
                 .unwrap()
                 .0;
             data.selected_trip_id = Some((trip_index, trip_id.clone()));
@@ -498,7 +480,7 @@ impl AppDelegate<AppData> for Delegate {
                 }
             }
             // if we have None, then clear MyStopTime.hovered = true for previously selected trip
-            if let Some((trip_id, stop_sequence)) = previous_hovered_stop_time_id {
+            if let Some((trip_id, _stop_sequence)) = previous_hovered_stop_time_id {
                 let range = data.stop_time_range_from_trip_id.get(&trip_id).unwrap();
                 for i in range.0..range.1 {
                     let stop_time = data.stop_times.get_mut(i).unwrap();

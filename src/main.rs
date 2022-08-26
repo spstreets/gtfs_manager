@@ -1,32 +1,20 @@
 // ignore unused warnings while prototyping
-#![allow(unused)]
+// #![allow(unused)]
 // On Windows platform, don't show a console when opening the app.
 #![windows_subsystem = "windows"]
 
 use chrono::Utc;
 use clap::Parser;
-use druid::im::{ordmap, vector, OrdMap, Vector};
-use druid::lens::{self, LensExt};
-use druid::widget::{
-    Button, Checkbox, CrossAxisAlignment, Either, Flex, FlexParams, Label, List, MainAxisAlignment,
-    Scroll,
-};
-use druid::{
-    AppDelegate, AppLauncher, Color, Data, Env, Insets, Lens, LocalizedString, UnitPoint, Widget,
-    WidgetExt, WindowDesc,
-};
-use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
-use std::collections::HashMap;
+use druid::{AppLauncher, Color, WindowDesc};
+use gtfs_structures::RawGtfs;
 use std::error::Error;
 use std::fmt::Debug;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use std::rc::Rc;
 
 use gtfs_manager::{
-    main_widget, make_initial_data, AppData, Delegate, ListItem, MapWidget,
-    VARIABLE_STOP_TIME_BORDER_COLOR,
+    main_widget, make_initial_data, AppData, Delegate, VARIABLE_STOP_TIME_BORDER_COLOR,
 };
 
 #[derive(Parser, Debug)]
@@ -39,11 +27,12 @@ pub struct CliArgs {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CliArgs::parse();
 
+    // experimenting with storing a demo dataset as bincode but couldn't get the data to deserialize to bincode using gtfs_structures' custom serde implementations
     let path = Path::new("sao-paulo-sptrans.bincode");
     // let path = Path::new("sao-paulo-sptrans.json");
     let initial_data = if path.exists() {
         println!("{:?} json: read from disk", Utc::now());
-        let file = fs::File::open(path)?;
+        // let file = fs::File::open(path)?;
 
         println!("{:?} json: deserialize", Utc::now());
         let input = File::open(path)?;

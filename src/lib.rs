@@ -1,5 +1,5 @@
 // ignore unused warnings while prototyping
-#![allow(unused)]
+// #![allow(unused)]
 
 macro_rules! myprint {
     ($($args: expr),*) => {

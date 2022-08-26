@@ -1,21 +1,12 @@
-use std::rc::Rc;
-
-use chrono::Utc;
-use druid::im::{ordmap, vector, OrdMap, Vector};
-use druid::image::buffer::Rows;
-use druid::lens::{self, LensExt};
-use druid::text::{EditableText, TextStorage};
+use druid::im::Vector;
 use druid::widget::{
-    Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, FlexParams, Label,
-    LabelText, LineBreaking, List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper,
-    TextBox, ViewSwitcher,
+    Button, Checkbox, Container, Controller, CrossAxisAlignment, Either, Flex, Label, LineBreaking,
+    List, MainAxisAlignment, Painter, RadioGroup, Scroll, Stepper, TextBox, ViewSwitcher,
 };
 use druid::{
-    AppDelegate, AppLauncher, Color, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    FontWeight, Insets, Key, Lens, LifeCycle, LifeCycleCtx, LocalizedString, PaintCtx, Point,
-    RenderContext, Selector, UnitPoint, UpdateCtx, Widget, WidgetExt, WindowDesc,
+    Color, Data, Env, Event, EventCtx, Lens, LifeCycle, PaintCtx, RenderContext, UpdateCtx, Widget,
+    WidgetExt,
 };
-use gtfs_structures::ContinuousPickupDropOff;
 use rgb::RGB8;
 
 use crate::app_delegate::*;
@@ -27,7 +18,6 @@ mod dropdown;
 mod expander;
 mod filtered_list;
 use dropdown::*;
-use expander::Expander;
 use filtered_list::FilteredList;
 
 pub use constants::*;
@@ -60,33 +50,8 @@ fn delete_item_button<T: Data + ListItem>() -> impl Widget<T> {
         ctx.submit_command(ITEM_DELETE.with((data.item_type(), data.id())));
     })
 }
-fn update_all_buttons<T: Data + ListItem>() -> impl Widget<T> {
-    Flex::column()
-        .with_child(Button::new("new child").on_click(|ctx, data: &mut T, _| {
-            ctx.submit_command(ITEM_NEW_CHILD.with((data.item_type(), data.id())));
-        }))
-        .with_child(delete_item_button())
-        .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
-            data.update_all(true);
-        }))
-        .with_child(Button::new("deselect all").on_click(|_, data: &mut T, _| {
-            data.update_all(false);
-        }))
-}
-fn child_buttons<T: Data + ListItem>() -> impl Widget<T> {
-    Flex::row()
-        .with_child(Button::new("new child").on_click(|ctx, data: &mut T, _| {
-            ctx.submit_command(ITEM_NEW_CHILD.with((data.item_type(), data.id())));
-        }))
-        .with_child(Button::new("select all").on_click(|_, data: &mut T, _| {
-            data.update_all(true);
-        }))
-        .with_child(Button::new("deselect all").on_click(|_, data: &mut T, _| {
-            data.update_all(false);
-        }))
-}
 
-fn option_string_checkbox() -> impl Widget<Option<String>> {
+fn _option_string_checkbox() -> impl Widget<Option<String>> {
     // "poo".to_string().
     Flex::row()
         .with_child(Checkbox::new("").lens(druid::lens::Map::new(
@@ -192,7 +157,7 @@ where
 fn field_row<T: Data>(
     name: &str,
     update: impl Widget<T> + 'static,
-    updated_flag: impl Fn(&T, &Env) -> bool + 'static,
+    _updated_flag: impl Fn(&T, &Env) -> bool + 'static,
 ) -> impl Widget<T> {
     Flex::column()
         .with_child(Label::new(name).with_font(ANNOTATION).fix_width(300.))
@@ -549,12 +514,12 @@ pub fn stop_time_selection() -> impl Widget<MyStopTime> {
         .with_line_break_mode(LineBreaking::Clip),
         Flex::row()
             .with_child(Button::new("add stop before").on_click(
-                |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+                |ctx: &mut EventCtx, _data: &mut MyStopTime, _: &_| {
                     ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(true))
                 },
             ))
             .with_child(Button::new("add stop after").on_click(
-                |ctx: &mut EventCtx, data: &mut MyStopTime, _: &_| {
+                |ctx: &mut EventCtx, _data: &mut MyStopTime, _: &_| {
                     ctx.submit_command(ADD_STOP_TIME_CHOOSE.with(false))
                 },
             ))
@@ -693,7 +658,7 @@ pub fn stop_time_fields() -> impl Widget<MyStopTime> {
                     },
                 ))
                 .with_child(Button::new("edit").on_click(
-                    |ctx: &mut EventCtx, data: &mut MyStopTime, _| {
+                    |ctx: &mut EventCtx, _data: &mut MyStopTime, _| {
                         ctx.submit_command(EDIT_STOP_TIME_CHOOSE);
                     },
                 )),
@@ -1258,67 +1223,8 @@ pub fn route_ui_small() -> impl Widget<MyRoute> {
         },
     )
 }
-// pub fn route_ui_small() -> impl Widget<MyRoute> {
-//     selected_item_container(Label::new(|data: &MyRoute, _env: &_| {
-//         format!("{}", data.short_name)
-//     }))
-//     .on_click(|ctx: &mut EventCtx, data: &mut MyRoute, _: &_| {
-//         ctx.submit_command(SELECT_ROUTE.with(data.id.clone()))
-//     })
-// }
+
 pub fn route_fields() -> impl Widget<MyRoute> {
-    // let title = Flex::row()
-    //     .with_child(Checkbox::new("").lens(MyRoute::visible))
-    //     .with_default_spacer()
-    //     .with_child(Either::new(
-    //         |data: &MyRoute, _env: &Env| data.live,
-    //         Label::new(""),
-    //         Label::new("deleted").with_text_color(Color::RED),
-    //     ))
-    //     .with_default_spacer()
-    //     .with_child(Either::new(
-    //         |data: &MyRoute, _env: &Env| data.new,
-    //         Label::new("new item").with_text_color(Color::RED),
-    //         Label::new(""),
-    //     ))
-    //     .with_default_spacer()
-    //     .with_child(delete_item_button())
-    //     .with_default_spacer()
-    //     .with_child(
-    //         Button::new("Add Trip").on_click(|ctx, data: &mut MyRoute, _| {
-    //             ctx.submit_command(NEW_TRIP.with(data.id.clone()));
-    //         }),
-    //     );
-
-    let fieldsdfa = Flex::column()
-        .with_child(field_row(
-            "id",
-            Label::new(|data: &MyRoute, _: &_| format!("{:?}", data.id)),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.id != data.id,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "short_name",
-            Label::new(|data: &MyRoute, _: &_| data.short_name.clone()),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.short_name != data.short_name,
-                None => true,
-            },
-        ))
-        .with_default_spacer()
-        .with_child(field_row(
-            "long_name",
-            Label::new(|data: &MyRoute, _: &_| data.long_name.clone()),
-            |data: &MyRoute, _: &_| match &data.route {
-                Some(route) => route.long_name != data.long_name,
-                None => true,
-            },
-        ))
-        .cross_axis_alignment(CrossAxisAlignment::Start);
-
     let fields = Flex::column()
         .with_child(field_row(
             "id",
@@ -1484,32 +1390,6 @@ pub fn route_fields() -> impl Widget<MyRoute> {
             },
         ))
         .cross_axis_alignment(CrossAxisAlignment::Start);
-
-    // let children_header = Flex::row()
-    //     .with_child(Expander::new("Trip variants").lens(MyRoute::expanded))
-    //     .with_child(Either::new(
-    //         |data: &MyRoute, _: &_| data.expanded,
-    //         child_buttons(),
-    //         Flex::row(),
-    //     ))
-    //     .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-    //     .expand_width();
-
-    // let children = Either::new(
-    //     |data: &MyRoute, _env: &Env| data.expanded,
-    //     FilteredList::new(
-    //         List::new(trip_ui).with_spacing(10.),
-    //         |item_data: &MyTrip, filtered: &()| item_data.live,
-    //     )
-    //     .lens(druid::lens::Map::new(
-    //         |data: &MyRoute| (data.trips.clone(), ()),
-    //         |data: &mut MyRoute, inner: (Vector<MyTrip>, ())| {
-    //             data.trips = inner.0;
-    //             // data.filter = inner.1;
-    //         },
-    //     )),
-    //     Flex::row(),
-    // );
 
     Flex::column()
         // .with_child(title)
@@ -1721,7 +1601,7 @@ pub fn agency_fields() -> impl Widget<MyAgency> {
         .cross_axis_alignment(CrossAxisAlignment::Start)
 }
 
-fn edit() -> impl Widget<Edit> {
+fn _edit() -> impl Widget<Edit> {
     Container::new(Flex::row())
         .padding((10., 10., 10., 10.))
         // .background(Color::grey(0.1))
@@ -1855,7 +1735,7 @@ fn parent_trip_selected() -> impl Widget<AppData> {
                 |trip: &MyTrip, filtered: &Option<(usize, String)>| {
                     filtered
                         .as_ref()
-                        .map_or(false, |(index, id)| &trip.id == id)
+                        .map_or(false, |(_index, id)| &trip.id == id)
                 },
             )
             .lens(druid::lens::Map::new(
@@ -1960,7 +1840,7 @@ fn list_of_stop_times() -> impl Widget<AppData> {
             |stop_time: &MyStopTime, filtered: &Option<(usize, String)>| {
                 filtered
                     .as_ref()
-                    .map_or(false, |(index, id)| &stop_time.trip_id == id)
+                    .map_or(false, |(_index, id)| &stop_time.trip_id == id)
             },
         )
         .lens(druid::lens::Map::new(
@@ -2001,7 +1881,7 @@ fn trip_selected_view() -> Box<dyn Widget<AppData>> {
                     |trip: &MyTrip, filtered: &Option<(usize, String)>| {
                         filtered
                             .as_ref()
-                            .map_or(false, |(index, id)| &trip.id == id)
+                            .map_or(false, |(_index, id)| &trip.id == id)
                     },
                 )
                 .lens(druid::lens::Map::new(

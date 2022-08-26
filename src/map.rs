@@ -1,35 +1,24 @@
-use chrono::Utc;
 use druid::im::Vector;
 use druid::kurbo::{BezPath, Circle, ParamCurveNearest, Shape};
-use druid::piet::{
-    Device, FontFamily, ImageFormat, InterpolationMode, PietImage, Text, TextLayoutBuilder,
-};
-use druid::widget::{prelude::*, CrossAxisAlignment, LabelText, LensWrap};
-use druid::widget::{Align, Button, Checkbox, Controller, Flex, Label, List, TextBox};
+use druid::piet::{Device, ImageFormat, InterpolationMode, PietImage};
+use druid::widget::prelude::*;
 use druid::{
-    Affine, AppDelegate, AppLauncher, BoxConstraints, Color, Cursor, Data, Env, Event,
-    FontDescriptor, Handled, LayoutCtx, Lens, LensExt, LocalizedString, MouseButtons, MouseEvent,
-    Point, Rect, RenderContext, Selector, Size, TextLayout, Vec2, Widget, WidgetExt, WindowDesc,
+    Affine, BoxConstraints, Color, Cursor, Data, Env, Event, LayoutCtx, Point, Rect, RenderContext,
+    Size, Vec2, Widget,
 };
-use gtfs_structures::{Agency, Gtfs, RawGtfs, RawStopTime, RawTrip, Route, Stop, StopTime, Trip};
 use rgb::RGB;
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt::Debug;
-use std::ops::Div;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::app_delegate::*;
 use crate::data::*;
 
-// bitmaps large than 10,000 x 10,000 will crash. This no longer seems to be a problem, was possibly because of the way we were drawing to it or something rather than an inherent problem with bitmaps of that size. 20,000 does add about 2GB to the memory use of the app though, so not a perfect solution. This is possibly why we will want immediate mode to kick in at some point?
+// bitmaps larger than 10,000 x 10,000 will crash. This no longer seems to be a problem, was possibly because of the way we were drawing to it or something rather than an inherent problem with bitmaps of that size. 20,000 does add about 2GB to the memory use of the app though, so not a perfect solution. This is possibly why we will want immediate mode to kick in at some point?
 // why is different sizes a problem?
 const REFERENCE_SIZE: usize = 1_000;
 // const BITMAP_SIZE: usize = 1_000;
 const BITMAP_SIZE: usize = 1_000;
-const BITMAP_SIZE_LARGE: usize = 20_000;
 const NUMBER_TILES_WIDTH: usize = 20;
 const MINIMAP_PROPORTION: f64 = 0.3;
 
@@ -60,7 +49,7 @@ impl NormalPoint {
     fn to_point_within_size(&self, size: Size) -> Point {
         Point::new(self.x * size.width, self.y * size.height)
     }
-    fn to_point_within_size_centering_removed(&self, size: Size, zoom: f64) -> Point {
+    fn _to_point_within_size_centering_removed(&self, size: Size, zoom: f64) -> Point {
         Point::new(
             (self.x - (zoom * 0.5)) * size.width,
             (self.y - (zoom * 0.5)) * size.height,
@@ -101,44 +90,24 @@ pub struct MapWidget {
     /// (trip_id, color, text_color, path)
     all_trip_paths_combined: Vec<(String, Color, Color, BezPath)>,
     all_trip_paths_from_shapes: Vec<(String, Color, Color, BezPath)>,
-    all_trip_paths_from_stop_coords: Vec<(String, Color, Color, BezPath)>,
-    // all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<(String, Color, Color, BezPath)>)>,
     all_trip_paths_bitmap_grouped: Vec<(Rect, Vec<usize>)>,
     last_updated_trip_index: Option<usize>,
-    // hovered_trip_paths: Vec<(String, Color, Color, BezPath)>,
-    // hovered_trip_paths: Vec<usize>,
     filtered_trip_paths: Vec<(String, Color, Color, BezPath)>,
-    deleted_trip_paths: Vec<(String, Color, Color, BezPath)>,
     // could just store an index here. as long as we don't change the order of all_trip_paths_combined and only add new trips to the end, this shouldn't be a problem. Could we enforce this in a type?
-    // selected_trip_path: Option<(String, Color, Color, BezPath)>,
-    // selected_trip_path: Option<usize>,
     // this is for updating a stop_time stop_id
     hovered_stop_id: Option<String>,
-    // selected_trip_paths: Vec<BezPath>,
-    // stop_circles: Vec<Circle>,
-    // highlighted_stop_circle: Option<Circle>,
-    // selected_stop_circle: Option<Circle>,
     stop_circles: Vec<Point>,
     highlighted_stop_circle: Option<Point>,
-    selected_stop_circle: Option<Point>,
+    /// Scroll speed (not currently used)
     speed: f64,
     down_click_pos: Option<Point>,
     drag_last_pos: Option<Point>,
     // focal_point should be a lat long coord which is then converted as required, in order to preserve focus between zoom levels. but then we have to dertmine what the ORIGIN coord is. better to just have focal point as a point in [0,1] space.
     focal_point: NormalPoint,
-    // minimap_image: Option<PietImage>,
-    cached_image_small: Option<PietImage>,
-    cached_image_large: Option<PietImage>,
 
-    // cached_image_map: HashMap<ZoomLevel, Arc<Mutex<MyImage>>>,
     /// (paths, stops)
     cached_image_map: HashMap<ZoomLevel, (Arc<Mutex<MyImage>>, Arc<Mutex<MyImage>>)>,
-    cached_image_vec: Vec<PietImage>,
     recreate_bitmap: bool,
-    stop_selection_mode: bool,
-    // TODO don't need to make vec of coords every time, only need to check what is selected, so maybe store into to separate vecs. also should store in a field to cache, and allow methods on the data to simplify code below.
-    // vector of trips (selected, vector of stop coords)
-    // pub trips_coords_from_shapes: Vec<Vec<Point>>,
 }
 impl MapWidget {
     pub fn new() -> MapWidget {
@@ -156,7 +125,7 @@ impl MapWidget {
         let bounding_boxes = self
             .all_trip_paths_combined
             .iter()
-            .map(|(id, color, text_color, trip_path)| trip_path.bounding_box())
+            .map(|(_id, _color, _text_color, trip_path)| trip_path.bounding_box())
             .collect::<Vec<_>>();
         for m in 0..NUMBER_TILES_WIDTH {
             for n in 0..NUMBER_TILES_WIDTH {
@@ -174,7 +143,7 @@ impl MapWidget {
                 // TODO maybe only store the parts of the path actually in the box, so that when checking for hover later, we are not comparing parts of the path that we know are not in the box. A further optimization would be to deduplicate line segments that are shared by all trips in the route
                 // no intersection test yet: https://xi.zulipchat.com/#narrow/stream/260979-kurbo/topic/B.C3.A9zier-B.C3.A9zier.20intersection
 
-                for ((index, (id, color, text_color, trip_path)), path_bounding_box) in self
+                for ((index, (_id, _color, _text_color, _trip_path)), path_bounding_box) in self
                     .all_trip_paths_combined
                     .iter()
                     .enumerate()
@@ -240,7 +209,7 @@ impl MapWidget {
     }
 
     fn draw_paths_onto_paint_ctx(&self, data: &AppData, ctx: &mut PaintCtx) {
-        ctx.save();
+        let _ = ctx.save();
         // tranform
         // ctx.transform(Affine::translate(self.focal_point.to_vec2() * -1.));
         // ctx.transform(Affine::scale(zoom));
@@ -269,9 +238,10 @@ impl MapWidget {
         // NOTE ctx.transform() doesn't change ctx.size()
         let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
 
-        let s_circle_bb = path_width * 0.8;
-        let s_circle = path_width * 0.6;
+        // let s_circle_bb = path_width * 0.8;
+        // let s_circle = path_width * 0.6;
 
+        // draw paths
         for (_trip_id, color, _text_color, path) in &self.all_trip_paths_combined {
             // for (_trip_id, color, _text_color, path) in &self.all_trip_paths_canvas {
             ctx.stroke(path, color, path_width);
@@ -282,17 +252,16 @@ impl MapWidget {
         //     ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
         // }
 
-        // draw paths
-        ctx.restore();
+        let _ = ctx.restore();
     }
     fn draw_shapes_onto_bitmap_ctx(
         &self,
-        data: &AppData,
+        _data: &AppData,
         ctx: &mut impl RenderContext,
         bitmap_size: usize,
         zoom_level: ZoomLevel,
     ) {
-        ctx.save();
+        let _ = ctx.save();
         // NOTE: don't need to transform for focal point and zoom since we are just creating an image and it is then the image itself which will be transformed. Only need to transform from reference size to actual bitmap size
 
         // NOTE: can't use ctx.size() since it is not actually defined on RenderContext trait and has not otherwise been defined on CairoRenderContext
@@ -312,35 +281,32 @@ impl MapWidget {
         // }
 
         // draw paths
-        ctx.restore();
+        let _ = ctx.restore();
     }
+
+    #[allow(dead_code)]
     fn make_bitmap(&self, data: &AppData, ctx: &mut PaintCtx, zoom_level: ZoomLevel) -> PietImage {
-        let mut cached_image;
-        {
-            myprint!("make_bitmap: draw to bitmap");
-            let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
-            let mut device = Device::new().unwrap();
-            // 0.1 makes the image very small
-            // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
-            let mut target = device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
-            let mut piet_context = target.render_context();
+        myprint!("make_bitmap: draw to bitmap");
+        let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
+        let mut device = Device::new().unwrap();
+        // 0.1 makes the image very small
+        // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
+        let mut target = device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
+        let mut piet_context = target.render_context();
 
-            // piet_context.save();
-            // piet_context.transform(Affine::scale(1000. / ctx.size().height));
-            self.draw_shapes_onto_bitmap_ctx(data, &mut piet_context, bitmap_size, zoom_level);
+        self.draw_shapes_onto_bitmap_ctx(data, &mut piet_context, bitmap_size, zoom_level);
 
-            piet_context.finish().unwrap();
-            let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
-            myprint!("make_bitmap: make_image");
-            cached_image = ctx
-                .make_image(
-                    bitmap_size,
-                    bitmap_size,
-                    image_buf.raw_pixels(),
-                    ImageFormat::RgbaPremul,
-                )
-                .unwrap();
-        }
+        piet_context.finish().unwrap();
+        let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+        myprint!("make_bitmap: make_image");
+        let cached_image = ctx
+            .make_image(
+                bitmap_size,
+                bitmap_size,
+                image_buf.raw_pixels(),
+                ImageFormat::RgbaPremul,
+            )
+            .unwrap();
         cached_image
     }
 
@@ -397,8 +363,8 @@ impl MapWidget {
     }
     fn draw_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
         myprint!("draw highlights");
-        // what is ctx.save() for? doing transforms which we want to be temporary
-        ctx.save();
+        // what is ctx.save() for? making temporary transforms which will be removed when we call ctx.restore()
+        let _ = ctx.save();
 
         // tranform
 
@@ -440,15 +406,14 @@ impl MapWidget {
         //     ctx.stroke(path, color, path_width);
         // }
         for index in &data.hovered_trip_paths {
-            let (_trip_id, color, text_color, path) =
+            let (_trip_id, color, _text_color, path) =
                 self.all_trip_paths_combined.get(*index).unwrap();
             ctx.stroke(path, &Color::BLACK, path_bb);
             ctx.stroke(path, color, path_width);
         }
-        // dbg!(self.selected_trip_path.as_ref().map(|thing| &thing.0));
 
-        if let Some((index, id)) = &data.selected_trip_id {
-            let (trip_id, color, text_color, path) =
+        if let Some((index, _id)) = &data.selected_trip_id {
+            let (trip_id, color, _text_color, path) =
                 self.all_trip_paths_combined.get(*index).unwrap();
             // dbg!(path);
             ctx.stroke(path, &Color::WHITE, path_wb);
@@ -460,7 +425,7 @@ impl MapWidget {
                 let stop_time = data.stop_times.get(i).unwrap();
                 let stop_index = *data.stop_index_from_id.get(&stop_time.stop_id).unwrap();
                 let point = self.stop_circles[stop_index];
-                let stop = data.stops.get(stop_index).unwrap();
+                // let stop = data.stops.get(stop_index).unwrap();
                 ctx.fill(Circle::new(point.clone(), s_circle_bb), &Color::BLACK);
                 ctx.fill(Circle::new(point.clone(), s_circle), &Color::WHITE);
                 if let Some(hovered_stop_time_id) = &data.hovered_stop_time_id {
@@ -482,8 +447,10 @@ impl MapWidget {
                 }
             }
         }
-        ctx.restore();
+        let _ = ctx.restore();
     }
+
+    #[allow(dead_code)]
     fn draw_stop_highlights_onto_bitmap_ctx(
         &self,
         data: &AppData,
@@ -497,19 +464,19 @@ impl MapWidget {
         let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
         let s_circle = path_width * SMALL_CIRCLE_MULT;
 
-        ctx.save();
+        let _ = ctx.save();
         ctx.transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
-        for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+        for (point, _stop) in self.stop_circles.iter().zip(data.stops.iter()) {
             ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
             ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
         }
 
-        ctx.restore();
+        let _ = ctx.restore();
     }
 
     fn draw_highlighted_stop(&self, data: &AppData, ctx: &mut PaintCtx) {
         myprint!("draw_stop_highlights");
-        ctx.save();
+        let _ = ctx.save();
 
         let transformed_focal_point = self
             .focal_point
@@ -526,7 +493,7 @@ impl MapWidget {
 
         let path_width = data.map_zoom_level.path_width(ctx.size().max_side()) * PATH_HIGHLIGHTED;
 
-        let l_circle_wb = path_width * LARGE_CIRCLE_WHITE_BACKGROUND_MULT;
+        let _l_circle_wb = path_width * LARGE_CIRCLE_WHITE_BACKGROUND_MULT;
         let l_circle_bb = path_width * LARGE_CICLE_BLACK_BACKGROUND_MULT;
         let l_circle = path_width * LARGE_CIRCLE_MULT;
 
@@ -546,11 +513,13 @@ impl MapWidget {
             ctx.fill(Circle::new(*point, l_circle_bb), &Color::BLACK);
             ctx.fill(Circle::new(*point, l_circle), &Color::WHITE);
         }
-        ctx.restore();
+        let _ = ctx.restore();
     }
+
+    #[allow(dead_code)]
     fn draw_stop_highlights(&self, data: &AppData, ctx: &mut PaintCtx) {
         myprint!("draw_stop_highlights");
-        ctx.save();
+        let _ = ctx.save();
 
         let transformed_focal_point = self
             .focal_point
@@ -570,12 +539,12 @@ impl MapWidget {
         let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
         let s_circle = path_width * SMALL_CIRCLE_MULT;
 
-        let l_circle_wb = path_width * LARGE_CIRCLE_WHITE_BACKGROUND_MULT;
+        let _l_circle_wb = path_width * LARGE_CIRCLE_WHITE_BACKGROUND_MULT;
         let l_circle_bb = path_width * LARGE_CICLE_BLACK_BACKGROUND_MULT;
         let l_circle = path_width * LARGE_CIRCLE_MULT;
 
         // paint all stops first, then paint hovered stop over the top. This ensures it is not covered by any unhovered stop and avoids needing to compare stop ids every loop iteration (actually we still need to compare stop ids to find the Point, unless eg we save the index of the Point)
-        for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+        for (point, _stop) in self.stop_circles.iter().zip(data.stops.iter()) {
             ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
             ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
         }
@@ -595,7 +564,7 @@ impl MapWidget {
             ctx.fill(Circle::new(*point, l_circle_bb), &Color::BLACK);
             ctx.fill(Circle::new(*point, l_circle), &Color::WHITE);
         }
-        ctx.restore();
+        let _ = ctx.restore();
     }
     fn draw_minimap(&self, data: &AppData, ctx: &mut PaintCtx) {
         ctx.with_save(|ctx: &mut PaintCtx| {
@@ -603,7 +572,6 @@ impl MapWidget {
             ctx.transform(Affine::scale(MINIMAP_PROPORTION));
             ctx.fill(rect, &Color::WHITE);
             ctx.draw_image(
-                // &self.minimap_image.as_ref().unwrap(),
                 &self
                     .cached_image_map
                     .get(&ZoomLevel::One)
@@ -624,7 +592,6 @@ impl MapWidget {
                 - (ctx.size() * 0.5 / zoom).to_vec2();
             // // make path which is minimap sized rect with viewfinder hole in it
             let mut shadow = rect.to_path(0.1);
-            // // ctx.clip(shape)
             let inner_rect = rect
                 .with_size(rect.size() / zoom)
                 .with_origin(transformed_focal_point);
@@ -633,7 +600,6 @@ impl MapWidget {
             shadow.line_to(Point::new(inner_rect.x1, inner_rect.y1));
             shadow.line_to(Point::new(inner_rect.x0, inner_rect.y1));
             shadow.close_path();
-            // ctx.clip(inner_rect.scale_from_origin(-1.));
 
             ctx.fill_even_odd(shadow, &Color::rgba(0., 0., 0., 0.3));
             ctx.stroke(inner_rect, &Color::RED, 4.);
@@ -647,17 +613,6 @@ impl MapWidget {
         path: &BezPath,
         mouse_position: Point,
     ) -> bool {
-        // let transformed_focal_point = self
-        //     .focal_point
-        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        // let translated_mouse_position =
-        //     (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
-
-        // let translated_mouse_position = (translated_mouse_position
-        //     * (REFERENCE_SIZE as f64 / ctx.size().max_side())
-        //     / data.map_zoom_level.to_f64())
-        // .to_point();
-
         let fp = self
             .focal_point
             .to_point_within_size(Size::new(1., 1.))
@@ -688,68 +643,6 @@ impl MapWidget {
         // converting a mouse Point (in canvas coords) to a Point in REFERENCE_SIZE coords
         // so we are trying to determine if a mouse Point which is bounded canvas coords but what it is hovering in the canvas might have been scaled and/or translated, and is over a path in REFERENCE_SIZE coords.
 
-        // so lets say the map is zoomed x2, the focal point is CENTER, and the canvas is 100^2
-
-        // top left focal point version:
-        // so the origin of the map is at (-100,-100) and the end is at (100,100). a path being hovered at (0,0) is actually the center of the map, so should be translated to             (REFERENCE_SIZE/2,REFERENCE_SIZE/2). So we could work out what the normalised point is, ie (0.5,0.5) and then find that point in REFERENCE_SIZE?
-
-        // centered focal point version:
-        // so the origin of the map is at (-50,-50) and the end is at (150,150). a path being hovered at (0,0) should be translated to (REFERNCE_SIZE/4,REFERNCE_SIZE/4) and (0.5,0.5) is (REFERENCE_SIZE/2,REFERENCE_SIZE/2)
-
-        // First we want to effectively pan the map so that the maps origin is at (0,0) on both the canvas and coords space, ie remove any panning and adjust the focal point accordingly
-        // so the mouse is within a coord space of the same size, but an origin of (0,0)
-        // to do this, we get the focal point and adjust for this. For centered focal point, this would be nothing for zoom x1, size/4 for zoom x2, size * 2/5 for x5, size * 4.5/10 for x10 etc. This is not an easy calculation so it seems it would be easier to remove the zoom scale first, then we only have to remove panning
-        // if the mouse position is centered, it should not change.
-        // if zoom is x1, the mouse position should not change.
-        // at (0,0) for x2 zoom (so (0.25,0.25) normalised), we have a ctx*2 canvas, changing to a ctx sized canvas, with the same origin, so the mouse position should be changed to (-ctx.size/4, -ctx.size/4)
-        // at (0,0) for x10 zoom (so (0.45,0.45) normalised), we have a ctx*10 canvas (size*4.5/10 out of view on either side of the viewport), changing to a ctx sized canvas, with the same origin, so the mouse position should be changed to (-ctx.size * 0.45, -ctx.size * 0.45)
-        // these normal mults are actually all we need for REFERENCE_SIZE
-        // x1: (0,0)
-        // x2: (0.25,0.25)
-        // x4: 1/4 + 1/8 = (0.375,0.375)
-        // x5: (0.4,0.4)
-        // x10: (0.45,0.45)
-        // x20: 9/20 + 1/40 = (0.475,0.475)
-        // they are 1/zoom *
-
-        // let mouse_position_no_scale = mouse_position.to_vec2() - self.focal_point - (0.5,0.5) / data.map_zoom_level.to_f64();
-        // let norm_mult = 0.5 - 1 / data.map_zoom_level.to_f64();
-
-        // so following the example, below gives us the focal point in the scaled 200^2 ctx which would be (100,100)
-
-        // so following the example, below gives us the (centering removed) focal point in the scaled 200^2 ctx which would be (0,0)
-        let transformed_focal_point = self.focal_point.to_point_within_size_centering_removed(
-            // Size::new(REFERENCE_SIZE as f64, REFERENCE_SIZE as f64) * data.map_zoom_level.to_f64(),
-            ctx.size() * data.map_zoom_level.to_f64(),
-            data.map_zoom_level.to_f64(),
-        );
-        // dbg!(transformed_focal_point);
-
-        // top left focal point version:
-        // now we have the focal point of the zoomed map, we want to move the focal point to the origin (so translate everything (100,100)) whilst keeping the mouse pointing at the same thing, so subtract the focal point from the mouse position
-        // needs to also take into account scaling from REFERENCE_SIZE
-        // let translated_mouse_position =
-        //     (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
-
-        // centered focal point version:
-        // now we have the focal point of the zoomed map, we want to move the origin of the canvas to (0,0) (or focal point to the center) of the 200^2 canvas whilst keeping the mouse pointing at the same thing, so translate everything (50,50) / add the focal point * 0.5 to the mouse position
-        // (0,0) + (100,100) * 0.5 = (50,50)
-        // if the focal point is center and zoom is x1 then we want to translate (0,0).
-        let translated_mouse_position_pre =
-            (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
-        // dbg!(mouse_position);
-        // dbg!(translated_mouse_position_pre);
-
-        // now we have the mouse position relative to a non-translated, but scaled/zoomed, 200^2 ctx. We want the mouse relative to a REFERENCE_SIZE ctx. so divide it by 2, then multiple by REFERENCE_SIZE / ctx.size().max_side
-        // let translated_mouse_position = (translated_mouse_position_pre
-        //     * (REFERENCE_SIZE as f64 / ctx.size().max_side())
-        //     / data.map_zoom_level.to_f64())
-        // .to_point();
-        let translated_mouse_position = (translated_mouse_position_pre
-            * (REFERENCE_SIZE as f64 / ctx.size().max_side()))
-        .to_point();
-        // dbg!(translated_mouse_position);
-
         // a and b are vectors normalised relative to the total size of the map ie ctx.size() * zoom
         // a is the vector from the viewport origin to the mouse position
         // b is the vector from the map origin to the viewport origin
@@ -773,7 +666,7 @@ impl MapWidget {
         // let path_width = data.map_zoom_level.path_width(ctx.size().max_side());
         let path_width = data.map_zoom_level.path_width(REFERENCE_SIZE as f64);
         let path_width2 = path_width * path_width;
-        for (i, (rect, path_indexes)) in self.all_trip_paths_bitmap_grouped.iter().enumerate() {
+        for (_i, (rect, path_indexes)) in self.all_trip_paths_bitmap_grouped.iter().enumerate() {
             // for (i, box_group) in self.all_trip_paths_canvas_grouped.iter().enumerate() {
             // let (rect, path_indexes) = box_group;
             if rect.contains(translated_mouse_position) {
@@ -803,17 +696,6 @@ impl MapWidget {
         mouse_position: Point,
         trip_id: String,
     ) -> Option<(String, u16)> {
-        // let transformed_focal_point = self
-        //     .focal_point
-        //     .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-        // let translated_mouse_position =
-        //     (mouse_position.to_vec2() + transformed_focal_point.to_vec2());
-
-        // let translated_mouse_position = (translated_mouse_position
-        //     * (REFERENCE_SIZE as f64 / ctx.size().max_side())
-        //     / data.map_zoom_level.to_f64())
-        // .to_point();
-
         let fp = self
             .focal_point
             .to_point_within_size(Size::new(1., 1.))
@@ -899,7 +781,7 @@ where
 }
 
 impl Widget<AppData> for MapWidget {
-    fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppData, env: &Env) {
+    fn event(&mut self, ctx: &mut druid::EventCtx, event: &Event, data: &mut AppData, _env: &Env) {
         match event {
             // Event::Wheel(mouse_event) => {
             //     let mut change = mouse_event.wheel_delta.y;
@@ -948,8 +830,8 @@ impl Widget<AppData> for MapWidget {
                     // if in normal mode check for path and stop_time hovers
                     if !data.map_stop_selection_mode {
                         // if hovering a stop on a selected path, highlight/englarge it
-                        if let Some((index, id)) = &data.selected_trip_id {
-                            let (trip_id, color, text_color, path) =
+                        if let Some((index, _id)) = &data.selected_trip_id {
+                            let (trip_id, _color, _text_color, path) =
                                 self.all_trip_paths_combined.get(*index).unwrap();
                             // println!("mouse move: check for hover: stop");
                             // TODO below is still going too slow and will cause a backup after lots of mouse move events - seems to be fixed now
@@ -999,15 +881,6 @@ impl Widget<AppData> for MapWidget {
                 }
             }
             Event::MouseUp(mouse_event) => {
-                let transformed_focal_point = self
-                    .focal_point
-                    .to_point_within_size(ctx.size() * data.map_zoom_level.to_f64());
-
-                let translated_mouse_position = ((mouse_event.pos.to_vec2()
-                    + transformed_focal_point.to_vec2())
-                    / data.map_zoom_level.to_f64())
-                .to_point();
-
                 // only handle up click if the down click was on the map
                 if let Some(click_down_pos) = self.down_click_pos {
                     if mouse_event.pos == click_down_pos {
@@ -1030,7 +903,7 @@ impl Widget<AppData> for MapWidget {
 
                                 // select trip if we are hovering one or more (if we are hovering a selected trip, there should be no hovered trips)
                                 if let Some(index) = data.hovered_trip_paths.get(0) {
-                                    let (id, color, text_color, path) =
+                                    let (id, _color, _text_color, _path) =
                                         self.all_trip_paths_combined.get(*index).unwrap();
                                     let route_id = data
                                         .trips
@@ -1053,8 +926,8 @@ impl Widget<AppData> for MapWidget {
                                     // data.selected_trip_path = Some(*index);
 
                                     // check if hovering a stop on selected trip
-                                } else if let Some((index, id)) = &data.selected_trip_id {
-                                    let (trip_id, color, text_color, path) =
+                                } else if let Some((index, _id)) = &data.selected_trip_id {
+                                    let (trip_id, _color, _text_color, path) =
                                         self.all_trip_paths_combined.get(*index).unwrap();
                                     if self.is_path_hovered(data, ctx, path, mouse_event.pos) {
                                         if let Some(hovered_stop_time_id) =
@@ -1162,7 +1035,7 @@ impl Widget<AppData> for MapWidget {
         ctx: &mut druid::UpdateCtx,
         old_data: &AppData,
         data: &AppData,
-        env: &Env,
+        _env: &Env,
     ) {
         // TODO is this ok or need to loop through and compare items?
         // need to differentiate between visible/selected/zoomed to determine whether we need to set self.redraw_base
@@ -1193,7 +1066,7 @@ impl Widget<AppData> for MapWidget {
                     self.filtered_trip_paths = self
                         .all_trip_paths_combined
                         .iter()
-                        .filter(|(id, _color, text_color, _path)| trip_ids.contains(id))
+                        .filter(|(id, _color, _text_color, _path)| trip_ids.contains(id))
                         .cloned()
                         .collect::<Vec<_>>();
                 }
@@ -1226,7 +1099,7 @@ impl Widget<AppData> for MapWidget {
                 self.filtered_trip_paths = self
                     .all_trip_paths_combined
                     .iter()
-                    .filter(|(id, _color, text_color, _path)| trip_ids.contains(id))
+                    .filter(|(id, _color, _text_color, _path)| trip_ids.contains(id))
                     .cloned()
                     .collect::<Vec<_>>();
                 ctx.request_paint();
@@ -1248,7 +1121,7 @@ impl Widget<AppData> for MapWidget {
         // check whether a new stop_time has been added
         // TODO also need to handle case where stop_time is deleted
         if data.stop_times.len() == old_data.stop_times.len() {
-            for (i, (data_stop_time, old_data_stop_time)) in data
+            for (_i, (data_stop_time, old_data_stop_time)) in data
                 .stop_times
                 .iter()
                 .zip(old_data.stop_times.iter())
@@ -1268,7 +1141,7 @@ impl Widget<AppData> for MapWidget {
                         .trips
                         .iter()
                         .enumerate()
-                        .find(|(index, trip)| trip.id == data_stop_time.trip_id)
+                        .find(|(_index, trip)| trip.id == data_stop_time.trip_id)
                         .unwrap();
 
                     let route = data
@@ -1307,7 +1180,7 @@ impl Widget<AppData> for MapWidget {
                     .iter()
                     .enumerate()
                     .zip(old_data.trips.iter())
-                    .find(|((trip_index, trip), old_trip)| {
+                    .find(|((_trip_index, trip), _old_trip)| {
                         let data_range = data.stop_time_range_from_trip_id.get(&trip.id).unwrap();
                         let data_size = data_range.1 - data_range.0;
                         let old_data_range =
@@ -1391,16 +1264,10 @@ impl Widget<AppData> for MapWidget {
         // Size::new(300.0, 300.0)
         Size::new(max, max)
     }
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
-        // dbg!("map paint");
-
-        // Clear the whole widget with the color of your choice
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, _env: &Env) {
         // (ctx.size() returns the size of the layout rect we're painting in)
-        // Note: ctx also has a `clear` method, but that clears the whole context,
-        // and we only want to clear this widget's area.
-        // RenderContext
 
-        // todo encode gtfs coords and painting coords into two distinct types for clarity
+        // TODO encode gtfs coords and painting coords into two distinct types for clarity
 
         myprint!("paint");
         let size = ctx.size();
@@ -1411,88 +1278,8 @@ impl Widget<AppData> for MapWidget {
         // ctx.fill(rect, &Color::WHITE);
 
         if self.recreate_bitmap {
-            // get updated path
-            let updated_path = self.all_trip_paths_combined.get(0);
-
             myprint!("paint: redraw base: make image start");
             self.recreate_bitmap = false;
-
-            // single threaded runs in about 4secs
-            // for (_name, zoom_level) in ZoomLevel::radio_group_vec() {
-            //     // panning the map is laggy for *all* zoom levels if we create bitmaps at x10 or greater
-            //     if zoom_level.to_usize() < 10 {
-            //         self.cached_image_map
-            //             .insert(zoom_level, self.make_bitmap(data, ctx, zoom_level));
-            //     }
-            // }
-
-            // // single threaded runs in about 4secs
-            // for (_name, zoom_level) in ZoomLevel::radio_group_vec() {
-            //     // panning the map is laggy for *all* zoom levels if we create bitmaps at x10 or greater
-            //     if zoom_level.to_usize() < 10 {
-            //         let mut cached_image;
-            //         {
-            //             let bitmap_size = BITMAP_SIZE * zoom_level.to_usize();
-            //             let mut device = Device::new().unwrap();
-            //             let mut target =
-            //                 device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
-            //             let mut piet_context = target.render_context();
-
-            //             if let Some(bitmap) = self.cached_image_map.get(&zoom_level) {
-            //                 myprint!("got bitmap for: {}", zoom_level.to_usize());
-            //                 let rect = Size::new(bitmap_size as f64, bitmap_size as f64).to_rect();
-            //                 piet_context.draw_image(
-            //                     &bitmap.lock().unwrap().0,
-            //                     rect,
-            //                     InterpolationMode::Bilinear,
-            //                 );
-
-            //                 if let Some(last_updated_trip_index) = self.last_updated_trip_index {
-            //                     piet_context.save();
-
-            //                     let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
-            //                     piet_context.transform(Affine::scale(
-            //                         bitmap_size as f64 / REFERENCE_SIZE as f64,
-            //                     ));
-            //                     let updated_path = self
-            //                         .all_trip_paths_combined
-            //                         .get(last_updated_trip_index)
-            //                         .unwrap();
-            //                     let updated_path_bounding_box = updated_path.3.bounding_box();
-            //                     piet_context.clip(updated_path_bounding_box);
-            //                     piet_context.fill(rect, &Color::RED);
-            //                     for (_trip_id, color, _text_color, path) in
-            //                         &self.all_trip_paths_combined
-            //                     {
-            //                         piet_context.stroke(path, color, path_width);
-            //                     }
-            //                     piet_context.restore();
-            //                 }
-            //             } else {
-            //                 self.draw_shapes_onto_bitmap_ctx(
-            //                     data,
-            //                     &mut piet_context,
-            //                     bitmap_size,
-            //                     zoom_level,
-            //                 );
-            //             }
-
-            //             piet_context.finish().unwrap();
-            //             let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
-            //             cached_image = ctx
-            //                 .make_image(
-            //                     bitmap_size,
-            //                     bitmap_size,
-            //                     image_buf.raw_pixels(),
-            //                     ImageFormat::RgbaPremul,
-            //                 )
-            //                 .unwrap();
-            //         }
-
-            //         self.cached_image_map
-            //             .insert(zoom_level, Arc::new(Mutex::new(MyImage(cached_image))));
-            //     }
-            // }
 
             // multi threaded runs in about 2.5secs
             let mut handles = Vec::new();
@@ -1511,7 +1298,6 @@ impl Widget<AppData> for MapWidget {
                         })
                         .cloned();
                     let old_bitmap = self.cached_image_map.get(&zoom_level).cloned();
-                    let background_color = grey_background_color.clone();
 
                     let stop_circles = self.stop_circles.clone();
 
@@ -1541,49 +1327,40 @@ impl Widget<AppData> for MapWidget {
                                 donut.line_to(Point::new(inner_rect.x0, inner_rect.y1));
                                 donut.close_path();
 
-                                piet_context.save();
+                                let _ = piet_context.save();
                                 piet_context.clip(donut);
                                 piet_context.draw_image(
                                     &bitmap.0.lock().unwrap().0,
                                     rect,
                                     InterpolationMode::Bilinear,
                                 );
-                                piet_context.restore();
-
-                                // piet_context.save();
-
-                                // let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
-                                // piet_context.transform(Affine::scale(
-                                //     bitmap_size as f64 / REFERENCE_SIZE as f64,
-                                // ));
+                                let _ = piet_context.restore();
 
                                 // scale
-                                piet_context.save();
+                                let _ = piet_context.save();
                                 piet_context.transform(Affine::scale(
                                     bitmap_size as f64 / REFERENCE_SIZE as f64,
                                 ));
 
                                 // redraw paths only in bounding box of updated path
                                 piet_context.clip(updated_path_bounding_box);
-                                // piet_context.fill(rect, &Color::RED);
-                                // piet_context.fill(rect, &background_color);
                                 for (_trip_id, color, _text_color, path) in &all_trip_paths_combined
                                 {
                                     piet_context.stroke(path, color, path_width);
                                 }
-                                piet_context.restore();
+                                let _ = piet_context.restore();
                             }
                         } else {
                             myprint!("draw entirely new bitmap");
                             // scale
-                            piet_context.save();
+                            let _ = piet_context.save();
                             piet_context.transform(Affine::scale(
                                 bitmap_size as f64 / REFERENCE_SIZE as f64,
                             ));
                             for (_trip_id, color, _text_color, path) in &all_trip_paths_combined {
                                 piet_context.stroke(path, color, path_width);
                             }
-                            piet_context.restore();
+                            let _ = piet_context.restore();
                         }
 
                         piet_context.finish().unwrap();
@@ -1602,12 +1379,9 @@ impl Widget<AppData> for MapWidget {
                         let mut piet_context = target.render_context();
 
                         // scale
-                        piet_context.save();
+                        let _ = piet_context.save();
                         piet_context
                             .transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
-                        // for (_trip_id, color, _text_color, path) in &all_trip_paths_combined {
-                        //     piet_context.stroke(path, color, path_width);
-                        // }
                         let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
                         let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
                         let s_circle = path_width * SMALL_CIRCLE_MULT;
@@ -1620,7 +1394,7 @@ impl Widget<AppData> for MapWidget {
                             piet_context.fill(Circle::new(point, s_circle), &Color::WHITE);
                         }
 
-                        piet_context.restore();
+                        let _ = piet_context.restore();
 
                         piet_context.finish().unwrap();
                         let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
@@ -1666,36 +1440,23 @@ impl Widget<AppData> for MapWidget {
             }
 
             myprint!("paint: redraw base: make image finish");
-
-            // if self.minimap_image.is_none() {
-            //     self.minimap_image = Some(
-            //         self.cached_image_map
-            //             .get(&ZoomLevel::One)
-            //             .unwrap()
-            //             .lock()
-            //             .unwrap()
-            //             .clone(),
-            //     );
-            // }
         }
 
         // TODO come up with proper heuristic based on the size of coords or density of paths to determine when to switch to immediate mode, so that it generalises to maps other than SP
         if self.cached_image_map.contains_key(&data.map_zoom_level) {
             myprint!("paint: draw bitmap");
-
             self.draw_bitmap_onto_paint_context(data, ctx);
-            // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
         } else {
             myprint!("paint: draw immediate mode");
             self.draw_paths_onto_paint_ctx(data, ctx);
         }
         if !data.map_stop_selection_mode {
             myprint!("paint: draw highlights");
+            // TODO temporarily drawing highlights here too until we add another cache for non hover highlights
             self.draw_highlights(data, ctx);
         } else {
             self.draw_stops_bitmap_onto_paint_context(data, ctx);
             self.draw_highlighted_stop(data, ctx);
-            // self.draw_stop_highlights(data, ctx);
         }
         myprint!("paint: draw minimap");
         self.draw_minimap(data, ctx);
@@ -1703,27 +1464,26 @@ impl Widget<AppData> for MapWidget {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut druid::LifeCycleCtx,
+        _ctx: &mut druid::LifeCycleCtx,
         event: &LifeCycle,
         data: &AppData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             LifeCycle::WidgetAdded => {
                 // TODO this should obviously be decoupled from widget impl
                 let trips_coords_from_shapes = data.trips_coords_from_shapes();
-                // let trips_coords_from_shapes = data.trips_coords_from_stop_coords();
-                let trips_coords_from_stop_coords = data.trips_coords_from_stop_coords();
+                // let trips_coords_from_stop_coords = data.trips_coords_from_stop_coords();
 
-                let size = ctx.size();
                 // find size of path data
-                // NOTE (x0,y0) is the bottom left of the rect
+                // NOTE (x0,y0) is the bottom left of the rect since data is latlong coords
                 let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
 
                 let latlong_to_bitmap = |coord: Point| {
                     MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
                 };
 
+                // TODO handle case where shapes.txt is not present
                 // TODO should be making data in update or on_added, not paint
                 // translate trip paths to a given canvas size and store colors
                 myprint!("paint: redraw base: make paths");
@@ -1751,32 +1511,6 @@ impl Widget<AppData> for MapWidget {
                         )
                     })
                     .collect::<Vec<_>>();
-
-                // there is no point precalculating these because if the stop_time.stop_id has changed then we will need to recreate the path anyway
-                // self.all_trip_paths_from_stop_coords = trips_coords_from_stop_coords
-                //     .iter()
-                //     .zip(data.trips.iter())
-                //     .filter(|(_coords, trip)| trip.visible)
-                //     .map(|(coords, trip)| {
-                //         let route = data
-                //             .routes
-                //             .iter()
-                //             .find(|route| route.id == trip.route_id)
-                //             .unwrap();
-                //         let RGB { r, g, b } = route.color.0;
-                //         let color = Color::rgb8(r, g, b);
-                //         let RGB { r, g, b } = route.text_color.0;
-                //         let text_color = Color::rgb8(r, g, b);
-                //         (
-                //             trip.id.clone(),
-                //             color,
-                //             text_color,
-                //             bez_path_from_coords_iter(
-                //                 coords.iter().map(|coord| latlong_to_bitmap(*coord)),
-                //             ),
-                //         )
-                //     })
-                //     .collect::<Vec<_>>();
 
                 self.all_trip_paths_combined = self.all_trip_paths_from_shapes.clone();
                 myprint!("finished paint: redraw base: make paths");
