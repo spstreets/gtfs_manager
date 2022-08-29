@@ -461,7 +461,7 @@ pub struct MyGtfs {
     pub trips: Vec<RawTrip>,
     pub stop_times: Vec<RawStopTime>,
     pub stops: Vec<Stop>,
-    pub shapes: Vec<Shape>,
+    pub shapes: Option<Vec<Shape>>,
 }
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize)]
@@ -544,7 +544,7 @@ pub struct AppData {
     pub stop_index_from_id: HashMap<String, usize>,
     #[data(ignore)]
     #[lens(ignore)]
-    pub shapes_range_from_shape_id: HashMap<String, Range<usize>>,
+    pub shapes_range_from_shape_id: Option<HashMap<String, Range<usize>>>,
 
     pub agencies: Vector<MyAgency>,
     pub routes: Vector<MyRoute>,
@@ -624,28 +624,39 @@ impl AppData {
             .collect::<Vec<_>>()
     }
     // TODO don't need to construct MyStopTime here
-    pub fn trips_coords_from_shapes(&self) -> Vec<Vec<Point>> {
+    pub fn trips_paths_from_shapes_or_stop_coords(&self) -> Vec<Vec<Point>> {
         dbg!("make trip coords");
-        self.trips
-            .iter()
-            .map(|trip| {
-                if let Some(shape_id) = &trip.shape_id {
-                    let range = self.shapes_range_from_shape_id.get(shape_id).unwrap();
-                    let mut shapes = self.gtfs.shapes[range.start..range.end]
-                        .iter()
-                        .map(|shape| (shape.sequence, Point::new(shape.longitude, shape.latitude)))
-                        .collect::<Vec<_>>();
-                    shapes.sort_by(|shape1, shape2| shape1.0.cmp(&shape2.0));
-                    shapes
-                        .iter()
-                        .map(|(_sequence, coords)| *coords)
-                        .collect::<Vec<_>>()
-                } else {
-                    // TODO handle new trips which don't have shapes
-                    Vec::new()
-                }
-            })
-            .collect::<Vec<_>>()
+        if let Some(shapes) = &self.gtfs.shapes {
+            self.trips
+                .iter()
+                .map(|trip| {
+                    if let Some(shape_id) = &trip.shape_id {
+                        let range = self
+                            .shapes_range_from_shape_id
+                            .as_ref()
+                            .unwrap()
+                            .get(shape_id)
+                            .unwrap();
+                        let mut shapes = shapes[range.start..range.end]
+                            .iter()
+                            .map(|shape| {
+                                (shape.sequence, Point::new(shape.longitude, shape.latitude))
+                            })
+                            .collect::<Vec<_>>();
+                        shapes.sort_by(|shape1, shape2| shape1.0.cmp(&shape2.0));
+                        shapes
+                            .iter()
+                            .map(|(_sequence, coords)| *coords)
+                            .collect::<Vec<_>>()
+                    } else {
+                        // TODO handle new trips which don't have shapes
+                        Vec::new()
+                    }
+                })
+                .collect::<Vec<_>>()
+        } else {
+            self.trips_coords_from_stop_coords()
+        }
     }
 }
 
@@ -657,7 +668,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
     let trips = gtfs.trips.as_mut().unwrap();
     let stop_times = gtfs.stop_times.as_mut().unwrap();
     let stops = gtfs.stops.as_mut().unwrap();
-    let shapes = gtfs.shapes.as_mut().unwrap().as_ref().unwrap();
+    let shapes = gtfs.shapes.as_ref().map(|shapes| shapes.as_ref().unwrap());
 
     myprint!("do stop_times stuff");
     // creates stop_time_range_from_trip_id which is a hashmap where each key is a trip_id pointing to the index range of it's stop times in the sorted stop_times below
@@ -700,22 +711,27 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         stop_index_from_id.insert(stop.id.clone(), i);
     });
 
-    let mut shapes_from_trip_id = HashMap::new();
-    let mut start: usize = 0;
-    let mut end: usize = 0;
-    if let Some(first_item) = shapes.get(0) {
-        let mut current_id = first_item.id.clone();
-        // insert bound if entered new id section or is last item
-        for item in shapes {
-            if current_id != item.id {
-                shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
-                current_id = item.id.clone();
-                start = end;
+    let shapes_range_from_shape_id = if let Some(shapes) = shapes {
+        let mut shapes_range_from_shape_id = HashMap::new();
+        let mut start: usize = 0;
+        let mut end: usize = 0;
+        if let Some(first_item) = shapes.get(0) {
+            let mut current_id = first_item.id.clone();
+            // insert bound if entered new id section or is last item
+            for item in shapes {
+                if current_id != item.id {
+                    shapes_range_from_shape_id.insert(current_id.clone(), Range { start, end });
+                    current_id = item.id.clone();
+                    start = end;
+                }
+                end += 1;
             }
-            end += 1;
+            shapes_range_from_shape_id.insert(current_id.clone(), Range { start, end });
         }
-        shapes_from_trip_id.insert(current_id.clone(), Range { start, end });
-    }
+        Some(shapes_range_from_shape_id)
+    } else {
+        None
+    };
 
     routes.sort_by(|route1, route2| route1.short_name.cmp(&route2.short_name));
 
@@ -727,7 +743,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         trips: trips.clone(),
         stop_times: stop_times.clone(),
         stops: stops.clone(),
-        shapes: shapes.clone(),
+        shapes: shapes.cloned(),
     };
 
     myprint!("make agencies");
@@ -930,7 +946,7 @@ pub fn make_initial_data(gtfs: &mut RawGtfs) -> AppData {
         // selected_trip_path: None,
         stop_time_range_from_trip_id,
         stop_index_from_id,
-        shapes_range_from_shape_id: shapes_from_trip_id,
+        shapes_range_from_shape_id,
 
         agencies,
         routes,

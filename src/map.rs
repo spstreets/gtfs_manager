@@ -959,7 +959,7 @@ impl Widget<AppData> for MapWidget {
                                 // add a new stop
                                 } else {
                                     // get square latlon
-                                    let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                                    let trips_coords_from_shapes = data.trips_paths_from_shapes_or_stop_coords();
                                     let long_lat_rect =
                                         min_max_trips_coords(&trips_coords_from_shapes);
 
@@ -1000,7 +1000,7 @@ impl Widget<AppData> for MapWidget {
 
                                     // TODO maybe this is not the best place to do this?
                                     // need to recreate self.stop_circles
-                                    let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                                    let trips_coords_from_shapes = data.trips_paths_from_shapes_or_stop_coords();
                                     let long_lat_rect =
                                         min_max_trips_coords(&trips_coords_from_shapes);
                                     let latlong_to_bitmap = |coord: Point| {
@@ -1131,7 +1131,7 @@ impl Widget<AppData> for MapWidget {
                 if !data_stop_time.stop_id.same(&old_data_stop_time.stop_id) {
                     myprint!("recreate path from stop coords");
                     // TODO make latlong_to_bitmap() here is expensive and could be avoided
-                    let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                    let trips_coords_from_shapes = data.trips_paths_from_shapes_or_stop_coords();
                     let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
                     let latlong_to_bitmap = |coord: Point| {
                         MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
@@ -1192,7 +1192,7 @@ impl Widget<AppData> for MapWidget {
                 myprint!("update: recreate trip path for trip with stop_time added or deleted");
 
                 // TODO making latlong_to_bitmap() here is expensive and could be avoided
-                let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                let trips_coords_from_shapes = data.trips_paths_from_shapes_or_stop_coords();
                 let long_lat_rect = min_max_trips_coords(&trips_coords_from_shapes);
                 let latlong_to_bitmap = |coord: Point| {
                     MapWidget::latlong_to_canvas(coord, long_lat_rect, REFERENCE_SIZE as f64)
@@ -1472,7 +1472,7 @@ impl Widget<AppData> for MapWidget {
         match event {
             LifeCycle::WidgetAdded => {
                 // TODO this should obviously be decoupled from widget impl
-                let trips_coords_from_shapes = data.trips_coords_from_shapes();
+                let trips_coords_from_shapes = data.trips_paths_from_shapes_or_stop_coords();
                 // let trips_coords_from_stop_coords = data.trips_coords_from_stop_coords();
 
                 // find size of path data
