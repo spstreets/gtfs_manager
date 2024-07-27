@@ -292,11 +292,14 @@ impl MapWidget {
         // 0.1 makes the image very small
         // let mut target = device.bitmap_target(1000, 1000, 0.1).unwrap();
         let mut target = device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
-        let mut piet_context = target.render_context();
+        {
+            let mut piet_context = target.render_context();
 
-        self.draw_shapes_onto_bitmap_ctx(data, &mut piet_context, bitmap_size, zoom_level);
+            self.draw_shapes_onto_bitmap_ctx(data, &mut piet_context, bitmap_size, zoom_level);
 
-        piet_context.finish().unwrap();
+            piet_context.finish().unwrap();            
+        }
+
         let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
         myprint!("make_bitmap: make_image");
         let cached_image = ctx
@@ -1309,61 +1312,64 @@ impl Widget<AppData> for MapWidget {
                         let mut device = Device::new().unwrap();
                         let mut target =
                             device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
-                        let mut piet_context = target.render_context();
+                        {
+                            let mut piet_context = target.render_context();
 
-                        // if we have a previous bitmap redraw it the clip the bounding box of the updated path and redraw only that area
-                        if let Some(bitmap) = old_bitmap {
-                            myprint!("recreate from old bitmap");
-                            if let Some(updated_path) = updated_path {
-                                let updated_path_bounding_box = updated_path.3.bounding_box();
+                            // if we have a previous bitmap redraw it the clip the bounding box of the updated path and redraw only that area
+                            if let Some(bitmap) = old_bitmap {
+                                myprint!("recreate from old bitmap");
+                                if let Some(updated_path) = updated_path {
+                                    let updated_path_bounding_box = updated_path.3.bounding_box();
 
-                                // draw previous bitmap
-                                // create donut shape for clipping
-                                let mut donut = rect.to_path(0.1);
-                                let inner_rect = updated_path_bounding_box;
-                                donut.move_to(inner_rect.origin());
-                                donut.line_to(Point::new(inner_rect.x1, inner_rect.y0));
-                                donut.line_to(Point::new(inner_rect.x1, inner_rect.y1));
-                                donut.line_to(Point::new(inner_rect.x0, inner_rect.y1));
-                                donut.close_path();
+                                    // draw previous bitmap
+                                    // create donut shape for clipping
+                                    let mut donut = rect.to_path(0.1);
+                                    let inner_rect = updated_path_bounding_box;
+                                    donut.move_to(inner_rect.origin());
+                                    donut.line_to(Point::new(inner_rect.x1, inner_rect.y0));
+                                    donut.line_to(Point::new(inner_rect.x1, inner_rect.y1));
+                                    donut.line_to(Point::new(inner_rect.x0, inner_rect.y1));
+                                    donut.close_path();
 
-                                let _ = piet_context.save();
-                                piet_context.clip(donut);
-                                piet_context.draw_image(
-                                    &bitmap.0.lock().unwrap().0,
-                                    rect,
-                                    InterpolationMode::Bilinear,
-                                );
-                                let _ = piet_context.restore();
+                                    let _ = piet_context.save();
+                                    piet_context.clip(donut);
+                                    piet_context.draw_image(
+                                        &bitmap.0.lock().unwrap().0,
+                                        rect,
+                                        InterpolationMode::Bilinear,
+                                    );
+                                    let _ = piet_context.restore();
 
+                                    // scale
+                                    let _ = piet_context.save();
+                                    piet_context.transform(Affine::scale(
+                                        bitmap_size as f64 / REFERENCE_SIZE as f64,
+                                    ));
+
+                                    // redraw paths only in bounding box of updated path
+                                    piet_context.clip(updated_path_bounding_box);
+                                    for (_trip_id, color, _text_color, path) in &all_trip_paths_combined
+                                    {
+                                        piet_context.stroke(path, color, path_width);
+                                    }
+                                    let _ = piet_context.restore();
+                                }
+                            } else {
+                                myprint!("draw entirely new bitmap");
                                 // scale
                                 let _ = piet_context.save();
                                 piet_context.transform(Affine::scale(
                                     bitmap_size as f64 / REFERENCE_SIZE as f64,
                                 ));
-
-                                // redraw paths only in bounding box of updated path
-                                piet_context.clip(updated_path_bounding_box);
-                                for (_trip_id, color, _text_color, path) in &all_trip_paths_combined
-                                {
+                                for (_trip_id, color, _text_color, path) in &all_trip_paths_combined {
                                     piet_context.stroke(path, color, path_width);
                                 }
                                 let _ = piet_context.restore();
                             }
-                        } else {
-                            myprint!("draw entirely new bitmap");
-                            // scale
-                            let _ = piet_context.save();
-                            piet_context.transform(Affine::scale(
-                                bitmap_size as f64 / REFERENCE_SIZE as f64,
-                            ));
-                            for (_trip_id, color, _text_color, path) in &all_trip_paths_combined {
-                                piet_context.stroke(path, color, path_width);
-                            }
-                            let _ = piet_context.restore();
+
+                            piet_context.finish().unwrap();
                         }
 
-                        piet_context.finish().unwrap();
                         let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
                         myprint!("finish drawing image: {}", zoom_level.to_usize());
                         (image_buf, zoom_level)
@@ -1376,27 +1382,29 @@ impl Widget<AppData> for MapWidget {
                         let mut device = Device::new().unwrap();
                         let mut target =
                             device.bitmap_target(bitmap_size, bitmap_size, 1.).unwrap();
-                        let mut piet_context = target.render_context();
+                        {
+                            let mut piet_context = target.render_context();
 
-                        // scale
-                        let _ = piet_context.save();
-                        piet_context
-                            .transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
-                        let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
-                        let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
-                        let s_circle = path_width * SMALL_CIRCLE_MULT;
-                        // for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
-                        //     ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
-                        //     ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
-                        // }
-                        for point in stop_circles {
-                            piet_context.fill(Circle::new(point, s_circle_bb), &Color::BLACK);
-                            piet_context.fill(Circle::new(point, s_circle), &Color::WHITE);
+                            // scale
+                            let _ = piet_context.save();
+                            piet_context
+                                .transform(Affine::scale(bitmap_size as f64 / REFERENCE_SIZE as f64));
+                            let path_width = zoom_level.path_width(REFERENCE_SIZE as f64);
+                            let s_circle_bb = path_width * SMALL_CIRCLE_BLACK_BACKGROUND_MULT;
+                            let s_circle = path_width * SMALL_CIRCLE_MULT;
+                            // for (point, stop) in self.stop_circles.iter().zip(data.stops.iter()) {
+                            //     ctx.fill(Circle::new(*point, s_circle_bb), &Color::BLACK);
+                            //     ctx.fill(Circle::new(*point, s_circle), &Color::WHITE);
+                            // }
+                            for point in stop_circles {
+                                piet_context.fill(Circle::new(point, s_circle_bb), &Color::BLACK);
+                                piet_context.fill(Circle::new(point, s_circle), &Color::WHITE);
+                            }
+
+                            let _ = piet_context.restore();
+
+                            piet_context.finish().unwrap();
                         }
-
-                        let _ = piet_context.restore();
-
-                        piet_context.finish().unwrap();
                         let image_buf = target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
                         myprint!("finish drawing stops image: {}", zoom_level.to_usize());
                         (image_buf, zoom_level)
